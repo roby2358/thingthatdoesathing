@@ -7,7 +7,7 @@
 -- `just d1-local` and `just d1-production` apply this file, and test/R-68 applies it to its own
 -- database. Every statement is safe to run again. There is no migration history: a change to a
 -- table that exists is made by hand, and said to the designer. A local database made before a
--- table changed is recreated instead: delete .wrangler/state/v3/d1, then run just d1-local. No
+-- table changed is recreated instead with just local-d1-clear (deletes .wrangler/state/v3/d1). No
 -- foreign keys: a game's events, milestones and crashes are kept whether or not its games row arrived.
 
 -- One row per game, from the first batch that carries its game record (the browser resends the

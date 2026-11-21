@@ -36,6 +36,12 @@ dev-worker: ship _wrangler _worker-deps
 d1-local: _wrangler
     WRANGLER={{wrangler}} bash tools/telemetry_db.sh local wrangler.jsonc worker/telemetry_schema.sql
 
+# Delete .wrangler/state/v3/d1, then make the empty tables again. Local only; stop dev-worker first.
+# Empty wrangler dev's local telemetry database, and recreate an outdated one (D-64)
+local-d1-clear: _wrangler
+    rm -rf .wrangler/state/v3/d1
+    WRANGLER={{wrangler}} bash tools/telemetry_db.sh local wrangler.jsonc worker/telemetry_schema.sql
+
 # The telemetry report (D-66): plain-text tables of what players do, for tuning, from production's
 # database (refused while wrangler.jsonc holds the placeholder id); a number limits it to games
 # started in that many days. Reads only. `just telemetry-local` reads wrangler dev's database.

@@ -147,8 +147,9 @@ Locally, telemetry goes to a D1 database in `.wrangler/`: `just d1-local` once (
 again) gives it its tables, then `just dev-worker` serves the build with the Worker at
 http://localhost:8787, and `../yuwakisacloud/node_modules/.bin/wrangler d1 execute ttdat-telemetry
 --local --command "SELECT * FROM games"` shows what arrived. Rerunning `just d1-local` never changes
-a table that already exists: a local database made before a table changed is recreated (delete
-`.wrangler/state/v3/d1`, then `just d1-local`). Production's database is made
+a table that already exists: `just local-d1-clear` empties the local database (it deletes
+`.wrangler/state/v3/d1` and makes the tables again), which also recreates one made before a table
+changed; stop `just dev-worker` first. Production's database is made
 once with `just d1-production` (step 3 above).
 
 `just telemetry-report` prints what players do as plain-text tables, for tuning: games per day,

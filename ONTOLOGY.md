@@ -879,8 +879,8 @@ so a cross-origin page sees them and backs off.
 - `milestones` — PK (`game_key`, `milestone`), `INSERT OR IGNORE`; the snapshot and the four
   `delivered_<color>` columns; `rest` (JSON of fields without a column) is NULL, as none is left.
 - A table that already exists isn't altered by rerunning the schema (`CREATE TABLE IF NOT EXISTS`);
-  a local database made before a table changed is recreated: delete `.wrangler/state/v3/d1`, then
-  `just d1-local`.
+  a local database made before a table changed is recreated with `just local-d1-clear` (deletes
+  `.wrangler/state/v3/d1`, then applies the schema as `just d1-local` does).
 - `crashes` — `id` autoincrement, plain INSERT; `format`, `version`, `game_key`, `seed`, `size`, `turn`,
   `message`, `stack`, `user_agent`.
 - Every row carries `player_id` and `signed_in`; no foreign keys; no IP column. Indexes: games by
