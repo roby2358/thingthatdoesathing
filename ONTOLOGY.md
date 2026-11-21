@@ -721,7 +721,7 @@ boot (GameUI.start, after the input is wired):
 
 ---
 
-## §8 Telemetry [D; D-64, D-65, D-66]
+## §8 Telemetry [D; D-64, D-65, D-66, D-70]
 *Serves:* tuning §6 from real play (how far games get, how fast, what players build), and bugs
 players never report. Two halves, and a report: the browser recorder (`telemetry.js`, `GameTelemetry`, D-65),
 which makes the records and sends them in batches, and the server side (D-64): the ttdat
@@ -759,6 +759,9 @@ flush(via):                                    # also when the timer fires (TELE
   batch ← { format, player, games: [game], events, milestones }; empty the queue
   via 'fetch': fetch(endpoint, POST, keepalive, credentials omit); via 'beacon': navigator.sendBeacon
   any failure: dropped, never retried, never shown, never thrown into the game
+  a fetch answered 429 or 403 (D-70): back off for TELEMETRY_BACKOFF_MS: the queue dropped, and until
+    then command() records nothing, flush() drops what it has and sends nothing, no timer starts
+    (sendBeacon can't see its answer)
 
 switchIdentity(token?):  flush('fetch') under the current player, then player ← a fresh random UUID
                    (none before the first game, which makes its own), token ← the sign-in's access
@@ -812,6 +815,10 @@ One JSON object, sent as `text/plain` (no CORS preflight; `sendBeacon` can carry
 fetch(request):
   POST /auth/token → the sign-in's code exchange (Sign-in section)
   path ≠ '/t' or method ≠ POST → 404        # the static assets serve every file before this
+  Origin header set and not in TELEMETRY_ORIGINS (nor env.TELEMETRY_DEV_ORIGINS, wrangler dev's
+    http://localhost:8787) → 403, nothing written                       # D-70; no Origin goes on
+  TELEMETRY_LIMIT.limit({key: CF-Connecting-IP}) says no → 429, nothing written, body never read
+    # D-70: TELEMETRY_RATE_LIMIT, 1000 per 10 s per IP; no binding or a throwing limiter → let through
   body > MAX_BODY_BYTES → 400
   not a JSON object → 400
   format missing, not a number, or not in KNOWN_FORMATS → 204, nothing written, console.error with no body
@@ -823,8 +830,11 @@ fetch(request):
          a failed write is console.error'd and dropped
 ```
 A crash's `message` and `stack` are cut to `CRASH_MESSAGE_CHARS` / `CRASH_STACK_CHARS`, not
-refused; its `format` defaults to the batch's. Nothing reads, logs or stores the request's IP
-or any header but its length; Cloudflare observability is off.
+refused; its `format` defaults to the batch's. The request's IP (`CF-Connecting-IP`) is read only
+as the rate limiter's key (D-70): never written to D1, logged or echoed back, and the limiter's
+counters are Cloudflare's, short-lived and in memory. No other header is read but Origin and
+`Content-Length`; Cloudflare observability is off. 403 and 429 carry `Access-Control-Allow-Origin: *`
+so a cross-origin page sees them and backs off.
 
 ### Database — D1 `ttdat-telemetry`, bound as `TELEMETRY` (worker/telemetry_schema.sql)
 - `games` — PK `game_key`; `player_id`, `signed_in` (of the batch that first inserted it), `format`,
@@ -883,6 +893,9 @@ Sections, in order (a table with no rows prints `(none)`):
 | `TELEMETRY_FLUSH_MS` | 30000 | ms the recorder waits before sending what it has queued (`GameDisplayArtifacts`, D-65) |
 | `TELEMETRY_FLUSH_RECORDS` | 50 | queued records that send at once, before the timer (D-65) |
 | `TELEMETRY_ENDPOINT` | https://ttdat.yuwakisa.com/t | where batches go from anywhere but localhost (D-65) |
+| `TELEMETRY_RATE_LIMIT` | 1000 per 10 s | `POST /t` requests per `CF-Connecting-IP` before 429: about 100 a second, a flood tripwire (worker/telemetry.js, enforced by wrangler.jsonc's `TELEMETRY_LIMIT` binding in both environments; the period must be 10 or 60, D-70) |
+| `TELEMETRY_ORIGINS` | ttdat.yuwakisa.com, html-classic.itch.zone, uploads.ungrounded.net (https) | the Origins a browser may post from; others 403 (worker/telemetry.js; wrangler dev adds http://localhost:8787 by `TELEMETRY_DEV_ORIGINS`, D-70) |
+| `TELEMETRY_BACKOFF_MS` | 300000 | after a 429 or 403 the recorder records and sends nothing for this long (`GameDisplayArtifacts`, D-70) |
 | `RULES_VERSION` | 1 | `GameArtifacts`: the rules a game ran under, on its game record. Bumped by hand, by one, in the same change as any rule change or any change to a Numbers-table value play depends on (D-65) |
 
 ---

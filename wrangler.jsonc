@@ -1,8 +1,8 @@
 // Thing Factory on Cloudflare: the ttdat Worker. Its static assets (the ship build) serve
 // every file; worker/index.js (plain JS, bundled by wrangler with the vendored auth-client and its
 // cbor-x from worker/node_modules, `just worker-deps`) gets only the requests that match none, and
-// answers POST /t (telemetry batches into D1, D-64), POST /auth/token (the sign-in's code exchange,
-// D-68) and 404 to anything else.
+// answers POST /t (telemetry batches into D1, D-64, rate-limited and Origin-checked, D-70),
+// POST /auth/token (the sign-in's code exchange, D-68) and 404 to anything else.
 // `just deploy` runs `just ship` first, so ./dist/web is the current commit's files.
 {
   "name": "ttdat",
@@ -24,7 +24,16 @@
   // service binding (a public same-zone fetch returned an edge 522 for jsonsolver). Locally auth/
   // runs on :8788 under yuwakisacloud's `cd auth && just dev-up`, and wrangler dev finds it by name.
   "services": [{ "binding": "AUTH_SERVICE", "service": "auth" }],
+
+  // POST /t's rate limit (D-70): per CF-Connecting-IP, 1000 requests per 10 s (about 100 a
+  // second; the period must be 10 or 60). worker/telemetry.js's TELEMETRY_RATE_LIMIT restates the
+  // numbers. wrangler dev simulates it locally. namespace_id is any integer unused in the account.
+  "ratelimits": [
+    { "name": "TELEMETRY_LIMIT", "namespace_id": "2701", "simple": { "limit": 1000, "period": 10 } }
+  ],
   "vars": {
+    // wrangler dev's page may post telemetry from its own origin (D-70); production has no such var.
+    "TELEMETRY_DEV_ORIGINS": "http://localhost:8787",
     "AUTH_ISSUER": "http://localhost:8788",
     // The ttdat client row in the local auth/ D1 (README "Deploy" has its seed SQL); the token
     // `aud` the Worker pins. GameDisplayArtifacts.SIGNIN_SITES holds the same id for the browser.
@@ -48,6 +57,9 @@
         { "binding": "TELEMETRY", "database_name": "ttdat-telemetry", "database_id": "PUT-THE-DATABASE-ID-HERE" }
       ],
       "services": [{ "binding": "AUTH_SERVICE", "service": "auth" }],
+      "ratelimits": [
+        { "name": "TELEMETRY_LIMIT", "namespace_id": "2701", "simple": { "limit": 1000, "period": 10 } }
+      ],
       "vars": {
         "AUTH_ISSUER": "https://auth.yuwakisa.com",
         // The ttdat client row in production auth/ (README "Deploy"), as in SIGNIN_SITES

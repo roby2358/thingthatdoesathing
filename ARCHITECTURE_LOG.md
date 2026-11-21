@@ -2,6 +2,9 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-21 — POST /t rate limit and Origin allow-list (D-70)
+Before, `POST /t` took any request: any website could post from its visitors' browsers, and a loop could flood D1; the Worker read no header but the body's length. Now `worker/telemetry.js` checks two things before reading the body: an Origin header not in the new `TELEMETRY_ORIGINS` (the live site, https://html-classic.itch.zone, https://uploads.ungrounded.net; plus wrangler dev's `TELEMETRY_DEV_ORIGINS` var, http://localhost:8787) gets 403, and the new Workers Rate Limiting binding `TELEMETRY_LIMIT` (wrangler.jsonc `ratelimits`, top level and env.production, 1000 per 10 s, restated as `TELEMETRY_RATE_LIMIT`), keyed by `CF-Connecting-IP`, answers 429 over the limit; neither writes anything, and the IP is only the limiter's key. The browser recorder backs off on a 429 or 403: the queue dropped and nothing recorded or sent for the new `GameDisplayArtifacts.TELEMETRY_BACKOFF_MS` (300000). New R-77, U-39; ONTOLOGY's Recorder, Endpoint and Numbers, README's Telemetry paragraph, SHIP.md PRIV-5 and CLAUDE.md follow.
+
 ### 2026-11-21 — R-76 waits for the redirect, not 10 turns
 Before, R-76's browser test checked the sign-in redirects after a fixed 10 event-loop turns, which the real WebCrypto digest in `GameSignIn.begin()` sometimes outran under the full suite ("redirects once" failed, then `new URL(undefined)` threw). Now the three redirect checks wait with `until()`: poll every 5 ms until `assigned` has the redirect (5 s cap, failing with "timed out … waiting for the sign-in redirect"), then the 10 turns to catch a second one; the successful return waits until the bar shows the handle. The other checks keep the fixed wait: nothing starts there, or (a failed return) only the stub fetch's promises, with no WebCrypto work. Same checks as before; signin.js unchanged.
 

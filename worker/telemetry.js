@@ -19,9 +19,25 @@
 // with the salted hash of its `sub` and signed_in 1; any other batch (no token, a bad or expired
 // one, sign-in not configured) with its random `player` and signed_in 0. A batch is never refused
 // over its token, and the token is checked inside the ctx.waitUntil write, so the reply never
-// waits on it either. The token is never logged or stored. Nothing here reads, logs or stores the
-// request's IP or any other header but the body's length. The tables are in
+// waits on it either. The token is never logged or stored. The tables are in
 // telemetry_schema.sql. Plain JavaScript, no build.
+//
+// Two guards run before the body is read (D-70):
+//   - Origin allow-list: a request whose Origin header is set and isn't in TELEMETRY_ORIGINS (or
+//     env.TELEMETRY_DEV_ORIGINS, a comma-separated var only wrangler dev's config sets) gets 403
+//     and writes nothing. It only stops other websites posting from their visitors' browsers: a
+//     request with no Origin (curl, some sendBeacons) goes on, and Origin is forged at will
+//     outside a browser.
+//   - Rate limit: the TELEMETRY_LIMIT binding (a Workers Rate Limiting binding, wrangler.jsonc's
+//     `ratelimits`), keyed by the request's CF-Connecting-IP, allows TELEMETRY_RATE_LIMIT.limit
+//     requests per TELEMETRY_RATE_LIMIT.period seconds: 1000 per 10 s, about 100 a second. A
+//     tripwire for floods, not a budget: a player sends about 2 batches a minute, and a school's
+//     worth of players behind one IP never comes near it. Over it: 429, nothing written. The IP is
+//     only the limiter's key: never written to D1, logged or echoed back; the counters are
+//     Cloudflare's, short-lived and in memory. No binding (the Node tests' plain env) or a
+//     limiter that throws lets the request through: the limiter is a precaution, never a reason
+//     to lose data.
+// Nothing else here reads the request's IP or any header but Origin and the body's length.
 
 import { identityFor } from './auth.js';
 
@@ -34,6 +50,13 @@ export const KNOWN_COMMANDS = ['place', 'rotate', 'remove', 'blast', 'move', 'sc
 export const CRASH_MESSAGE_CHARS = 500;     // a crash's message and stack are cut, not refused
 export const CRASH_STACK_CHARS = 2000;
 
+/** The pages allowed to post from a browser: the live site and the itch.io and Newgrounds
+ *  builds' frames (D-70). wrangler dev adds http://localhost:8787 through TELEMETRY_DEV_ORIGINS. */
+export const TELEMETRY_ORIGINS = ['https://ttdat.yuwakisa.com', 'https://html-classic.itch.zone', 'https://uploads.ungrounded.net'];
+/** The TELEMETRY_LIMIT binding's numbers, restated here for the docs and R-77, which checks they
+ *  match wrangler.jsonc's `ratelimits` in both environments (the binding is what enforces them). */
+export const TELEMETRY_RATE_LIMIT = { limit: 1000, period: 10 };
+
 const CORS = { 'Access-Control-Allow-Origin': '*' };
 
 /** A batch that fails its checks: `where` names the field, never its value. */
@@ -44,6 +67,8 @@ class BadBatch extends Error {
 /** POST /t: one batch, answered 204 (written, or dropped for its format) or 400 (written nowhere).
  *  `verify` checks a sign-in token (the auth-client's verifyAccessToken; worker/index.js passes it). */
 export async function telemetry(request, env, ctx, verify) {
+    if (!originAllowed(request.headers.get('Origin'), env)) return new Response(null, { status: 403, headers: CORS });
+    if (!(await underLimit(request, env))) return new Response(null, { status: 429, headers: CORS });
     const length = Number(request.headers.get('Content-Length'));
     if (length > MAX_BODY_BYTES) return refuse('body too big');
     const text = await request.text();
@@ -65,6 +90,26 @@ export async function telemetry(request, env, ctx, verify) {
     if (rowCount(rows) > 0) ctx.waitUntil(identityFor(batch.token, env, verify, Math.floor(Date.now() / 1000)).then(signedIn =>
         write(env.TELEMETRY, statementsFor(env.TELEMETRY, signedIn ? { ...rows, identity: signedIn } : rows))));
     return new Response(null, { status: 204, headers: CORS });
+}
+
+/** No Origin header, or one on the list. */
+function originAllowed(origin, env) {
+    if (origin === null) return true;
+    const dev = typeof env.TELEMETRY_DEV_ORIGINS === 'string' ? env.TELEMETRY_DEV_ORIGINS.split(',').map(s => s.trim()) : [];
+    return TELEMETRY_ORIGINS.includes(origin) || dev.includes(origin);
+}
+
+/** The rate limiter's verdict for this request's IP; true without a binding or when it fails. */
+async function underLimit(request, env) {
+    const limiter = env.TELEMETRY_LIMIT;
+    if (!limiter) return true;
+    try {
+        const { success } = await limiter.limit({ key: request.headers.get('CF-Connecting-IP') || 'no-ip' });
+        return success !== false;
+    } catch (e) {
+        console.error('telemetry rate limiter failed; let through');
+        return true;
+    }
 }
 
 function refuse(where) {

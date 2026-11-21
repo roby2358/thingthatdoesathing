@@ -11,7 +11,9 @@
 // listener, so a page left on the intro sends nothing. A game is recorded only from a ship build
 // (<html data-version> set) served over http: or https:, and never when the browser's Global
 // Privacy Control is on. A send that fails is dropped: never retried, never shown, never thrown
-// into the game (try/catch around everything).
+// into the game (try/catch around everything). A 429 (rate limit) or 403 (Origin not allowed)
+// answer to a fetch drops what is queued and turns the recorder off for TELEMETRY_BACKOFF_MS:
+// records made meanwhile are dropped, not queued (D-70). sendBeacon can't see its answer.
 //
 // Identity is per batch: `player` is a random ID for this page load, made with its first game
 // (so a page with no game makes nothing) and kept only in memory; while signed in (D-68) each
@@ -19,7 +21,7 @@
 // the account instead. switchIdentity() sends what is queued under the old one first, so a batch
 // never mixes two.
 const GameTelemetry = (function () {
-    const { TELEMETRY_FORMAT, TELEMETRY_ENDPOINT, TELEMETRY_FLUSH_MS, TELEMETRY_FLUSH_RECORDS } = GameDisplayArtifacts;
+    const { TELEMETRY_FORMAT, TELEMETRY_ENDPOINT, TELEMETRY_FLUSH_MS, TELEMETRY_FLUSH_RECORDS, TELEMETRY_BACKOFF_MS } = GameDisplayArtifacts;
     const { RULES_VERSION } = GameArtifacts;
     // The commands worth a record. wait (Go is a stream of them) and rotate (free, no tick) are
     // left out; a milestone a wait reaches still gets its own record.
@@ -33,6 +35,7 @@ const GameTelemetry = (function () {
     let milestones = [];
     let timer = null;
     let listening = false;
+    let quietUntil = 0;        // Date.now() before which nothing is recorded or sent (D-70)
 
     // A random UUID: crypto.randomUUID where the page is a secure context, else a v4 UUID built
     // from crypto.getRandomValues (a plain http page, where randomUUID is missing).
@@ -46,6 +49,16 @@ const GameTelemetry = (function () {
     }
 
     const unixSeconds = () => Math.floor(Date.now() / 1000);
+    const quiet = () => Date.now() < quietUntil;
+
+    // The Worker said 429 or 403: drop the queue and keep quiet for TELEMETRY_BACKOFF_MS.
+    function backOff() {
+        quietUntil = Date.now() + TELEMETRY_BACKOFF_MS;
+        events = [];
+        milestones = [];
+        clearTimeout(timer);
+        timer = null;
+    }
 
     // A ship build over http(s), with no Global Privacy Control; dev, file:// and GPC record nothing.
     function allowed() {
@@ -86,16 +99,19 @@ const GameTelemetry = (function () {
         if (!b) return;
         events = [];
         milestones = [];
+        if (quiet()) return;           // backing off: the queue is dropped
         gameUnsent = false;
         try {
             const body = JSON.stringify(b);
             if (via === 'beacon') navigator.sendBeacon(endpoint(), body);
-            else fetch(endpoint(), { method: 'POST', body, keepalive: true, credentials: 'omit' }).catch(() => {});
+            else fetch(endpoint(), { method: 'POST', body, keepalive: true, credentials: 'omit' })
+                .then(res => { if (res.status === 429 || res.status === 403) backOff(); })
+                .catch(() => {});
         } catch (e) { /* dropped */ }
     }
 
     function schedule() {
-        if (timer === null && batch()) timer = setTimeout(() => guarded(() => flush('fetch')), TELEMETRY_FLUSH_MS);
+        if (timer === null && !quiet() && batch()) timer = setTimeout(() => guarded(() => flush('fetch')), TELEMETRY_FLUSH_MS);
     }
 
     function guarded(fn) {
@@ -137,7 +153,7 @@ const GameTelemetry = (function () {
         // (accepted or not); every milestone in the tick's events gets a milestone record.
         command(command, args, res, state) {
             guarded(() => {
-                if (!game) return;
+                if (!game || quiet()) return;
                 const now = unixSeconds(), snap = snapshot(state), gameKey = game.gameKey;
                 if (RECORDED.has(command)) events.push({ gameKey, unixSeconds: now, command, accepted: res.ok, ...snap, args });
                 if (res.ok) for (const e of res.events)

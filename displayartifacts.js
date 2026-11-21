@@ -187,6 +187,9 @@ const GameDisplayArtifacts = (function () {
         TELEMETRY_ENDPOINT: 'https://ttdat.yuwakisa.com/t',
         TELEMETRY_FLUSH_MS: 30000,
         TELEMETRY_FLUSH_RECORDS: 50,
+        // After the Worker answers 429 (rate limit) or 403 (Origin not allowed), the recorder drops
+        // that batch and records and sends nothing for this long (D-70).
+        TELEMETRY_BACKOFF_MS: 300000,
         // The unlisted screencap key (P, D-58): beside the window-sized shot, one PNG per entry,
         // same center and zoom as the screen; the name goes in the file name.
         CAPTURE_SIZES: [

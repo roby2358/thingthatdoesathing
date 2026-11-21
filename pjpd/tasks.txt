@@ -1,28 +1,3 @@
-Priority:   60
-Status: ToDo
-ID: ratelimit-27qf
-Created: 2026-11-21T08:29:12Z
-Updated: 2026-11-21T08:48:54Z
-
-Rate-limit the telemetry endpoint. `POST /t` takes data from any browser, and from any script that copies what a browser sends, so a loop could flood the D1 database. Build on the telemetry task (the ttdat Worker and `POST /t`), which comes first.
-
-Settled design:
-- Use a Workers Rate Limiting binding, `TELEMETRY_LIMIT`, in wrangler.jsonc's top-level `ratelimits` (wrangler 4.90 supports it): `{ "name": "TELEMETRY_LIMIT", "namespace_id": "<any unused integer>", "simple": { "limit": 1000, "period": 10 } }`. Bindings don't inherit, so restate it in env.production.
-- The key is the request's `CF-Connecting-IP`. The limit is 100 a second, as 1000 per 10 s (the binding's period must be 10 or 60). It is a precaution, not a budget: a normal player sends about 2 batches a minute, and even many players behind one shared IP (a school, an office) never come near it. Only a deliberate flood trips it. Keep the numbers in one place in the worker's comment and in ONTOLOGY.
-- Over the limit: answer 429 and write nothing.
-- The IP is used only as the limiter's key: never written to D1, never logged, never echoed back. The limiter's counters are Cloudflare's, short-lived and in memory, so the privacy page's "no IP addresses kept" stays true. Say this in the RATIONALE entry.
-- The limiter runs before the body is parsed. The telemetry task's shape and size checks still apply after it.
-- An Origin allow-list (a `TELEMETRY_ORIGINS` constant in the worker) stops other websites posting from their visitors' browsers. A request with an Origin header not on the list gets 403 and nothing is written.
-  - On the list: https://ttdat.yuwakisa.com, plus the origins the itch.io and Newgrounds builds post from (itch: https://html-classic.itch.zone; Newgrounds: https://uploads.ungrounded.net).
-  - Under wrangler dev, also allow http://localhost:8787 (set by a var in wrangler.jsonc's top-level vars, not in env.production).
-  - Confirm both portal origins from a real upload's request when the designer next uploads, and note them in SHIP.md.
-  - A request with no Origin header (sendBeacon from some browsers, or curl) goes on to the rate limiter. Origin is trivially forged outside a browser, so the limiter is the real guard; the list only stops drive-by posting from other sites.
-- Browser side (telemetry.js): on a 429 or 403, drop the batch and send nothing more for 5 minutes (`TELEMETRY_BACKOFF_MS`). Events made meanwhile are dropped, not queued.
-- Under wrangler dev, the binding is simulated locally; that is enough for the manual check.
-- Docs: an ONTOLOGY telemetry-endpoint note (the limit and the backoff numbers, and the IP as an unstored key), a RATIONALE D-n (why per IP, why 100 a second (a tripwire for floods that normal play, shared IPs included, never reaches), why not Turnstile or a per-game cap: no friction for players, and the volume is tiny), a CRITERIA R-row owning test/R-n/ (the worker with a stub limiter: allowed → written; limited → 429, nothing written; a foreign Origin → 403; no Origin → allowed; the IP never reaches a D1 bind or console), an ARCHITECTURE_LOG entry, and CLAUDE.md.
-
-Done when: just cc-test passes with the new R-row tests, and under wrangler dev a parallel burst of about 1200 POSTs within 10 s gets 429 for roughly the excess, with only the allowed batches in the local D1. If the local simulation doesn't enforce the limit, note that in the U-row and rely on the stub tests.
-----
 Priority:   55
 Status: ToDo
 ID: crashreport-zj3f

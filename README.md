@@ -138,7 +138,9 @@ the Worker stamps those rows with a salted hash of the account instead (`signed_
 dev page, not `file://`), a browser with Global Privacy Control on sends nothing, and a send
 that fails is dropped silently. The Worker checks each batch and writes it to the
 `ttdat-telemetry` D1 database (tables `games`, `events`, `milestones`, `crashes`;
-`worker/telemetry_schema.sql`), never reading or storing an IP. The About panel's privacy page
+`worker/telemetry_schema.sql`), never storing or logging an IP (it is read only as the key of a
+rate limit, 1000 requests per 10 s per IP, and requests from other websites' pages are refused;
+a browser told 429 or 403 sends nothing for 5 minutes). The About panel's privacy page
 says this to players. CLAUDE.md (`telemetry.js`, `worker/`) has the details.
 
 Locally, telemetry goes to a D1 database in `.wrangler/`: `just d1-local` once (safe to run
