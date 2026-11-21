@@ -2,6 +2,13 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-21 — Help's World page (D-61)
+Help has a third page after Things, World ("3 / 3"): one plain row each for crates, big crates,
+gremlins, ice and Slides, open water and milestones, every number filled from GameArtifacts at
+runtime (`WORLD_LOOK` in displayartifacts.js, `worldNumbers()` in gameui.js). A `uiboot.js` run
+checks the numbers against the rules data; the pager run pages to World. U-24 updated; SHIP.md
+ONB-4 done.
+
 ### 2026-11-21 — Help is a pager with a Things page (D-60)
 Help was one page of keys. It now pages like About (`<` `>`, ← →, "1 / 2"), through one
 `Pager` class that About uses too (About's own `showAboutPage`/`aboutKey`/`onAboutClick`

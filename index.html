@@ -68,7 +68,7 @@
         <button id="intro-about" class="link" type="button">About</button>
     </div>
     <!-- Help (D-60): a pager like About (D-59), opening on Keys; then Things, one row per card,
-    built from the hand's drawing and hover text. A click on a button keeps it open; any other
+    built from the hand's drawing and hover text; then World (D-61), its numbers from the rules data. A click on a button keeps it open; any other
     click or key closes it, ← → turn the pages. -->
     <div id="help-panel" class="hidden">
         <div class="panel help-card">
@@ -103,9 +103,13 @@
                 <h1>Things</h1>
                 <div id="help-things" class="things"></div>
             </div>
+            <div id="help-page-2" class="hidden">
+                <h1>World</h1>
+                <div id="help-world" class="things"></div>
+            </div>
             <div class="pager-nav">
                 <button id="help-prev" class="btn" type="button" title="Previous page (←)">&lt;</button>
-                <span id="help-count" class="pager-count">1 / 2</span>
+                <span id="help-count" class="pager-count">1 / 3</span>
                 <button id="help-next" class="btn" type="button" title="Next page (→)">&gt;</button>
             </div>
             <p class="continue">Click or press any key to play</p>

@@ -218,6 +218,8 @@ html, body {
 .things { display: grid; gap: 6px; text-align: left; font-size: 13px; color: var(--text-dim); margin: 0 auto 4px; }
 .thing-row { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
 .thing-row .name { color: var(--text); font-weight: 600; margin-right: 6px; }
+/* Help's World page (D-61): the same rows, without a tile. */
+.world-row { grid-template-columns: 1fr; }
 /* About (D-59): credits and privacy, two pages flipped by < >. Links, the buttons and the
    version/seed text don't close it; the version and seed can be selected for bug reports. */
 .about-card { width: min(480px, calc(100vw - 32px)); cursor: default; }

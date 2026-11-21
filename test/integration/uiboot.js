@@ -516,23 +516,27 @@ run('Help shows the keys and holds Go; closing it lets Go pick up again', () => 
     if (s.turn === held || !ui.running) throw new Error('Go did not pick up after Help closed');
     els.go.fire('click'); settle();
 });
-run('Help is a pager (D-60): opens on Keys, → Things (one row per card, its hover text) and ← back, a button click stays, any other key closes, Go picks up again', () => {
+run('Help is a pager (D-60, D-61): opens on Keys, → Things (one row per card, its hover text), → World, → at the end stays, ← back, a button click stays, any other key closes, Go picks up again', () => {
     els['new-game'].fire('click'); key('1');
     const s = ui.state;
     const shown = id => !els[id].classList.set.has('hidden');
-    const page = () => [0, 1].filter(i => shown('help-page-' + i)).join();
+    const page = () => [0, 1, 2].filter(i => shown('help-page-' + i)).join();
     els.go.fire('click');
     advance(1000);
     els.help.fire('click');
     if (ui.overlay !== 'help' || page() !== '0' || !els['help-prev'].disabled || els['help-next'].disabled) throw new Error('Help must open on Keys, got ' + page());
-    if (els['help-count'].textContent !== '1 / 2') throw new Error('page count: ' + els['help-count'].textContent);
+    if (els['help-count'].textContent !== '1 / 3') throw new Error('page count: ' + els['help-count'].textContent);
     settle(); advance(500);
     const held = s.turn;
     key('ArrowRight');
-    if (ui.overlay !== 'help' || page() !== '1' || els['help-prev'].disabled || !els['help-next'].disabled) throw new Error('→ must turn to Things');
-    if (els['help-count'].textContent !== '2 / 2') throw new Error('page count: ' + els['help-count'].textContent);
+    if (ui.overlay !== 'help' || page() !== '1' || els['help-prev'].disabled || els['help-next'].disabled) throw new Error('→ must turn to Things');
+    if (els['help-count'].textContent !== '2 / 3') throw new Error('page count: ' + els['help-count'].textContent);
     key('ArrowRight');
-    if (page() !== '1') throw new Error('→ on the last page must stay put');
+    if (ui.overlay !== 'help' || page() !== '2' || els['help-prev'].disabled || !els['help-next'].disabled) throw new Error('→ twice must reach World');
+    if (els['help-count'].textContent !== '3 / 3') throw new Error('page count: ' + els['help-count'].textContent);
+    key('ArrowRight');
+    if (page() !== '2' || els['help-count'].textContent !== '3 / 3') throw new Error('→ on the last page must stay put');
+    key('ArrowLeft');
     const cards = vm.runInContext('GameArtifacts.CARDS', ctx);
     const looks = vm.runInContext('GameDisplayArtifacts.THING_LOOK', ctx);
     const rows = els['help-things'].children;
@@ -558,6 +562,33 @@ run('Help is a pager (D-60): opens on Keys, → Things (one row per card, its ho
     els.help.fire('click');
     if (page() !== '0') throw new Error('Help must reopen on Keys');
     key('Escape');
+});
+run('Help\'s World page (D-61): one row per part of the world; every number in each line is the rules data\'s, gremlins named only in the Gremlin row', () => {
+    const A = vm.runInContext('GameArtifacts', ctx);
+    const parts = vm.runInContext('GameDisplayArtifacts.WORLD_LOOK', ctx);
+    const shown = vm.runInContext('GameDisplayArtifacts.HELP_LADDER_SHOWN', ctx);
+    const ladder = [A.nextMilestone(0)];
+    while (ladder.length < shown) ladder.push(A.nextMilestone(ladder[ladder.length - 1]));
+    const EXPECT = {
+        CRATE: [],
+        BIG_CRATE: [A.PIECES.bigcrate.value],
+        GREMLIN: [],
+        SLICK: [A.MAX_SLIDE],
+        WATER: [],
+        MILESTONE: [...ladder, Math.max(...Object.values(A.MAP_SIZES).map(m => m.colors))],
+    };
+    const rows = els['help-world'].children;
+    check('World has one row per WORLD_LOOK entry', rows.length === parts.length);
+    parts.forEach((part, i) => {
+        const [text] = rows[i].children;
+        const [name, says] = text.children;
+        check(`World row ${i} is ${part.id}`, name.textContent === part.name);
+        check(`${part.id}'s expected numbers are listed in this test`, part.id in EXPECT);
+        const said = (says.textContent.match(/\d+/g) || []).map(Number);
+        check(`${part.id}: "${says.textContent}" says [${said}], rules say [${EXPECT[part.id]}]`, JSON.stringify(said) === JSON.stringify(EXPECT[part.id]));
+        check(`${part.id}: gremlins named only in the Gremlin row`, /gremlin/i.test(name.textContent + ' ' + says.textContent) === (part.id === 'GREMLIN'));
+    });
+    check('the milestone ladder starts 10, 20, 50, 100', ladder.slice(0, 4).join() === '10,20,50,100');
 });
 run('About opens over the game and holds Go; < > and the arrow keys turn its pages; links, buttons and the version stay; another key or a click closes (D-59)', () => {
     els['new-game'].fire('click'); key('1');

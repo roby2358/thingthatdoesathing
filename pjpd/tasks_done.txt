@@ -314,6 +314,22 @@ Thing Factory: unlock cards gradually. A new game draws only Belt, Bridge and Wa
 ----
 Priority:   54
 Status: Done
+ID: helpworld-jnkf
+Created: 2026-11-21T03:10:32Z
+Updated: 2026-11-21T03:23:04Z
+
+Add a World page to the Help pager: crates, big crates, gremlins, terrain and milestones, with numbers from the rules data.
+Thing Factory (plain <script> globals, read CLAUDE.md). The Help panel is a pager (Keys, Things) built on the pager helper shared with the About panel. Done looks like: a third page, World, after Things, with short plain lines (match the Things page's style), each number read from GameArtifacts at runtime, not typed in:
+- Crates come out of a source and go to the target of their own color; another color's target blocks them.
+- A big crate counts as BIG_CRATE value (10) delivered.
+- Gremlins: they wander, smash crates, and get caught in Traps. Say nothing else about gremlins (not targets, Rockets or Slides).
+- Ice and Slides: what comes onto them slides on, up to the slide cap (MAX_SLIDE); a piece standing on ice gets bumped along.
+- Open water sinks whatever goes in.
+- Milestones: the ladder (10, 20, 50, 100, ... from the rules data); each one unlocks new cards, and on bigger boards opens a new crate color with its own source and target.
+Check each statement against gameengine.js/artifacts.js and keep it true. Extend the uiboot Help test: → twice reaches World, the counter reads "3 / 3", → at the end does nothing. Add a test that the World page's numbers match the rules data. Reconcile docs in the same change: RATIONALE (extend the Help pager's D-entry or add one), ARCHITECTURE_LOG (dated), CLAUDE.md, README, SHIP.md ONB-4 to done. Don't mention the unlisted P key anywhere. Done when `just cc-test` passes.
+----
+Priority:   54
+Status: Done
 ID: reject-why-23qa
 Created: 2026-11-17T02:45:07Z
 Updated: 2026-11-17T19:22:32Z

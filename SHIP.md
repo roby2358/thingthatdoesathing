@@ -66,7 +66,7 @@ it needs the author: it gets no pjpd task.
 | MENU-5 | Continue vs New Game | T2 | missing | no save yet | save-resume-tbe3 |
 | SAVE-4 | Save format versioned | T2 | missing | no save yet | save-resume-tbe3 |
 | SAVE-8 | Seed saved with the run | T2 | missing | no save yet | save-resume-tbe3 |
-| ONB-4 | Rules reference on demand | T2 | partial | Help is a pager: Keys, then Things (every card's picture, name and hover line, numbers checked against the rules data, D-60); a World page (terrain, crates, gremlins, milestones) is still to come | rules-ref-6h66 |
+| ONB-4 | Rules reference on demand | T2 | done | Help is a pager: Keys, then Things (every card's picture, name and hover line, numbers checked against the rules data, D-60), then World (crates, big crates, gremlins, ice and Slides, open water, milestones, numbers from the rules data, D-61) | rules-ref-6h66 |
 | ONB-8 | A rejected action says why | T2 | partial | illegal clicks and keys are silent | reject-why-23qa |
 | INP-4 | Every action on screen | T2 | partial | D, B and R are keyboard-only | action-btns-pebc |
 | A11Y-2 | Color is never the only signal | T2 | partial | the four crate colors differ by color only | color-shapes-r5qq |
@@ -180,7 +180,7 @@ are T1 as well.
 | ONB-1 | First move unaided | T1 | unverified | | you |
 | ONB-2 | Goal stated | T1 | done | intro: get crates to the target, 10, 20, 50, 100…; nothing to lose | |
 | ONB-3 | Controls in game | T2 | done | the keys legend shows after the first pick and from Help | |
-| ONB-4 | Rules reference | T2 | partial | Things page done (D-60); World page to come | rules-ref-6h66 |
+| ONB-4 | Rules reference | T2 | done | Things page (D-60) and World page (D-61) | rules-ref-6h66 |
 | ONB-5 | Teach by doing | T2 | done | cards unlock one step per milestone (UNLOCKS, D-30) | |
 | ONB-6 | Inspectable | T2 | done | the hover bar names terrain, Thing and piece | |
 | ONB-7 | Consequences previewed | T2 | partial | | idea undo-preview-k9rq |

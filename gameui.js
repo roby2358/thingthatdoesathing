@@ -12,9 +12,9 @@ const GameUI = (function () {
         HEX_SIZE, COUNTER_SIZE, HOP_MS, RUN_GAP_MS, MILESTONE_MS, NOTICE_MS, REASONS, TERRAIN_COLORS, TERRAIN_NAMES, THING_LOOK,
         PIECE_LOOK, CRATE_SHADES, BIG_CRATE_SCALE, COLOR_INK, SPLAT_BLOTS, SOURCE_COLOR, PORT_NEUTRAL_MARK, PORT_OUTLINE,
         PORT_MARK_WIDTH, PORT_RING_RADII, PORT_PLUS_REACH, PORT_OUTLINE_WIDTH, BG_COLOR, UI_FONT, REACH_COLOR, MAP_SIZE_NOTES,
-        COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES, ABOUT, HELP_CARD_PX
+        COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES, ABOUT, HELP_CARD_PX, HELP_LADDER_SHOWN, WORLD_LOOK
     } = GameDisplayArtifacts;
-    const { TERRAIN, THINGS, WHITE, HAND_SIZE, MAP_SIZES, CARDS, aims, cardOf, nextMilestone } = GameArtifacts;
+    const { TERRAIN, THINGS, WHITE, HAND_SIZE, MAP_SIZES, CARDS, PIECES, MAX_SLIDE, aims, cardOf, nextMilestone } = GameArtifacts;
     const SIZE_KEYS = Object.keys(MAP_SIZES);
     // A splat burst's color, by piece kind: a gremlin's own color, a crate's side face.
     const SPLAT_COLOR = {
@@ -44,12 +44,24 @@ const GameUI = (function () {
         about: (ui, e) => ui.aboutPager.key(e),
     };
     // How many pages each paged overlay has (#help-page-0…, #about-page-0…). Help: Keys, Things
-    // (D-60; a World page joins as one more #help-page-n and a 3 here). About: credits, privacy (D-59).
-    const HELP_PAGES = 2;
+    // (D-60), World (D-61). About: credits, privacy (D-59).
+    const HELP_PAGES = 3;
     const ABOUT_PAGES = 2;
     // What a click on a paged overlay may land on without closing it: a link, the < > buttons,
     // selectable text (About's version and seed).
     const PAGER_STAYS = 'a, button, .selectable';
+    // The numbers Help's World page says (D-61), all from the rules data: a big crate's value,
+    // the slide cap, the first HELP_LADDER_SHOWN milestones, and the most crate colors a board opens.
+    function worldNumbers() {
+        const ladder = [nextMilestone(0)];
+        while (ladder.length < HELP_LADDER_SHOWN) ladder.push(nextMilestone(ladder[ladder.length - 1]));
+        return {
+            bigValue: PIECES.bigcrate.value,
+            maxSlide: MAX_SLIDE,
+            ladder,
+            colors: Math.max(...Object.values(MAP_SIZES).map(m => m.colors)),
+        };
+    }
     // The build's version, stamped on <html data-version> by tools/ship.js; "dev" unstamped.
     const gameVersion = () => document.documentElement.dataset.version || 'dev';
     // Every external link leaves the page (and a portal's frame) in a new tab.
@@ -522,7 +534,7 @@ const GameUI = (function () {
             if (fromIntro) this.openHelp();
         }
 
-        // Help (D-60): a pager over the game, always opening on Keys; then Things. Like every
+        // Help (D-60): a pager over the game, always opening on Keys; then Things, then World (D-61). Like every
         // overlay it holds Go; Go picks up again when it closes.
         showHelp() {
             if (this.overlay) return;
@@ -536,7 +548,8 @@ const GameUI = (function () {
 
         // Help's Things page (D-60): every card, locked or not, as the hand draws it, with its
         // name and the very line its card shows on hover (thingName / thingDoes, plain). The
-        // Keys page's Bomb line takes its count from the rules data.
+        // World page (D-61): one row per WORLD_LOOK entry, its line filled with worldNumbers().
+        // The Keys page's Bomb line takes its count from the rules data.
         buildHelp() {
             const list = document.getElementById('help-things');
             list.innerHTML = '';
@@ -555,6 +568,24 @@ const GameUI = (function () {
                 text.appendChild(does);
                 row.appendChild(text);
                 list.appendChild(row);
+            }
+            const world = document.getElementById('help-world');
+            world.innerHTML = '';
+            const numbers = worldNumbers();
+            for (const part of WORLD_LOOK) {
+                const row = document.createElement('div');
+                row.className = 'thing-row world-row';
+                const text = document.createElement('div');
+                const name = document.createElement('span');
+                name.className = 'name';
+                name.textContent = part.name;
+                const says = document.createElement('span');
+                says.className = 'does';
+                says.textContent = part.says(numbers);
+                text.appendChild(name);
+                text.appendChild(says);
+                row.appendChild(text);
+                world.appendChild(row);
             }
             document.getElementById('bomb-wipes').textContent = String(cardOf('BOMB').wipes);
             document.getElementById('help').addEventListener('click', () => this.showHelp());

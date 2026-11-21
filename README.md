@@ -81,7 +81,7 @@ that comes onto a target dies there, so they can't camp it.
 - Map `1` `2` `∞` (buttons under the top-left bar): the board at full or half size, or the whole board in the space above the hand; zooming keeps the middle of the screen where it is, and every new game starts at `1`. Buttons only: the number keys pick cards and the wheel turns the Thing
 - Top right: crates delivered toward the next milestone (and per color, once there are two), Ex-gremlins (gremlins done in), Trapped (gremlins a Trap caught), and crates lost
 - `M` / Sound (top left, by Help): turn all sound on or off; remembered in this browser, works any time (not while an overlay is open)
-- Help (top left): two pages, the keys legend and then every Thing and tool card (its picture, name and what it does, the same line its card shows on hover); `<` `>` or ← → turn the pages, any other key or a click closes it. It opens on the keys, also once when the first game opens; ticks hold while it's open
+- Help (top left): three pages, the keys legend, then every Thing and tool card (its picture, name and what it does, the same line its card shows on hover), then the world (crates, big crates, gremlins, ice and Slides, open water, milestones); `<` `>` or ← → turn the pages, any other key or a click closes it. It opens on the keys, also once when the first game opens; ticks hold while it's open
 - About (top left, by Help; also a link on the intro): who made it, how it was made (with AI), the version and the board's seed (selectable, for bug reports), and a privacy page; `<` `>` or ← → turn the pages, any other key or a click closes it; ticks hold while it's open
 - New Game: pick a board size (click or `1`–`4`); Esc keeps the current game
 
