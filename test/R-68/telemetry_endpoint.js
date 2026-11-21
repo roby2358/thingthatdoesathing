@@ -8,6 +8,8 @@
 //   - a valid batch → 204 with Access-Control-Allow-Origin *, and the right rows in all four
 //     tables (args with columns in them, the rest and deliveredByColor in `rest`); a crash-only
 //     batch too, its message and stack cut
+//   - the schema indexes events by time only, and applied over a database that has events_by_command
+//     it drops it (and stays safe to rerun)
 //   - the batch's format is stored on the games row; TELEMETRY_FORMAT matches GameDisplayArtifacts;
 //     every KNOWN_COMMANDS entry is a GameEngine method
 //   - bad batches (too big by header or by body, too many records, a wrong field type, an unknown
@@ -104,6 +106,18 @@ const CRASH = { unixSeconds: 1763700200, version: 'abc1234', gameKey: 'g1', seed
     check('the worker reads its own format', mod.KNOWN_FORMATS.includes(TELEMETRY_FORMAT));
     const { GameEngine } = load();
     check('every KNOWN_COMMANDS entry is a GameEngine command', mod.KNOWN_COMMANDS.every(c => typeof GameEngine.prototype[c] === 'function'));
+
+    // The schema's indexes on events: by time only (D-64), and the old command index dropped.
+    {
+        const db = new DatabaseSync(':memory:');
+        const eventIndexes = () => db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'events' AND sql IS NOT NULL ORDER BY name").all().map(r => r.name);
+        db.exec(SCHEMA);
+        check('events is indexed by time only', JSON.stringify(eventIndexes()) === '["events_by_time"]');
+        db.exec('CREATE INDEX events_by_command ON events (command)');
+        db.exec(SCHEMA);
+        db.exec(SCHEMA);
+        check('rerunning the schema drops an old events_by_command', JSON.stringify(eventIndexes()) === '["events_by_time"]');
+    }
 
     // A valid batch: rows in all four tables.
     {

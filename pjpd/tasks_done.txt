@@ -433,6 +433,19 @@ Updated: 2026-11-12T03:35:55Z
 
 Thing Factory: fix "Uncaught TypeError: Cannot read properties of null (reading 'has')" that the designer saw in the browser shortly after the page loads, before the map is displayed (reported 2026-11-12). Something calls .has() on a Set or Map that is still null at startup: likely candidates in gameui.js are the legal-placement set (from engine.legalPlacements), the selected/replace-target lookups, the moved set, or any render/hover/overlay path that runs before newGame() has built state (e.g. the intro size-picker overlay, a resize or mousemove event, or the first render). Find every `.has(` in gameui.js (and gameengine.js) and trace which can see null before the first game exists. It may also have been a mid-edit load while an agent was changing files, so first reproduce: extend test/integration/uiboot.js (stub DOM) to fire the startup sequence and early events (mousemove/hover, resize, keydown, wheel) before a size is picked, and confirm whether it throws. Fix the real cause (initialize to an empty Set, or don't run that path until a game exists) rather than adding scattered null guards; the project prefers fail-fast, so a guard only where "no game yet" is a legitimate state. Add the regression check to uiboot. Reconcile CRITERIA (a U-row or the uiboot row) and ARCHITECTURE_LOG. Run just cc-test.
 ----
+Priority:   68
+Status: Done
+ID: dropcmdidx-bqpk
+Created: 2026-11-21T17:18:06Z
+Updated: 2026-11-21T17:48:17Z
+
+Drop the events_by_command index from the telemetry schema; keep events_by_time. Each index on events makes D1 count another row written per event, and the report reads whole tables, so events_by_command buys nothing.
+Settled design:
+- worker/telemetry_schema.sql: remove CREATE INDEX events_by_command; add DROP INDEX IF EXISTS events_by_command so rerunning just d1-local / just d1-production removes it from a database that already has it (the file stays safe to rerun). events_by_time and the crashes indexes stay.
+- Tests that apply the schema (R-68, R-70) still pass; if any test lists the indexes, update it.
+- Docs: ONTOLOGY's tables part, RATIONALE D-64 (why: write cost, report scans), ARCHITECTURE_LOG entry, CLAUDE.md if it lists indexes.
+Done when: just cc-test passes; after just d1-local, `wrangler d1 execute ttdat-telemetry --local --command "SELECT name FROM sqlite_master WHERE type='index'"` lists events_by_time but not events_by_command.
+----
 Priority:   65
 Status: Done
 ID: signout-f4x8

@@ -877,7 +877,8 @@ so a cross-origin page sees them and backs off.
 - `crashes` — `id` autoincrement, plain INSERT; `format`, `version`, `game_key`, `seed`, `size`, `turn`,
   `message`, `stack`, `user_agent`.
 - Every row carries `player_id` and `signed_in`; no foreign keys; no IP column. Indexes: games by
-  start time, events by time and by command, crashes by time and by version.
+  start time, events by time (only: each index on events is another written row per event, D-64),
+  crashes by time and by version.
 
 ### Telemetry report — `just telemetry-report` / `just telemetry-local` (tools/telemetry_report.js) [D-66]
 *Serves:* tuning §6 from what the tables hold, as plain text a designer reads in a terminal.

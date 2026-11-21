@@ -55,9 +55,11 @@ CREATE TABLE IF NOT EXISTS events (
   PRIMARY KEY (game_key, seq)
 );
 
--- Events per day, and per command.
+-- Events by time, the report's period filter. No other index on events: each one is another row
+-- D1 counts as written per event. The DROP takes events_by_command out of a database made before
+-- it went.
 CREATE INDEX IF NOT EXISTS events_by_time ON events (unix_seconds);
-CREATE INDEX IF NOT EXISTS events_by_command ON events (command);
+DROP INDEX IF EXISTS events_by_command;
 
 -- One row per milestone a game reached (10, 20, 50, …), with the board's counts then.
 -- INSERT OR IGNORE: a milestone sent twice is kept once.
