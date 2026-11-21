@@ -123,7 +123,7 @@ const GameDisplayArtifacts = (function () {
         // Per-piece hover name. Gremlins carry their own counter color in state.
         PIECE_LOOK: {
             crate:   { name: 'Crate' },
-            bigcrate: { name: 'Big crate — worth 10' },
+            bigcrate: { name: 'Big crate' },   // the hover adds " — worth N" from PIECES' value
             gremlin: { name: 'Gremlin — wanders' },
         },
         // The About panel (D-59): who made it and where the way back goes. feedbackUrl stays

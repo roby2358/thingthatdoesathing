@@ -2,6 +2,9 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-21 — Stale text
+The README's Bomb paragraph and U-31 still described a 3-boom Bomb; they now follow `wipes` (5). The big crate's hover name had "worth 10" typed in; the hover now adds " — worth N" from `PIECES` (`pieceName`), and doesnumbers.js checks no piece name has a number in it.
+
 ### 2026-11-21 — A Spring leaps Walls (D-62)
 Before, a Wall ended every flight; now a Spring's throw treats a Wall hex exactly like a
 mountain: it passes over it and can't come down on it (trimmed back short of it, or no throw if

@@ -365,6 +365,8 @@ const GameUI = (function () {
 
     // A Thing's name and verb line: a colored kind in a crate color says so.
     const capitalized = w => w[0].toUpperCase() + w.slice(1);
+    // A piece's hover name; a piece worth more than one crate says so, from PIECES (no typed-in number).
+    const pieceName = kind => PIECE_LOOK[kind].name + (PIECES[kind].value > 1 ? ` — worth ${PIECES[kind].value}` : '');
     const thingName = (kind, color) => (cardOf(kind).colored && color !== WHITE ? capitalized(color) + ' ' : '') + THING_LOOK[kind].name;
     const thingDoes = (kind, color) => THING_LOOK[kind].does + (!cardOf(kind).colored ? '' :
         color === WHITE ? ' (you pick its crate color when you place it)' : ` (only ${color} crates, and gremlins)`);
@@ -1765,7 +1767,7 @@ const GameUI = (function () {
             const t = this.engine.thingAt(h.q, h.r);
             if (t && t !== this.carried() && !cleared) parts.push(`${thingName(t.kind, t.color)}: ${thingDoes(t.kind, t.color)}` + this.thingHint(h, t));
             const p = this.engine.pieceAt(h.q, h.r);
-            if (p && !cleared) parts.push(PIECE_LOOK[p.kind].name);
+            if (p && !cleared) parts.push(pieceName(p.kind));
             hoverEl.textContent = parts.join(' · ');
             document.getElementById('hud-hover').classList.remove('hidden');
         }

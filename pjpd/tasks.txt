@@ -1,12 +1,3 @@
-Priority:   50
-Status: ToDo
-ID: staletext-pear
-Created: 2026-11-21T03:23:35Z
-Updated: 2026-11-21T03:23:35Z
-
-Fix stale text left over from earlier changes.
-Thing Factory (read CLAUDE.md). Done looks like: (1) README.md's Bomb paragraph and CRITERIA.md row U-31 describe the Bomb as taking 3 booms ("third boom", "2 more booms"); the Bomb's TOOLS.BOMB.wipes is 5. Reword them to 5 (or "its last boom"), checked against gameui.js and RATIONALE D-48. (2) PIECE_LOOK.bigcrate's hover name in displayartifacts.js reads "Big crate — worth 10" with the 10 typed in; build it from the big crate's value in GameArtifacts.PIECES so it can't drift, and cover it in test/integration/doesnumbers.js. (3) The header comment of test/integration/uiboot.js cites only D-60 for the Help pager; add D-61 (the World page). Log the change in ARCHITECTURE_LOG.md (dated). Done when `just cc-test` passes.
-----
 Priority:   49
 Status: ToDo
 ID: crash-screen-zruz
