@@ -12,7 +12,7 @@ const GameUI = (function () {
         HEX_SIZE, COUNTER_SIZE, HOP_MS, RUN_GAP_MS, MILESTONE_MS, NOTICE_MS, REASONS, TERRAIN_COLORS, TERRAIN_NAMES, THING_LOOK,
         PIECE_LOOK, CRATE_SHADES, BIG_CRATE_SCALE, COLOR_INK, SPLAT_BLOTS, SOURCE_COLOR, PORT_NEUTRAL_MARK, PORT_OUTLINE,
         PORT_MARK_WIDTH, PORT_RING_RADII, PORT_PLUS_REACH, PORT_OUTLINE_WIDTH, BG_COLOR, UI_FONT, REACH_COLOR, MAP_SIZE_NOTES,
-        COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX
+        COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES
     } = GameDisplayArtifacts;
     const { TERRAIN, THINGS, WHITE, HAND_SIZE, MAP_SIZES, aims, cardOf, nextMilestone } = GameArtifacts;
     const SIZE_KEYS = Object.keys(MAP_SIZES);
@@ -1115,6 +1115,14 @@ const GameUI = (function () {
         // ---- Rendering ----
         // Draws the board as of now: animated pieces are posed by the current clock.
         render() {
+            this.paint(false);
+            if (this.state.hexes) this.updateHUD();
+        }
+
+        // The canvas part of render(). `clean` (screencaps, D-58) leaves out what follows the
+        // mouse or the player's attention: the legal hexes and ghost, the hover outline and the
+        // selection. A carried Thing and the Bomb's booms still draw as the board stands.
+        paint(clean) {
             const now = performance.now();
             const ctx = this.ctx;
             const s = this.state;
@@ -1144,7 +1152,7 @@ const GameUI = (function () {
 
             // A Thing under the ghost is about to be replaced (D-28): the ghost stands in for it.
             // A carried Thing is off the board, in the hand (D-47).
-            const doomed = this.replaceTarget(this.ghostHex());
+            const doomed = clean ? null : this.replaceTarget(this.ghostHex());
             const carried = this.carried();
             for (const t of s.things) {
                 if (t === doomed || t === carried || this.boomed(t.q, t.r)) continue;
@@ -1154,7 +1162,9 @@ const GameUI = (function () {
 
             // L1.2 legal placements for the picked card, plus a ghost under the cursor. A legal
             // hex holding a Thing (placing replaces it) also gets a dashed yellow ring.
-            if (this.picked) {
+            if (clean) {
+                // nothing that follows the mouse
+            } else if (this.picked) {
                 const mode = PICK_MODES[this.picked.mode];
                 for (const key of this.picked.legal) {
                     const { q, r } = Hex.fromKey(key);
@@ -1191,9 +1201,44 @@ const GameUI = (function () {
 
             this.drawPieces(now);
             this.drawBursts(now);
-            if (this.selected) this.drawSelected(this.selected);
+            if (this.selected && !clean) this.drawSelected(this.selected);
             ctx.restore();
-            this.updateHUD();
+        }
+
+        // ---- Screencap (P, D-58): unlisted, for listing art ----
+        // Saves the board as PNGs: the canvas at its size, then each CAPTURE_SIZES, each a
+        // fresh paint at that size with the screen's center and zoom (not a scaled bitmap).
+        // The DOM HUD isn't on the canvas, so it isn't in them. Downloads as
+        // ttdat-<seed>-<turn>-<name>-<w>x<h>.png (name: window, og, capsule, shot), so no two collide.
+        capture() {
+            if (!this.state.hexes) return;
+            const keep = { canvas: this.canvas, ctx: this.ctx, panX: this.panX, panY: this.panY };
+            const sizes = [{ name: 'window', w: keep.canvas.width, h: keep.canvas.height }, ...CAPTURE_SIZES];
+            try {
+                for (const { name: use, w, h } of sizes) {
+                    const c = document.createElement('canvas');
+                    c.width = w;
+                    c.height = h;
+                    this.canvas = c;
+                    this.ctx = c.getContext('2d');
+                    this.panX = keep.panX + (w - keep.canvas.width) / 2;
+                    this.panY = keep.panY + (h - keep.canvas.height) / 2;
+                    this.paint(true);
+                    const name = `ttdat-${this.state.seed}-${this.state.turn}-${use}-${w}x${h}.png`;
+                    c.toBlob(blob => { if (blob) this.download(blob, name); }, 'image/png');
+                }
+            } finally {
+                Object.assign(this, keep);
+            }
+            this.notify(`Saved ${sizes.length} screenshots`);
+        }
+
+        download(blob, name) {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = name;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 1000);
         }
 
         // Where the ghost stands: the hex the color picker is open on, else the hovered one.
@@ -1691,6 +1736,7 @@ const GameUI = (function () {
             if ((e.key === 'r' || e.key === 'R') && this.picked) { this.turnGhost(e.shiftKey ? -1 : 1); return; }
             if (e.key === 'd' || e.key === 'D') { this.removeSelected(); return; }
             if (e.key === 'b' || e.key === 'B') { this.blastHovered(); return; }
+            if (e.key === 'p' || e.key === 'P') { this.capture(); return; }   // unlisted (D-58)
             if (e.key === 'x' || e.key === 'X') this.discardPicked();
         }
 

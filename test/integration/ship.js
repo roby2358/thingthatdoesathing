@@ -3,7 +3,7 @@
 // Runs the build into a temp dir and reads the zip back: index.html at the zip root, only
 // the files the page loads (no docs, tests or backlog), every local script and stylesheet
 // URL stamped with the version, the version on <html data-version>, and web/ holding the
-// same files as the zip. Not a game rule, so it lives outside the test/R-n/ directories.
+// same files as the zip plus og.png when it exists. Not a game rule, so it lives outside the test/R-n/ directories.
 'use strict';
 
 const fs = require('fs');
@@ -62,8 +62,11 @@ try {
         return files.get(f).equals(fs.readFileSync(path.join(root, f)));
     }));
 
+    // og.png (the link preview) is served but not zipped, once the author has added it.
+    const og = fs.existsSync(path.join(root, 'og.png'));
     const web = fs.readdirSync(path.join(out, 'web')).sort();
-    check('web/ holds the same files as the zip', JSON.stringify(web) === JSON.stringify([...names].sort()));
+    check('web/ holds the zip\'s files' + (og ? ', plus og.png' : ''), JSON.stringify(web) === JSON.stringify([...names, ...(og ? ['og.png'] : [])].sort()));
+    check('og.png stays out of the zip', !files.has('og.png'));
 } finally {
     fs.rmSync(out, { recursive: true, force: true });
 }

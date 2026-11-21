@@ -2,6 +2,13 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-21 — Unlisted screencap key (D-58)
+P saves the board as PNGs named by use (window, og 1200x630, capsule 630x500, shot 1280x720) for the listings and
+the link preview, each painted fresh at its size with the screen's center and zoom. `render()`
+split into `paint(clean)` and `updateHUD()`; a clean paint skips the ghost, legal hexes, hover
+outline and selection. Not in the Help panel or README. `tools/ship.js` copies og.png into
+`dist/web/` when it exists (not into the zip).
+
 ### 2026-11-21 — Ship build
 The game moved to its own repo (a fresh history; it was yuwakisaweb/thingthatdoesathing up to
 122ba86). `just ship` (`tools/ship.js`, plain Node, no npm) builds `dist/web/` from only the

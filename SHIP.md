@@ -93,7 +93,7 @@ it needs the author: it gets no pjpd task.
 | MENU-6 | End payoff | T2 | partial | endless; milestone banners only; New Game drops the run unseen | run-stats-m6pe |
 | SAVE-7 | Player can wipe data | T2 | missing | nothing to wipe yet | wipe-data-mw24 |
 | WEB-3 | Title, description, favicon | T2 | done | tags in index.html (D-56) | meta-tags-dagy |
-| WEB-4 | Link previews | T2 | partial | tags in; waiting on the user for og.png (1200x630, repo root) | meta-tags-dagy |
+| WEB-4 | Link previews | T2 | done | og.png (1200x630, from the P key) at the repo root, served by `just ship` / `just deploy` | |
 | WEB-6 | One-paragraph pitch | T2 | missing | intro text is close but not written as a pitch | listing-r8fn |
 | PORT-8 | Listing complete | T2 | missing | no listings | listing-r8fn |
 | PORT-9 | Portal AI disclosure field | T2 | missing | no listings | listing-r8fn |
@@ -104,7 +104,7 @@ it needs the author: it gets no pjpd task.
 | OPS-4 | Patch path known | T2 | partial | patch path per target in README "Deploy"; no save versioning yet | save-resume-tbe3 |
 | X-2 | Retire the old yuwakisa.com copy | T2 | missing | steps in README "Deploy"; after the first deploy | you |
 | ONB-7 | Consequences previewed | T2 | partial | legal hexes and facing shown; no path preview or undo, and remove/blast/Bomb are instant | design call: idea undo-preview-k9rq |
-| WEB-5 | Capsule and screenshots | T2 | missing | none; must come from real play | you |
+| WEB-5 | Capsule and screenshots | T2 | partial | the unlisted P key saves `-og-1200x630`, `-capsule-630x500` (itch.io), `-shot-1280x720` and `-window-<size>` from real play (D-58); none taken yet | you |
 | X-1 | Newgrounds accepts an AI-made game | T2 | unverified | Newgrounds' art rules keep AI art out of the Art Portal, and since March 2024 players can report mostly-AI content; no rule found for games | you: check Newgrounds' current game rules |
 | AUD-6 | Sound levels balanced | T2 | unverified | needs a listen | you |
 | LOAD-4 | Frame rate on a modest laptop | T2 | unverified | huge board, Go on, busiest moment | you |
@@ -279,8 +279,8 @@ are T1 as well.
 | WEB-1 | HTTPS stable URL | T1 | partial | | you |
 | WEB-2 | Only the game deployed | T1 | done | | |
 | WEB-3 | Title, description, favicon | T2 | partial | | meta-tags-dagy |
-| WEB-4 | Link previews | T2 | missing | | meta-tags-dagy |
-| WEB-5 | Capsule and screenshots | T2 | missing | | you |
+| WEB-4 | Link previews | T2 | done | | |
+| WEB-5 | Capsule and screenshots | T2 | partial | | you |
 | WEB-6 | Pitch | T2 | missing | | listing-r8fn |
 | WEB-7 | Way back | T2 | missing | | credits-55gy |
 | WEB-8 | Clip or GIF | T3 | missing | | |

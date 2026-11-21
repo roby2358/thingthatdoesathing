@@ -275,6 +275,41 @@ run('Ctrl/Alt/Meta chords are ignored and not preventDefaulted (D-57)', () => {
     }
     key('Escape');
 });
+run('P saves the board as PNGs, clean, and puts the view back (D-58)', () => {
+    const saved = [];
+    const painted = [];
+    const realCreate = document.createElement;
+    ctx.URL = { createObjectURL: b => 'blob:' + b.name, revokeObjectURL() {} };
+    document.createElement = tag => {
+        const el = realCreate(tag);
+        if (tag === 'canvas') {
+            el.toBlob = cb => cb({ name: el.width + 'x' + el.height });
+            painted.push(el);
+        }
+        if (tag === 'a') el.click = () => saved.push({ name: el.download, href: el.href });
+        return el;
+    };
+    try {
+        const s = ui.state;
+        s.hand[0] = { kind: 'BELT' };
+        key('1');   // a picked card: its ghost and legal hexes must stay out of the shots
+        let ghostSeen = false;
+        const realPaint = ui.paint;
+        ui.paint = function (clean) { if (this.canvas !== canvas && !clean) ghostSeen = true; return realPaint.call(this, clean); };
+        const before = { canvas: ui.canvas, ctx: ui.ctx, panX: ui.panX, panY: ui.panY, turn: s.turn };
+        key('p');
+        ui.paint = realPaint;
+        const want = [`window-${canvas.width}x${canvas.height}`, 'og-1200x630', 'capsule-630x500', 'shot-1280x720'].map(n => `ttdat-${s.seed}-${s.turn}-${n}.png`);
+        if (JSON.stringify(saved.map(d => d.name)) !== JSON.stringify(want)) throw new Error('saved ' + JSON.stringify(saved.map(d => d.name)));
+        if (painted.length !== want.length || ghostSeen) throw new Error('each shot must be its own clean paint');
+        if (ui.canvas !== before.canvas || ui.ctx !== before.ctx || ui.panX !== before.panX || ui.panY !== before.panY) throw new Error('the view was not put back');
+        if (s.turn !== before.turn || !ui.picked) throw new Error('P must not tick or drop the card');
+        if (!/Saved 4 screenshots/.test(ui.notice || '')) throw new Error('no saved note');
+        key('Escape');
+    } finally {
+        document.createElement = realCreate;
+    }
+});
 run('a hand card button click picks it', () => {
     const btn = els.cards.children[1];
     btn.fire('click');

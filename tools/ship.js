@@ -6,7 +6,8 @@
 // for the game to show, and zips web/ as <outDir>/ttdat-<version>.zip with index.html at the
 // zip root (the itch.io / Newgrounds upload). <outDir> defaults to dist/ (git-ignored);
 // web/ is what `just deploy` serves. The version is the short commit hash, with -dirty when
-// the working tree has uncommitted changes. Plain Node, no npm packages.
+// the working tree has uncommitted changes. og.png (the link-preview image, named only in a
+// <meta content>) joins web/ when it exists; the zip doesn't need it. Plain Node, no npm packages.
 'use strict';
 
 const fs = require('fs');
@@ -47,7 +48,8 @@ for (const f of fs.readdirSync(outDir))
 
 const files = [['index.html', Buffer.from(stamped, 'utf8')],
     ...refs.map(f => [f, fs.readFileSync(path.join(root, f))])];
-for (const [name, data] of files) {
+const WEB_ONLY = ['og.png'].filter(f => fs.existsSync(path.join(root, f)));
+for (const [name, data] of [...files, ...WEB_ONLY.map(f => [f, fs.readFileSync(path.join(root, f))])]) {
     fs.mkdirSync(path.dirname(path.join(webDir, name)), { recursive: true });
     fs.writeFileSync(path.join(webDir, name), data);
 }
@@ -87,4 +89,4 @@ function zip(entries, unixSeconds) {
 
 const zipName = `ttdat-${version}.zip`;
 fs.writeFileSync(path.join(outDir, zipName), zip(files, commitTime));
-console.log(`ship ${version}: ${files.length} files in ${path.relative(root, webDir) || webDir}, ${path.relative(root, path.join(outDir, zipName))}`);
+console.log(`ship ${version}: ${files.length + WEB_ONLY.length} files in ${path.relative(root, webDir) || webDir}, ${path.relative(root, path.join(outDir, zipName))}`);

@@ -118,5 +118,12 @@ const GameDisplayArtifacts = (function () {
         BG_COLOR: '#0e1116',
         UI_FONT: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
         REACH_COLOR: '255, 214, 51',   // rgb of --accent
+        // The unlisted screencap key (P, D-58): beside the window-sized shot, one PNG per entry,
+        // same center and zoom as the screen; the name goes in the file name.
+        CAPTURE_SIZES: [
+            { name: 'og', w: 1200, h: 630 },        // link preview (og:image, saved as og.png)
+            { name: 'capsule', w: 630, h: 500 },    // itch.io cover image
+            { name: 'shot', w: 1280, h: 720 },      // listing screenshot
+        ],
     };
 })();
