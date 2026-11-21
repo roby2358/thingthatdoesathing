@@ -4,7 +4,7 @@
 // number in it, in order, must be the rules data's: a mover's push, the Cannon's clears and
 // push, the Pusher's shove, the Puller's reach and pull, the Bomb's wipes. A kind with no
 // number in its line expects none. Also: every card has a look, gremlins are named only in
-// the Trap's line, and the Keys page's Bomb count (filled from the rules) defaults to the same.
+// the Trap's line, and the Special cards page's Bomb count (filled from the rules) defaults to the same.
 'use strict';
 
 const fs = require('fs');
@@ -49,5 +49,5 @@ for (const kind of CARDS) {
 
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const m = html.match(/<span id="bomb-wipes">(\d+)<\/span>/);
-check('the Keys page\'s Bomb count defaults to TOOLS.BOMB.wipes', !!m && Number(m[1]) === TOOLS.BOMB.wipes);
+check('the Special cards page\'s Bomb count defaults to TOOLS.BOMB.wipes', !!m && Number(m[1]) === TOOLS.BOMB.wipes);
 done();

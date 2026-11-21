@@ -516,26 +516,46 @@ run('Help shows the keys and holds Go; closing it lets Go pick up again', () => 
     if (s.turn === held || !ui.running) throw new Error('Go did not pick up after Help closed');
     els.go.fire('click'); settle();
 });
-run('Help is a pager (D-60, D-61): opens on Keys, → Things (one row per card, its hover text), → World, → at the end stays, ← back, a button click stays, any other key closes, Go picks up again', () => {
+run('Help is a pager (D-60, D-61): opens on Keys, → More keys (B onward, off Keys), → Special cards (the Pusher/Puller color, Mover and Bomb lines, off Keys), → Things (one row per card, its hover text), → World, → at the end stays, ← back, a button click stays, any other key closes, Go picks up again', () => {
     els['new-game'].fire('click'); key('1');
     const s = ui.state;
     const shown = id => !els[id].classList.set.has('hidden');
-    const page = () => [0, 1, 2].filter(i => shown('help-page-' + i)).join();
+    const page = () => [0, 1, 2, 3, 4].filter(i => shown('help-page-' + i)).join();
+    const count = n => { if (els['help-count'].textContent !== n + ' / 5') throw new Error('page count: ' + els['help-count'].textContent); };
     els.go.fire('click');
     advance(1000);
     els.help.fire('click');
     if (ui.overlay !== 'help' || page() !== '0' || !els['help-prev'].disabled || els['help-next'].disabled) throw new Error('Help must open on Keys, got ' + page());
-    if (els['help-count'].textContent !== '1 / 3') throw new Error('page count: ' + els['help-count'].textContent);
+    count(1);
     settle(); advance(500);
     const held = s.turn;
+    // The stub DOM holds no markup, so the pages' lines are read from index.html.
+    const pageHtml = i => html.slice(html.indexOf(`<div id="help-page-${i}"`), html.indexOf(`<div id="help-page-${i + 1}"`));
     key('ArrowRight');
-    if (ui.overlay !== 'help' || page() !== '1' || els['help-prev'].disabled || els['help-next'].disabled) throw new Error('→ must turn to Things');
-    if (els['help-count'].textContent !== '2 / 3') throw new Error('page count: ' + els['help-count'].textContent);
+    if (ui.overlay !== 'help' || page() !== '1' || els['help-prev'].disabled || els['help-next'].disabled) throw new Error('→ must turn to More keys');
+    count(2);
+    const MORE = { 'the B line': '<dt><kbd>B</kbd></dt>', 'the M line': '<dt><kbd>M</kbd> / Sound</dt>', 'the Map line': '<dt>Map 1 · 2 · ∞</dt>' };
+    for (const [line, text] of Object.entries(MORE)) {
+        check(`More keys (page 2) holds ${line}`, pageHtml(1).includes(text) && /<h1>More keys<\/h1>/.test(pageHtml(1)));
+        check(`Keys no longer holds ${line}`, !pageHtml(0).includes(text));
+    }
     key('ArrowRight');
-    if (ui.overlay !== 'help' || page() !== '2' || els['help-prev'].disabled || !els['help-next'].disabled) throw new Error('→ twice must reach World');
-    if (els['help-count'].textContent !== '3 / 3') throw new Error('page count: ' + els['help-count'].textContent);
+    if (ui.overlay !== 'help' || page() !== '2' || els['help-prev'].disabled || els['help-next'].disabled) throw new Error('→ twice must turn to Special cards');
+    count(3);
+    const SPECIAL = { 'the Pusher/Puller color line': 'a Pusher or Puller: pick the crate color', 'the Mover line': '<dt>Mover</dt>', 'the Bomb line': '<span id="bomb-wipes">' };
+    for (const [line, text] of Object.entries(SPECIAL)) {
+        check(`Special cards (page 3) holds ${line}`, pageHtml(2).includes(text) && /<h1>Special cards<\/h1>/.test(pageHtml(2)));
+        check(`Keys no longer holds ${line}`, !pageHtml(0).includes(text));
+    }
     key('ArrowRight');
-    if (page() !== '2' || els['help-count'].textContent !== '3 / 3') throw new Error('→ on the last page must stay put');
+    if (ui.overlay !== 'help' || page() !== '3' || els['help-prev'].disabled || els['help-next'].disabled) throw new Error('→ three times must turn to Things');
+    count(4);
+    key('ArrowRight');
+    if (ui.overlay !== 'help' || page() !== '4' || els['help-prev'].disabled || !els['help-next'].disabled) throw new Error('→ four times must reach World');
+    count(5);
+    key('ArrowRight');
+    if (page() !== '4') throw new Error('→ on the last page must stay put');
+    count(5);
     key('ArrowLeft');
     const cards = vm.runInContext('GameArtifacts.CARDS', ctx);
     const looks = vm.runInContext('GameDisplayArtifacts.THING_LOOK', ctx);
@@ -549,7 +569,7 @@ run('Help is a pager (D-60, D-61): opens on Keys, → Things (one row per card, 
     });
     els['help-panel'].fire('click', { target: { closest: () => els['help-prev'] } });
     if (ui.overlay !== 'help') throw new Error('a click on a page button must not close Help');
-    key('ArrowLeft');
+    key('ArrowLeft'); key('ArrowLeft'); key('ArrowLeft');
     if (ui.overlay !== 'help' || page() !== '0') throw new Error('← must turn back to Keys');
     advance(2000);
     if (s.turn !== held) throw new Error('ticked while Help was open');
@@ -567,6 +587,7 @@ run('Help\'s World page (D-61): one row per part of the world; every number in e
     const A = vm.runInContext('GameArtifacts', ctx);
     const parts = vm.runInContext('GameDisplayArtifacts.WORLD_LOOK', ctx);
     const shown = vm.runInContext('GameDisplayArtifacts.HELP_LADDER_SHOWN', ctx);
+    const px = vm.runInContext('GameDisplayArtifacts.HELP_CARD_PX', ctx);
     const ladder = [A.nextMilestone(0)];
     while (ladder.length < shown) ladder.push(A.nextMilestone(ladder[ladder.length - 1]));
     const EXPECT = {
@@ -580,7 +601,11 @@ run('Help\'s World page (D-61): one row per part of the world; every number in e
     const rows = els['help-world'].children;
     check('World has one row per WORLD_LOOK entry', rows.length === parts.length);
     parts.forEach((part, i) => {
-        const [text] = rows[i].children;
+        const [picture, text] = rows[i].children;
+        check(`${part.id}: ${part.id === 'MILESTONE' ? 'no picture, an empty slot keeping its text in line' : 'a picture'} in the picture column`,
+            rows[i].children.length === 2 && (picture.tagName === 'canvas') === (part.id !== 'MILESTONE'));
+        check(`${part.id}: the picture slot is HELP_CARD_PX wide, like the Things page's tiles`,
+            part.id === 'MILESTONE' ? picture.style.width === px + 'px' : picture.width === px && picture.height === px);
         const [name, says] = text.children;
         check(`World row ${i} is ${part.id}`, name.textContent === part.name);
         check(`${part.id}'s expected numbers are listed in this test`, part.id in EXPECT);

@@ -34,7 +34,7 @@ for why it works and [ONTOLOGY.md](ONTOLOGY.md) for the rules.
 | Pusher | pushes whatever is on the hex in front of it 1 hex on |
 | Puller | reaches across the hex in front and pulls whatever's beyond it into that hex |
 | Wall | nothing gets in (never on a source: the crates must flow) |
-| Trap | a gremlin that comes onto it dies (a new one climbs out on the shore); crates are safe |
+| Trap | a gremlin that comes onto it is caught (a new one climbs out on the shore); crates are safe |
 | Bridge | built on water; carries what's on it 1 hex in its facing, like a Belt over water |
 | Slide | ice you can build, on plains or water (not on ice, which already slides): what comes onto it keeps sliding the same way (a Spring or Rocket that lands on it skids on) |
 | Mover | not a Thing but a card: pick up a Thing you've placed and put it down somewhere else (same kind, same color); back out after picking it up and the Thing is scrapped |
@@ -81,7 +81,7 @@ that comes onto a target dies there, so they can't camp it.
 - Map `1` `2` `∞` (buttons under the top-left bar): the board at full or half size, or the whole board in the space above the hand; zooming keeps the middle of the screen where it is, and every new game starts at `1`. Buttons only: the number keys pick cards and the wheel turns the Thing
 - Top right: crates delivered toward the next milestone (and per color, once there are two), Ex-gremlins (gremlins done in), Trapped (gremlins a Trap caught), and crates lost
 - `M` / Sound (top left, by Help): turn all sound on or off; remembered in this browser, works any time (not while an overlay is open)
-- Help (top left): three pages, the keys legend, then every Thing and tool card (its picture, name and what it does, the same line its card shows on hover), then the world (crates, big crates, gremlins, ice and Slides, open water, milestones); `<` `>` or ← → turn the pages, any other key or a click closes it. It opens on the keys, also once when the first game opens; ticks hold while it's open
+- Help (top left): five pages, the keys legend in two (B and on is the second), then the special cards (picking a Pusher's or Puller's crate color, the Mover, the Bomb), then every Thing and tool card (its picture, name and what it does, the same line its card shows on hover), then the world (crates, big crates, gremlins, ice, open water, milestones); `<` `>` or ← → turn the pages, any other key or a click closes it. It opens on the keys, also once when the first game opens; ticks hold while it's open
 - About (top left, by Help; also a link on the intro): who made it, how it was made (with AI), the version and the board's seed (selectable, for bug reports), and a privacy page; `<` `>` or ← → turn the pages, any other key or a click closes it; ticks hold while it's open
 - New Game: pick a board size (click or `1`–`4`); Esc keeps the current game
 

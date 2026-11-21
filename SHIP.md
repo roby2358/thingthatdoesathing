@@ -19,7 +19,7 @@ what would check it.
 ## Decisions
 
 - **Devices:** desktop only (mouse and keyboard). Phones and tablets get the sorry screen (D-41).
-- **Telemetry:** direction chosen, details `open`. Log basically every action to Cloudflare D1 behind a small Worker at ttdat.yuwakisa.com. The schema, privacy notice, opt-in or out, retention and portal CORS still need brainstorming (idea telemetry-v54s). The About panel's privacy page (D-59) already describes the planned telemetry as if it were running: moves, board size, seed and version sent to "our own server" (no hostname named), tied to a random per-session ID, no cookies, account, IP addresses or personal data, no retention period stated. Nothing is sent yet; whatever ships must keep that page true, or the page changes with it.
+- **Telemetry:** direction chosen, details `open`. Log basically every action to Cloudflare D1 behind a small Worker at ttdat.yuwakisa.com. The schema, privacy notice, opt-in or out, retention and portal CORS still need brainstorming (idea telemetry-v54s). The About panel's privacy page (D-59) already describes the planned telemetry as if it were running: moves, board size, seed and version sent to "our own server" (no hostname named), tied to a hashed ID, no cookies, account, IP addresses or personal data, no retention period stated. Nothing is sent yet; whatever ships must keep that page true, or the page changes with it.
 - **Languages:** English only. The string table should still be made ready for more (LOC-2).
 - **Hosting:** the game moves to its own repo and is served at https://ttdat.yuwakisa.com on Cloudflare. Also on itch.io and Newgrounds.
 - **Monetization:** none; the game is free.
@@ -66,7 +66,7 @@ it needs the author: it gets no pjpd task.
 | MENU-5 | Continue vs New Game | T2 | missing | no save yet | save-resume-tbe3 |
 | SAVE-4 | Save format versioned | T2 | missing | no save yet | save-resume-tbe3 |
 | SAVE-8 | Seed saved with the run | T2 | missing | no save yet | save-resume-tbe3 |
-| ONB-4 | Rules reference on demand | T2 | done | Help is a pager: Keys, then Things (every card's picture, name and hover line, numbers checked against the rules data, D-60), then World (crates, big crates, gremlins, ice and Slides, open water, milestones, numbers from the rules data, D-61) | rules-ref-6h66 |
+| ONB-4 | Rules reference on demand | T2 | done | Help is a pager: Keys, then Things (every card's picture, name and hover line, numbers checked against the rules data, D-60), then World (crates, big crates, gremlins, ice, open water, milestones, numbers from the rules data, D-61) | rules-ref-6h66 |
 | ONB-8 | A rejected action says why | T2 | partial | illegal clicks and keys are silent | reject-why-23qa |
 | INP-4 | Every action on screen | T2 | partial | D, B and R are keyboard-only | action-btns-pebc |
 | A11Y-2 | Color is never the only signal | T2 | partial | the four crate colors differ by color only | color-shapes-r5qq |

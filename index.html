@@ -67,7 +67,8 @@
         <div class="sizes" id="intro-sizes"></div>
         <button id="intro-about" class="link" type="button">About</button>
     </div>
-    <!-- Help (D-60): a pager like About (D-59), opening on Keys; then Things, one row per card,
+    <!-- Help (D-60): a pager like About (D-59), opening on Keys; then Special cards (the Pusher/Puller
+    color, the Mover, the Bomb); then Things, one row per card,
     built from the hand's drawing and hover text; then World (D-61), its numbers from the rules data. A click on a button keeps it open; any other
     click or key closes it, ← → turn the pages. -->
     <div id="help-panel" class="hidden">
@@ -78,38 +79,46 @@
                     <dt><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></dt><dd>pick a Thing from your hand</dd>
                     <dt><kbd>R</kbd> / <kbd>Wheel</kbd></dt><dd>turn it before you place it</dd>
                     <dt><kbd>Click</kbd></dt><dd>place it (yellow hexes); the world ticks</dd>
-                    <dt><kbd>1</kbd>–<kbd>4</kbd> / click a swatch</dt><dd>a Pusher or Puller: pick the crate color it works on</dd>
-                    <dt>Mover</dt><dd>click a Thing to pick it up, then place it like a card (one tick); Esc after the pick-up scraps it (ticks)</dd>
-                    <dt>Bomb</dt><dd>click up to <span id="bomb-wipes">5</span> filled hexes, each blows up at once; the last, or Esc after one, ends it (one tick)</dd>
                     <dt><kbd>Esc</kbd> / right-click</dt><dd>put the card back (or close the color swatches)</dd>
-                    <dt><kbd>X</kbd> / Discard</dt><dd>throw away the picked card (ticks)</dd>
-                    <dt><kbd>Shift</kbd>+<kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> / a card's red ×</dt><dd>throw that card away at once, no pick (ticks)</dd>
-                    <dt><kbd>Click</kbd> a hex</dt><dd>select it; holds Go while selected</dd>
+                    <dt><kbd>X</kbd> / Discard</dt><dd>discard the picked card and show another (ticks)</dd>
+                    <dt><kbd>Shift</kbd>+<kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> / a card's red ×</dt><dd>discard that card at once, no pick (ticks)</dd>
+                    <dt><kbd>Click</kbd> a hex</dt><dd>select the Thing there; holds Go while selected</dd>
                     <dt><kbd>Click</kbd> it again</dt><dd>turn its mover clockwise (free, no tick)</dd>
                     <dt><kbd>Click</kbd> elsewhere</dt><dd>let go of the selection</dd>
                     <dt><kbd>D</kbd></dt><dd>remove the Thing on the selected hex (ticks)</dd>
-                    <dt><kbd>B</kbd></dt><dd>blow up the crate under the cursor; it counts as lost (ticks)</dd>
-                    <dt><kbd>M</kbd> / Sound</dt><dd>sound on or off, any time (remembered)</dd>
-                    <dt>Wait</dt><dd>wait one tick</dd>
-                    <dt><kbd>Space</kbd></dt><dd>one tick, then stop; while Go runs, finish this tick and stop</dd>
-                    <dt><kbd>Enter</kbd> / Go</dt><dd>keep ticking; again to finish this tick and stop</dd>
-                    <dt>Drag</dt><dd>pan the board</dd>
-                    <dt>Map 1 · 2 · ∞</dt><dd>buttons (no keys): the board at full or 1/2 size, or all of it above the hand</dd>
-                    <dt>Help</dt><dd>this; <kbd>←</kbd> <kbd>→</kbd> turn its pages</dd>
-                    <dt>About</dt><dd>credits, version and privacy; <kbd>←</kbd> <kbd>→</kbd> turn its pages</dd>
                 </dl>
             </div>
             <div id="help-page-1" class="hidden">
+                <h1>More keys</h1>
+                <dl class="keys">
+                    <dt><kbd>B</kbd></dt><dd>blow up the crate under the cursor; it counts as lost (ticks)</dd>
+                    <dt><kbd>M</kbd> / Sound</dt><dd>sound on or off, any time (remembered)</dd>
+                    <dt>Wait</dt><dd>wait one tick</dd>
+                    <dt><kbd>Space</kbd></dt><dd>one tick, then stop</dd>
+                    <dt><kbd>Enter</kbd> / Go</dt><dd>keep ticking; again to finish this tick and stop</dd>
+                    <dt>Drag</dt><dd>pan the board</dd>
+                    <dt>Map 1 · 2 · ∞</dt><dd>buttons (no keys): the board at full or 1/2 size, or all of it above the hand</dd>
+                </dl>
+            </div>
+            <div id="help-page-2" class="hidden">
+                <h1>Special cards</h1>
+                <dl class="keys">
+                    <dt><kbd>1</kbd>–<kbd>4</kbd> / click a swatch</dt><dd>a Pusher or Puller: pick the crate color it works on</dd>
+                    <dt>Mover</dt><dd>click a Thing to pick it up, then place it like a card (one tick); Esc after the pick-up scraps it (ticks)</dd>
+                    <dt>Bomb</dt><dd>click up to <span id="bomb-wipes">5</span> filled hexes, each blows up at once; the last, or Esc after one, ends it (one tick)</dd>
+                </dl>
+            </div>
+            <div id="help-page-3" class="hidden">
                 <h1>Things</h1>
                 <div id="help-things" class="things"></div>
             </div>
-            <div id="help-page-2" class="hidden">
+            <div id="help-page-4" class="hidden">
                 <h1>World</h1>
                 <div id="help-world" class="things"></div>
             </div>
             <div class="pager-nav">
                 <button id="help-prev" class="btn" type="button" title="Previous page (←)">&lt;</button>
-                <span id="help-count" class="pager-count">1 / 3</span>
+                <span id="help-count" class="pager-count">1 / 5</span>
                 <button id="help-next" class="btn" type="button" title="Next page (→)">&gt;</button>
             </div>
             <p class="continue">Click or press any key to play</p>
@@ -140,7 +149,7 @@
                 <h1>Privacy</h1>
                 <p>While you play, the game sends your moves, the board size, the seed and the game
                     version to our own server. They're used only to tune the game.</p>
-                <p>They're tied to a random ID made fresh each session. No cookies, no account, no
+                <p>They're tied to a hashed ID. No cookies, no account, no
                     IP addresses kept, no personal data.</p>
                 <p>Your browser keeps your settings (like mute). Map saves are planned.</p>
             </div>

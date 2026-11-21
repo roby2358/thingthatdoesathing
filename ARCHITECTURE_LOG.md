@@ -2,6 +2,26 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-21 — Help: Keys split in two (D-60)
+The Keys page was too tall; `B` and the lines after it moved to a new "More keys" page after Keys. Help is now five pages: Keys, More keys, Special cards, Things, World.
+
+### 2026-11-21 — Help's Special cards page (D-60)
+Help has four pages ("1 / 4"): Keys, then a new Special cards page, then Things and World.
+The Pusher/Puller color line, the Mover line and the Bomb line (its count still from
+`TOOLS.BOMB.wipes`) moved off Keys onto it. Keys wording: X / Discard "throw away the picked
+card" became "discard the picked card and show another", the Shift+1/2/3 / red × line "throw
+that card away at once" became "discard that card at once", "Click a hex" "select it" became
+"select the Thing there"; the Help and About lines are gone. `HELP_PAGES` 4, Things is
+`#help-page-2`, World `#help-page-3`. The `uiboot.js` pager run pages through four and checks
+the moved lines' page; U-24 updated.
+
+### 2026-11-21 — Help's World rows get pictures (D-61)
+Each World row but Milestones now has a 32 px picture in the Things page's column, drawn by the
+board's own code under a shrinking transform (`worldPicture`; `drawTerrain` factored out of
+`paint`, then `drawThing` / `PIECE_DRAW`): a crate, a big crate and a gremlin counter on
+plains, an ice hex beside a Slide, a water hex. Milestones keeps a blank slot so its text lines
+up; `.world-row` is gone. The `uiboot.js` World run checks the pictures.
+
 ### 2026-11-21 — Help's World page (D-61)
 Help has a third page after Things, World ("3 / 3"): one plain row each for crates, big crates,
 gremlins, ice and Slides, open water and milestones, every number filled from GameArtifacts at

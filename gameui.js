@@ -12,7 +12,7 @@ const GameUI = (function () {
         HEX_SIZE, COUNTER_SIZE, HOP_MS, RUN_GAP_MS, MILESTONE_MS, NOTICE_MS, REASONS, TERRAIN_COLORS, TERRAIN_NAMES, THING_LOOK,
         PIECE_LOOK, CRATE_SHADES, BIG_CRATE_SCALE, COLOR_INK, SPLAT_BLOTS, SOURCE_COLOR, PORT_NEUTRAL_MARK, PORT_OUTLINE,
         PORT_MARK_WIDTH, PORT_RING_RADII, PORT_PLUS_REACH, PORT_OUTLINE_WIDTH, BG_COLOR, UI_FONT, REACH_COLOR, MAP_SIZE_NOTES,
-        COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES, ABOUT, HELP_CARD_PX, HELP_LADDER_SHOWN, WORLD_LOOK
+        COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES, ABOUT, HELP_CARD_PX, HELP_PIECE_SCALE, HELP_LADDER_SHOWN, WORLD_LOOK
     } = GameDisplayArtifacts;
     const { TERRAIN, THINGS, WHITE, HAND_SIZE, MAP_SIZES, CARDS, PIECES, MAX_SLIDE, aims, cardOf, nextMilestone } = GameArtifacts;
     const SIZE_KEYS = Object.keys(MAP_SIZES);
@@ -30,6 +30,13 @@ const GameUI = (function () {
         drawThing(c.getContext('2d'), px / 2, px / 2, px * 5 / 12, kind, WHITE, aims(kind) ? 0 : null, 1);
         return c;
     }
+    // An empty slot the size of a `px` picture, so a Help row without one (Milestones, D-61)
+    // keeps its text in line with the rows that have one.
+    function blankPicture(px) {
+        const d = document.createElement('div');
+        d.style.width = d.style.height = px + 'px';
+        return d;
+    }
     const OVERLAY_PANELS = { intro: 'intro-panel', size: 'size-panel', news: 'news-panel', help: 'help-panel', color: 'color-panel', about: 'about-panel' };   // L5 overlay → its panel
     // L5: what a key does on each overlay. The size pickers take their number keys (and Esc
     // when a game is behind); the news panel (new colors) closes on any key; the color picker
@@ -43,9 +50,9 @@ const GameUI = (function () {
         color: (ui, e) => ui.colorKey(e),
         about: (ui, e) => ui.aboutPager.key(e),
     };
-    // How many pages each paged overlay has (#help-page-0…, #about-page-0…). Help: Keys, Things
-    // (D-60), World (D-61). About: credits, privacy (D-59).
-    const HELP_PAGES = 3;
+    // How many pages each paged overlay has (#help-page-0…, #about-page-0…). Help: Keys, More
+    // keys, Special cards, Things (D-60), World (D-61). About: credits, privacy (D-59).
+    const HELP_PAGES = 5;
     const ABOUT_PAGES = 2;
     // What a click on a paged overlay may land on without closing it: a link, the < > buttons,
     // selectable text (About's version and seed).
@@ -534,7 +541,7 @@ const GameUI = (function () {
             if (fromIntro) this.openHelp();
         }
 
-        // Help (D-60): a pager over the game, always opening on Keys; then Things, then World (D-61). Like every
+        // Help (D-60): a pager over the game, always opening on Keys; then Special cards, Things, then World (D-61). Like every
         // overlay it holds Go; Go picks up again when it closes.
         showHelp() {
             if (this.overlay) return;
@@ -549,7 +556,7 @@ const GameUI = (function () {
         // Help's Things page (D-60): every card, locked or not, as the hand draws it, with its
         // name and the very line its card shows on hover (thingName / thingDoes, plain). The
         // World page (D-61): one row per WORLD_LOOK entry, its line filled with worldNumbers().
-        // The Keys page's Bomb line takes its count from the rules data.
+        // The Special cards page's Bomb line takes its count from the rules data.
         buildHelp() {
             const list = document.getElementById('help-things');
             list.innerHTML = '';
@@ -574,7 +581,8 @@ const GameUI = (function () {
             const numbers = worldNumbers();
             for (const part of WORLD_LOOK) {
                 const row = document.createElement('div');
-                row.className = 'thing-row world-row';
+                row.className = 'thing-row';
+                row.appendChild(part.picture ? this.worldPicture(part.picture, HELP_CARD_PX) : blankPicture(HELP_CARD_PX));
                 const text = document.createElement('div');
                 const name = document.createElement('span');
                 name.className = 'name';
@@ -590,6 +598,37 @@ const GameUI = (function () {
             document.getElementById('bomb-wipes').textContent = String(cardOf('BOMB').wipes);
             document.getElementById('help').addEventListener('click', () => this.showHelp());
             this.helpPager.wire();
+        }
+
+        // A World row's picture (D-61) on a `px` canvas, drawn by the board's own code under a
+        // shrinking transform: each spot is a terrain hex (drawTerrain) with a Thing (drawThing)
+        // or a piece (PIECE_DRAW, its label from PIECES) on it, at the board's proportions except
+        // that a piece is HELP_PIECE_SCALE bigger, so it reads at this size. One spot fills the
+        // tile like a card's hex; two stand side by side, as neighbors would. `readable` sees
+        // the picture's scale, so a label too small to read would be left off, as on the board.
+        worldPicture(spots, px) {
+            const c = document.createElement('canvas');
+            c.width = c.height = px;
+            const r = spots.length === 1 ? px * 5 / 12 : (px - 2) / (2 * Math.sqrt(3));   // each hex's radius
+            const k = r / HEX_SIZE;
+            const keep = { ctx: this.ctx, scale: this.scale };
+            this.ctx = c.getContext('2d');
+            this.scale = k;
+            try {
+                spots.forEach((spot, i) => {
+                    const ctx = this.ctx;
+                    ctx.save();
+                    ctx.translate(px / 2 + (i - (spots.length - 1) / 2) * r * Math.sqrt(3), px / 2);
+                    ctx.scale(k, k);
+                    this.drawTerrain(0, 0, spot.terrain);
+                    if (spot.thing) drawThing(ctx, 0, 0, HEX_SIZE, spot.thing, WHITE, aims(spot.thing) ? 0 : null, 1);
+                    if (spot.piece) this.drawPiece(0, 0, { kind: spot.piece, color: spot.color, label: PIECES[spot.piece].label }, 1, HELP_PIECE_SCALE);
+                    ctx.restore();
+                });
+            } finally {
+                Object.assign(this, keep);
+            }
+            return c;
         }
 
         // About (D-59): credits, then privacy, flipped by < > or ← →. Over the game it holds Go
@@ -1293,14 +1332,7 @@ const GameUI = (function () {
 
             for (const [, hex] of s.hexes) {
                 const { x, y } = this.hexToWorld(hex.q, hex.r);
-                drawHexPath(ctx, x, y, HEX_SIZE);
-                ctx.fillStyle = TERRAIN_COLORS[hex.terrain] || '#555';
-                ctx.fill();
-                ctx.strokeStyle = 'rgba(0, 0, 0, 0.22)';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-                if (hex.terrain === TERRAIN.ICE) this.drawIceStreaks(x, y);
-                if (hex.terrain === TERRAIN.MOUNTAIN) this.drawPeak(x, y);
+                this.drawTerrain(x, y, hex.terrain);
             }
 
             for (const src of s.sources) this.drawSource(src);
@@ -1492,6 +1524,20 @@ const GameUI = (function () {
                 const { x, y } = this.hexToWorld(p.q, p.r);
                 this.drawPiece(x, y, p, 1, 1);
             }
+        }
+
+        // One board hex of terrain at (x, y), in world px: its fill, edge, and ice's streaks or a
+        // mountain's peak. The board and Help's World pictures (D-61) both draw with it.
+        drawTerrain(x, y, terrain) {
+            const ctx = this.ctx;
+            drawHexPath(ctx, x, y, HEX_SIZE);
+            ctx.fillStyle = TERRAIN_COLORS[terrain] || '#555';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.22)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            if (terrain === TERRAIN.ICE) this.drawIceStreaks(x, y);
+            if (terrain === TERRAIN.MOUNTAIN) this.drawPeak(x, y);
         }
 
         drawIceStreaks(x, y) {

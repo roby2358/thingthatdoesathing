@@ -57,6 +57,7 @@ const GameDisplayArtifacts = (function () {
         TOUCH_ONLY_QUERY: '(pointer: coarse) and (hover: none) and (not (any-pointer: fine))',
         SORRY_PICTURE_PX: 64,        // the Belt drawn on the sorry page
         HELP_CARD_PX: 32,            // each card's tile on Help's Things page (D-60)
+        HELP_PIECE_SCALE: 1.4,       // a piece in a World picture, times its board size against the hex, so a gremlin's label still draws (D-61)
         HELP_LADDER_SHOWN: 7,        // milestones Help's World page lists before "and on" (D-61)
         // New Game menu note per GameArtifacts.MAP_SIZES key.
         MAP_SIZE_NOTES: {
@@ -89,7 +90,7 @@ const GameDisplayArtifacts = (function () {
             PUSHER:  { name: 'Pusher',  does: 'pushes what is in front of it 1 hex on',   fill: '#2c2f4a', ink: '#ffffff', inset: 0.84 },
             PULLER:  { name: 'Puller',  does: 'pulls what is 2 hexes ahead 1 hex closer', fill: '#1f4a4a', ink: '#ffffff', inset: 0.84 },
             WALL:    { name: 'Wall',    does: 'nothing gets in',                          fill: '#8a5a3c', ink: '#5c3a24', inset: 1 },
-            TRAP:    { name: 'Trap',    does: 'a gremlin that comes onto it dies (crates are safe)', fill: '#3d3a33', ink: '#d9d4c7', inset: 0.84 },
+            TRAP:    { name: 'Trap',    does: 'a gremlin that comes onto it is caught (crates are safe)', fill: '#3d3a33', ink: '#d9d4c7', inset: 0.84 },
             BRIDGE:  { name: 'Bridge',  does: 'carries what is on it 1 hex over water (build on water)', fill: '#a07a4a', ink: '#3d2812', inset: 0.84 },
             SLIDE:   { name: 'Slide',   does: 'what comes onto it slides on, like ice (build on plains or water)', fill: '#9fd3e6', ink: '#ffffff', inset: 0.84 },
             CANNON:  { name: 'Cannon',  does: 'lobs what is on it 5 hexes, leaping over the 4 in between, whatever is on them', fill: '#33383f', ink: '#c9d1d9', inset: 0.84 },
@@ -97,16 +98,23 @@ const GameDisplayArtifacts = (function () {
             MOVER:   { name: 'Mover',   does: 'pick up a placed Thing and put it down somewhere else (Esc after the pick-up scraps it)', fill: '#3b4a2c', ink: '#c8f07a', inset: 0.84 },
             BOMB:    { name: 'Bomb',    does: 'blow up to 5 hexes of Things and pieces, one click each (Esc after the first ends it)', fill: '#4a2620', ink: '#ff8a4c', inset: 0.84 },
         },
-        // Help's World page (D-61): one row per part of the world, a name and a short line in the
-        // Things page's style. `says` gets the rules' numbers (gameui.js `worldNumbers`), so no
+        // Help's World page (D-61): one row per part of the world, a picture, a name and a short
+        // line in the Things page's style. `picture` is the spots gameui.js `worldPicture` draws
+        // with the board's own code (a terrain, plus a Thing or a piece and its color); Milestones
+        // has none. `says` gets the rules' numbers (gameui.js `worldNumbers`), so no
         // number is typed in here; test/integration/uiboot.js checks every number in each line
         // against GameArtifacts, and that gremlins are named only in the GREMLIN row.
         WORLD_LOOK: [
-            { id: 'CRATE',     name: 'Crate',          says: () => "comes out of a source and is delivered on the target of its own color; another color's target blocks it (a flight passes over)" },
-            { id: 'BIG_CRATE', name: 'Big crate',      says: n => `counts as ${n.bigValue} crates delivered` },
-            { id: 'GREMLIN',   name: 'Gremlin',        says: () => 'wanders, smashes crates it walks into, and gets caught in Traps' },
-            { id: 'SLICK',     name: 'Ice and Slides', says: n => `what comes onto them slides on, up to ${n.maxSlide} more slick hexes; a piece standing still on one gets bumped along` },
-            { id: 'WATER',     name: 'Open water',     says: () => 'sinks whatever goes in' },
+            { id: 'CRATE',     name: 'Crate',          picture: [{ terrain: T.PLAINS, piece: 'crate', color: 'red' }],
+              says: () => "comes out of a source and is delivered on the target of its own color; another color's target blocks it (a flight passes over)" },
+            { id: 'BIG_CRATE', name: 'Big crate',      picture: [{ terrain: T.PLAINS, piece: 'bigcrate', color: 'red' }],
+              says: n => `counts as ${n.bigValue} crates delivered` },
+            { id: 'GREMLIN',   name: 'Gremlin',        picture: [{ terrain: T.PLAINS, piece: 'gremlin', color: '#b05cd6' }],
+              says: () => 'wanders, smashes crates it walks into, and gets caught in Traps' },
+            { id: 'SLICK',     name: 'Ice',            picture: [{ terrain: T.ICE }],
+              says: n => `what comes onto it slides on, up to ${n.maxSlide} more slick hexes; a piece standing still on it gets bumped along` },
+            { id: 'WATER',     name: 'Open water',     picture: [{ terrain: T.WATER }],
+              says: () => 'sinks whatever goes in' },
             { id: 'MILESTONE', name: 'Milestones',     says: n => `${n.ladder.join(', ')}, and on: each unlocks new cards until every card is unlocked, and on bigger boards the first ones also open a new crate color (up to ${n.colors} in all), with its own target and sometimes its own source` },
         ],
         // Accent per color for colored kinds: white (a card), or the crate color's lit face.
