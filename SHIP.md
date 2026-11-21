@@ -76,7 +76,7 @@ it needs the author: it gets no pjpd task.
 | A11Y-2 | Color is never the only signal | T2 | partial | the four crate colors differ by color only | color-shapes-r5qq |
 | MOB-8 | HiDPI and zoom crisp | T2 | partial | gameui.js:420 has no devicePixelRatio | hidpi-678j |
 | MOB-7 | Small desktop window | T2 | unverified | check at 1280x720 and 960x600 | portal-frame-aqns |
-| ERR-3 | Visible, recoverable crash | T2 | done | crash.js (loaded first) installs window error/unhandledrejection handlers that show a crash card once: the error, version/seed (selectable), Reload, Start fresh (removes only `SAVE_KEY`) (D-63); uiboot check | crash-screen-zruz |
+| ERR-3 | Visible, recoverable crash | T2 | done | crash.js (loaded first) installs window error/unhandledrejection handlers that show a crash card once: the error, version/seed (selectable), Reload, Start fresh (removes only `SAVE_KEY`) (D-63); uiboot check. The first error also sends one crash record (message, stack's first lines, version, seed, size, turn, browser) to `POST /t` by sendBeacon, under telemetry's rules, so bugs players never report still show up (D-71, R-78, U-40) | crash-screen-zruz, crashreport-zj3f |
 | LOAD-3 | Updates reach players | T2 | done | every script/stylesheet URL stamped ?v=<commit> | |
 | MENU-7 | Auto-pause when hidden | T2 | partial | Go keeps ticking from setTimeout in a background tab (gameui.js:812) | hidden-pause-y9wi |
 | LOAD-5 | Doesn't spin when idle | T2 | partial | redraws only on change; Go runs while hidden | hidden-pause-y9wi |
@@ -92,7 +92,7 @@ it needs the author: it gets no pjpd task.
 | LEGAL-5 | AI disclosure in game | T2 | done | the Decisions draft, on the About panel's first page (D-59) | |
 | OPS-2 | Version visible | T2 | done | About shows `<html data-version>` ("dev" unstamped) beside the seed, both selectable (D-59); uiboot check | |
 | OPS-1 | Feedback channel | T2 | missing | feedback link hidden until the GitHub Issues page exists (`ABOUT.feedbackUrl` is empty; the line shows once it is set) | you |
-| PRIV-3 | What is stored is stated | T2 | done | About's privacy page: what telemetry sends (moves, board size, seed, version, browser type, window size), the random per-load ID or, signed in with Bluesky, a hashed form of the account (handle not kept), no cookies or IP addresses kept, GPC turns it off, settings, the game while you sign in and the sign-in kept in the browser, only the sign-in ever sent (D-59, D-65, D-67, D-68, U-33) | privacydocs-ntj5 |
+| PRIV-3 | What is stored is stated | T2 | done | About's privacy page: what telemetry sends (moves, board size, seed, version, browser type, window size, and any error the game hits, D-71), the random per-load ID or, signed in with Bluesky, a hashed form of the account (handle not kept), no cookies or IP addresses kept, GPC turns it off, settings, the game while you sign in and the sign-in kept in the browser, only the sign-in ever sent (D-59, D-65, D-67, D-68, U-33) | privacydocs-ntj5 |
 | WEB-7 | A way back | T2 | done | About links yuwakisa.com, new tab (D-59) | |
 | MENU-6 | End payoff | T2 | partial | endless; milestone banners only; New Game drops the run unseen | run-stats-m6pe |
 | SAVE-7 | Player can wipe data | T2 | missing | nothing to wipe yet | wipe-data-mw24 |
@@ -224,7 +224,7 @@ are T1 as well.
 |---|---|---|---|---|---|
 | ERR-1 | Clean console | T1 | unverified | | you |
 | ERR-2 | No soft-locks | T1 | done | Wait and Discard are always legal; Esc always leaves a pick mode; smoke.js plays random commands | |
-| ERR-3 | Crash screen | T2 | done | D-63; uiboot check | crash-screen-zruz |
+| ERR-3 | Crash screen | T2 | done | D-63; uiboot check; crash reports to the telemetry endpoint (D-71, R-78) | crash-screen-zruz, crashreport-zj3f |
 | ERR-4 | Debug off | T2 | done | no `console.*`, no cheat keys | |
 | ERR-5 | Disconnect | T2 | done | the game needs no server; a telemetry send that fails or throws is dropped silently, never retried or shown (D-65, R-69) | telemetry-q77g |
 | ERR-6 | Long-session stability | T3 | unverified | | |
@@ -309,7 +309,7 @@ are T1 as well.
 | Id | Item | Tier | Status | Evidence | Task |
 |---|---|---|---|---|---|
 | PRIV-1 | Telemetry decision | T1 | done | see above | telemetrydb-hgs4, telemetry-q77g |
-| PRIV-2 | No uncovered tracking | T1 | done | the one fetch/beacon is telemetry.js, stated on the privacy page; no third-party scripts, cookies or stored IDs (D-65, R-69) | telemetry-q77g |
+| PRIV-2 | No uncovered tracking | T1 | done | the fetches/beacons are telemetry.js's and crash.js's one crash report (D-71), both stated on the privacy page; no third-party scripts, cookies or stored IDs (D-65, R-69) | telemetry-q77g |
 | PRIV-3 | What's stored is stated | T2 | done | see above | privacydocs-ntj5 |
 | PRIV-4 | Telemetry hygiene | T2 | done | ship builds over http(s) only, nothing before a board is picked, nothing under Global Privacy Control, a random per-load ID in memory only, `credentials: 'omit'`, failures swallowed (D-65, R-69, U-36) | telemetry-q77g |
 | PRIV-5 | Server data | T2 | partial | no IP stored or logged (read only as the rate limiter's key), observability off, every batch checked whole (D-64, R-68, U-35); `POST /t` rate-limited per IP (1000 per 10 s) with an Origin allow-list, the browser backing off 5 minutes on 429/403 (D-70, R-77, U-39); the itch.io (https://html-classic.itch.zone) and Newgrounds (https://uploads.ungrounded.net) origins on the list are unconfirmed: check a real upload's `POST /t` Origin on the next upload; no retention period chosen or stated | idea retention-uhu7; you (portal origins) |

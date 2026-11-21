@@ -187,7 +187,7 @@ in one command (`bomb`, D-48).
 | `queue` | `TickQueue` — one held command (the latest wins) that came in during `anim`: X / Discard, a card's × or Shift+number, a board click with a card picked, `D`, `B`; it runs when the animation ends, re-checking its own guards; picking or putting back a card and a new game clear it (D-49, D-50). |
 | `running` | bool — Go/Pause. While true, the client calls `wait()` `RUN_GAP_MS` after each animation ends, and holds while a card is picked, a hex is selected or an overlay is open. [D] |
 | `sound` | `GameSound`, `Math.random` only; muted by the Sound button or `M`, remembered in `localStorage` (D-53). |
-| (crash screen) | Not GameUI state: `crash.js`, loaded before every other script, owns it, so it works if GameUI never booted or a script failed to load (D-63). Its window `error` / `unhandledrejection` handlers show `#crash-panel` once (`crashed`): the error, the version (`<html data-version>` or "dev") and, with a board, the seed, selectable; Go stops and keys stop reaching the game; Reload reloads; Start fresh removes only `localStorage[SAVE_KEY]` (`'thingfactory.run'`, the saved run's key, written only around the sign-in redirect, D-67) and reloads. |
+| (crash screen) | Not GameUI state: `crash.js`, loaded before every other script, owns it, so it works if GameUI never booted or a script failed to load (D-63). Its window `error` / `unhandledrejection` handlers show `#crash-panel` once (`crashed`): the error, the version (`<html data-version>` or "dev") and, with a board, the seed, selectable; Go stops and keys stop reaching the game; Reload reloads; Start fresh removes only `localStorage[SAVE_KEY]` (`'thingfactory.run'`, the saved run's key, written only around the sign-in redirect, D-67) and reloads. The same first error sends one crash record (the Telemetry section's Crash report, D-71); nothing about the send shows on the card. |
 | (sign-in) | Not GameUI state: `GameSignIn` (signin.js) reads the sign-in from `localStorage[AUTH_KEY]` each time it's asked, and GameUI only shows it (`showSignIn`: the Sign in buttons or the handle label in the bar and both size panels, the bar's Sign out, About's line) and keeps `signedIn` (bool: what the spots show, so Sign out shows and acts, D-69). Offered only on `SIGNIN_SITES` origins (§9, D-68). |
 
 ---
@@ -721,11 +721,11 @@ boot (GameUI.start, after the input is wired):
 
 ---
 
-## §8 Telemetry [D; D-64, D-65, D-66, D-70]
+## §8 Telemetry [D; D-64, D-65, D-66, D-70, D-71]
 *Serves:* tuning §6 from real play (how far games get, how fast, what players build), and bugs
 players never report. Two halves, and a report: the browser recorder (`telemetry.js`, `GameTelemetry`, D-65),
 which makes the records and sends them in batches, and the server side (D-64): the ttdat
-Worker's `POST /t` and its D1 database; `just telemetry-report` reads that database back as tables (D-66). The engine knows nothing of telemetry; GameUI hands the
+Worker's `POST /t` and its D1 database; `just telemetry-report` reads that database back as tables (D-66). `crash.js` sends one crash record of its own to the same endpoint (Crash report, D-71). The engine knows nothing of telemetry; GameUI hands the
 recorder each new game and each committed command.
 
 ### Recorder — `GameTelemetry` (telemetry.js) [D-65]
@@ -768,6 +768,25 @@ switchIdentity(token?):  flush('fetch') under the current player, then player �
                    token or null; every later batch carries the token while it is set (D-68)
 endpoint: TELEMETRY_ENDPOINT (https://ttdat.yuwakisa.com/t) from anywhere, portal builds too;
           a page on localhost, 127.0.0.1 or [::1] (wrangler dev) posts to its own origin + '/t'
+
+beforeCrash():   for crash.js (D-71): flush('beacon'), then { player, token, gameKey (or null), quiet (backing off) }
+```
+
+### Crash report — crash.js [D-71]
+*Serves:* bugs players never report. The crash screen's first error (the `crashed` flag, D-63) also sends one crash record.
+```
+showCrash(err, message):                       # after the card is up
+  not (data-version set and location.protocol http:/https: and navigator.globalPrivacyControl ≠ true) → nothing
+                                               # the recorder's rules, checked in crash.js itself
+  ids ← GameTelemetry.beforeCrash() if telemetry.js loaded (its queue goes first, by sendBeacon), else none
+  ids.quiet (the recorder backing off, D-70) → nothing
+  crash ← { format: TELEMETRY_FORMAT (1 if displayartifacts.js never loaded), unixSeconds, version: data-version,
+            gameKey: ids.gameKey or null, seed, size, turn: index.js's state with a board, else null,
+            message: the card's text cut to CRASH_MESSAGE_CHARS,
+            stack: err.stack's first whole lines up to CRASH_STACK_CHARS (one longer line cut), or null,
+            userAgent cut to 512 }
+  navigator.sendBeacon(the recorder's endpoint, { format, player: ids.player or a fresh random UUID, token: ids.token if set, crashes: [crash] })
+  any failure: ignored; nothing about the send shows on the card; later errors send nothing
 ```
 Event `args`, as GameUI reads them before the command runs:
 

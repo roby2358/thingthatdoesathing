@@ -14,7 +14,8 @@ const { ROOT } = require('./load');
 
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const scripts = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
-const pageSource = scripts.map(f => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n;\n');
+const sourceOf = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+const pageSource = scripts.map(sourceOf).join('\n;\n');
 
 // A 2D context where every method is a no-op and every property is settable.
 function fakeCtx() {
@@ -64,7 +65,10 @@ class SilentAudio {
 // site by default; 'null' with a file: protocol for file://). The page is a ship build, so
 // telemetry records (sending into a stub fetch). `win` adds to window (sessionStorage, history),
 // `globals` to the page's globals (fetch, crypto, …); location.assign calls land in `assigned`.
-function bootPage({ storage = memoryStorage(), search = '', origin = 'https://ttdat.yuwakisa.com', win = {}, globals = {} } = {}) {
+// `version` is <html data-version> (null: a dev page). `patch` ({before, src}) runs src just
+// before the named script; a throw there stops the page as it would stop that script, and is
+// returned as `thrown` (the page's globals made so far are still readable through `run`).
+function bootPage({ storage = memoryStorage(), search = '', origin = 'https://ttdat.yuwakisa.com', win = {}, globals = {}, version = 'page1234', patch } = {}) {
     const els = {};
     const document = {
         getElementById: id => (els[id] ||= fakeEl(id)),
@@ -74,7 +78,7 @@ function bootPage({ storage = memoryStorage(), search = '', origin = 'https://tt
         visibilityState: 'visible',
         addEventListener() {},
     };
-    document.documentElement.dataset.version = 'page1234';
+    if (version !== null) document.documentElement.dataset.version = version;
     const fileUrl = origin === 'null';
     const href = (fileUrl ? 'file:///home/player/ttdat' : origin) + '/' + search;
     const assigned = [];
@@ -97,9 +101,15 @@ function bootPage({ storage = memoryStorage(), search = '', origin = 'https://tt
         crypto: { randomUUID: () => 'page-uuid-' + (++uuids) },
         ...globals,
     });
-    vm.runInContext(pageSource + '\n;globalThis.__page = { ui, state, engine };', ctx, { filename: 'page.js' });
+    const src = patch === undefined ? pageSource
+        : scripts.map(f => (f === patch.before ? patch.src + '\n;\n' : '') + sourceOf(f)).join('\n;\n');
+    let thrown = null;
+    try { vm.runInContext(src + '\n;globalThis.__page = { ui, state, engine };', ctx, { filename: 'page.js' }); } catch (e) {
+        if (patch === undefined) throw e;
+        thrown = e;
+    }
     const run = src => vm.runInContext(src, ctx);
-    return { ...ctx.__page, els, ctx, run, storage, assigned, location };
+    return { ...(ctx.__page || {}), els, ctx, run, storage, assigned, location, thrown };
 }
 
 module.exports = { bootPage, memoryStorage };

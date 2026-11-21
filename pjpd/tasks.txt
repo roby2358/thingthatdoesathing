@@ -1,31 +1,3 @@
-Priority:   55
-Status: ToDo
-ID: crashreport-zj3f
-Created: 2026-11-21T08:41:37Z
-Updated: 2026-11-21T08:54:20Z
-
-Crash reports: when the crash screen shows (crash.js, D-63), send one crash record to the telemetry endpoint, so bugs players never report still show up. Build on telemetrydb-hgs4, which already defines the crashes table and accepts `crashes: [...]` in a batch, and on telemetry-q77g (the recorder, its send rules and IDs).
-
-Settled design:
-- crash.js stays DOM-only and loads first. At crash time, inside the existing try/catch, it builds one crash record:
-  - format (GameDisplayArtifacts.TELEMETRY_FORMAT, falling back to the literal 1 if displayartifacts.js never loaded)
-  - unix_seconds, version (<html data-version>)
-  - game_key from GameTelemetry if it loaded, else null
-  - seed, size and turn from index.js's state if any, else null
-  - message (cut to 500 chars)
-  - stack (the first lines, cut to 2000 chars)
-  - navigator.userAgent
-- It sends it with navigator.sendBeacon as a batch `{ format, player, crashes: [record] }` (player and, once sign-in lands, token from GameTelemetry; if it never loaded, a fresh random player ID) to the same endpoint the recorder uses. It sends only under the recorder's rules: data-version set, http:/https:, and no Global Privacy Control. crash.js checks these itself, so a crash before telemetry.js loads is still reported.
-- Once only, like the crash screen itself (the crashed flag). A failed send is ignored. Nothing about the send shows on the crash card.
-- If GameTelemetry is loaded, also flush its queue with sendBeacon first, so the moves leading up to the crash arrive.
-- Privacy page (About page 1): add "…and any error the game hits" to the line listing what is sent.
-- The report already has a Crashes section (telemetryrpt-7erk); nothing to change there.
-- Docs: the crash parts of ONTOLOGY (the crash screen and Telemetry sections), a RATIONALE D-n (why send, what is cut and why, GPC still honoured), a CRITERIA R-row owning test/R-n/, ARCHITECTURE_LOG, CLAUDE.md (crash.js row), README (crash bullet), SHIP.md (ERR items).
-
-Tests: the R-row in uiboot style. A throw with data-version set and a stub sendBeacon → one batch with one crash record carrying the fields above. A throw before displayartifacts.js loads → still sent, format 1, nulls for unknowns. No data-version, file:, or GPC → nothing sent. A second error → no second send.
-
-Done when: just cc-test passes, and under just dev-worker a forced throw (from the devtools console: setTimeout(() => { throw new Error('test') })) shows the crash card and leaves one row in the local D1 crashes table.
-----
 Priority:   52
 Status: ToDo
 ID: rptvolume-4yqg

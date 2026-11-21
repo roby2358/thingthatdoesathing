@@ -20,6 +20,9 @@
 // batch also carries the access token as `token`, and the Worker stamps its rows with a hash of
 // the account instead. switchIdentity() sends what is queued under the old one first, so a batch
 // never mixes two.
+//
+// crash.js (D-71) sends its own crash batch; beforeCrash() hands it the identity and game key
+// after sending the queue by beacon.
 const GameTelemetry = (function () {
     const { TELEMETRY_FORMAT, TELEMETRY_ENDPOINT, TELEMETRY_FLUSH_MS, TELEMETRY_FLUSH_RECORDS, TELEMETRY_BACKOFF_MS } = GameDisplayArtifacts;
     const { RULES_VERSION } = GameArtifacts;
@@ -190,6 +193,15 @@ const GameTelemetry = (function () {
                 if (player !== null) player = randomId();   // before any game, the first game makes one
                 token = typeof signInToken === 'string' && signInToken ? signInToken : null;
             });
+        },
+
+        // For the crash screen (D-71): what is queued goes now by sendBeacon, so the moves leading
+        // up to a crash arrive, and the identity a crash record goes under comes back. `quiet`:
+        // backing off (D-70), so the crash isn't sent either.
+        beforeCrash() {
+            const out = { player, token, gameKey: game ? game.gameKey : null, quiet: quiet() };
+            guarded(() => flush('beacon'));
+            return out;
         },
 
         // The batch the queue would send now (a copy), or null: for tests.

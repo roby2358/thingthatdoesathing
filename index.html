@@ -156,7 +156,8 @@
             <div id="about-page-1" class="hidden">
                 <h1>Privacy</h1>
                 <p>While you play, the game sends your moves, the board size, the seed, the game
-                    version, your browser type and window size to our own server. They're used only
+                    version, your browser type and window size, and any error the game hits, to
+                    our own server. They're used only
                     to tune the game.</p>
                 <p>They're tied to a random ID made fresh each time you open the game. If you sign
                     in with Bluesky, they're tied to a hashed form of that account instead. We don't
@@ -215,7 +216,8 @@
         </div>
     </div>
     <!-- The crash screen (D-63): crash.js shows it on an uncaught error or unhandled rejection,
-    once, with plain DOM only (it works even if no other script loaded). Nothing else closes it. -->
+    once, with plain DOM only (it works even if no other script loaded), and sends one crash
+    record (D-71); nothing about the send shows here. Nothing else closes it. -->
     <div id="crash-panel" class="hidden">
         <div class="panel crash-card">
             <h1>Thing Factory hit a bug and stopped.</h1>
