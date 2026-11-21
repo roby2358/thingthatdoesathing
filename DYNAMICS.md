@@ -143,5 +143,5 @@ Then a gremlin rides your belt into the sea, and you laugh and fix it.
 ### Strategy ↔ mechanic cross-check
 
 Every Thing kind is used by some strategy above (Belt: spine; Wall: fencing; Bridge:
-water detours; Slide: free fast runs, one-tick lake crossings, and bumping crates on; Spring: straight runs, lake hops and ridge and Wall hops (over up to two mountains or Walls, D-35, D-62); Rocket: long shots at the target, gremlin squashing; Cannon: jumping a jam, a Wall line or a ridge onto a known hex; Pusher: side-feed and knocking a color off the line (colored); Puller: side-feed, slide catcher, gremlin drowner). Discard is the opening's way to skip cards. Rotate and Remove
+water detours; Slide: free fast runs, one-tick lake crossings, and bumping crates on; Spring: straight runs, lake hops and ridge hops (over up to two mountains, D-35; a Wall stops it, D-73); Rocket: long shots at the target, gremlin squashing; Cannon: jumping a jam, a Wall line or a ridge onto a known hex; Pusher: side-feed and knocking a color off the line (colored); Puller: side-feed, slide catcher, gremlin drowner). Discard is the opening's way to skip cards. Rotate and Remove
 are used to fix misplacements. Gremlins create the midgame.

@@ -111,7 +111,7 @@ const GameDisplayArtifacts = (function () {
         // instead (COLOR_INK); its card, not yet colored, uses COLOR_INK.white.
         THING_LOOK: {
             BELT:    { name: 'Belt',    does: 'moves what is on it 1 hex',                fill: '#3a3f47', ink: '#ffd633', inset: 0.84 },
-            SPRING:  { name: 'Spring',  does: 'flings what is on it up to 3 hexes, leaping over lakes, mountains and Walls in between', fill: '#4a3a2a', ink: '#ff9a3c', inset: 0.84 },
+            SPRING:  { name: 'Spring',  does: 'flings what is on it up to 3 hexes, leaping over lakes and mountains in between', fill: '#4a3a2a', ink: '#ff9a3c', inset: 0.84 },
             ROCKET:  { name: 'Rocket',  does: 'blasts what is on it up to 8 hexes, leaping over lakes in between', fill: '#4a2234', ink: '#ff5c8a', inset: 0.84 },
             PUSHER:  { name: 'Pusher',  does: 'pushes what is in front of it 1 hex on',   fill: '#2c2f4a', ink: '#ffffff', inset: 0.84 },
             PULLER:  { name: 'Puller',  does: 'pulls what is 2 hexes ahead 1 hex closer', fill: '#1f4a4a', ink: '#ffffff', inset: 0.84 },

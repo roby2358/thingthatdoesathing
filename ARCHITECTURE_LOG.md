@@ -2,6 +2,9 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-21 — Walls stop a Spring's throw again (D-73, superseding D-62)
+Before, a Spring's throw passed over Walls as it does mountains (`THINGS` flag `overWalls`, D-62). Now a Wall ends every flight on the hex before it, the Spring's too, as it did before D-62; only the Cannon's `clears` hexes pass over Walls (D-36), and the Spring still clears up to 2 mountains (D-35). `overWalls` is gone from `THINGS`, the push `how`, `wanderOf` and `flightLength`; `canLand` stays `groundOpen`. `RULES_VERSION` 1 → 2 (R-69's check follows). The Spring's verb line is back to "leaping over lakes and mountains in between"; README's row says "a Wall stops it"; DYNAMICS, CLAUDE.md, ONTOLOGY (`overWalls` row removed, `blocks`, invariant, Motion, Flights, Tick) follow. R-67 rewritten in place (test now `test/R-67/wall_stops_spring.js`); R-7's and R-53's rows lose their Wall-leap wording; R-12, R-15 and R-53 fire a Spring at a Wall again. `cc-sim 200 small` unchanged.
+
 ### 2026-11-21 — `just local-d1-clear`; production's tables recreated (D-64)
 Before, emptying or recreating the local telemetry D1 was by hand (delete `.wrangler/state/v3/d1`, then `just d1-local`). Now `just local-d1-clear` does both. Production's tables, first applied without the four `delivered_<color>` columns, were checked empty, dropped and re-applied with `just d1-production` (pjpd prodtables-3xzh); their columns and indexes now match the schema. README, ONTOLOGY, the schema header and D-64 call 14 name the recipe.
 

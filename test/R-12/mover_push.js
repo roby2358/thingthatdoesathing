@@ -18,9 +18,9 @@ const { flatGame, DIR } = require('../helpers/load');
 }
 {
     const { engine, put, piece } = flatGame();
-    put('ROCKET', 0, 4, DIR.E); const c = piece('crate', 0, 4); put('WALL', 2, 4);
+    put('SPRING', 0, 4, DIR.E); const c = piece('crate', 0, 4); put('WALL', 2, 4);
     engine.wait();
-    check('a rocket stops before a wall (a Spring leaps it, R-67)', c.isAt(1, 4));
+    check('spring stops before a wall', c.isAt(1, 4));
 }
 {
     const { engine, put, piece } = flatGame();

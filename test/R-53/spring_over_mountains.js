@@ -1,7 +1,7 @@
 // R-53: a Spring's throw (`overMountains`) passes over mountains and lands on the third hex;
 // it can't come down on a mountain, so it lands on the last hex short of one that it flew
-// over (or doesn't throw), and skids on if that's ice; pieces still stop it (Walls it leaps
-// like mountains, R-67); a Rocket is still stopped by a mountain.
+// over (or doesn't throw), and skids on if that's ice; pieces and Walls still stop it (R-67);
+// a Rocket is still stopped by a mountain.
 'use strict';
 const { check, done } = require('../helpers/check');
 const { flatGame, DIR } = require('../helpers/load');
@@ -53,6 +53,10 @@ const nothing = () => {};
 {
     const { c, state } = throwOver([1, 2], ({ terrain, T }) => terrain(3, 4, T.WATER));
     check('past two mountains into a lake it sinks', !state.pieces.includes(c) && state.lost === 1);
+}
+{
+    const { c } = throwOver([1], ({ put }) => put('WALL', 2, 4));
+    check('a Wall still stops it; over a mountain it comes down short of it', c.isAt(0, 4));
 }
 {
     const { c, state } = throwOver([1], ({ piece }) => piece('crate', 2, 4));

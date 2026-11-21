@@ -88,7 +88,7 @@ const first = p.T.pending();
 const rec = first && first.games[0];
 check('startGame queues the game record: key, seed, size, version, rules version, user agent, screen',
     rec && typeof rec.gameKey === 'string' && rec.gameKey.length > 0 && rec.seed === state.seed && rec.size === 'small' &&
-    rec.version === 'abc1234' && rec.rulesVersion === p.GameArtifacts.RULES_VERSION && p.GameArtifacts.RULES_VERSION === 1 &&
+    rec.version === 'abc1234' && rec.rulesVersion === p.GameArtifacts.RULES_VERSION && p.GameArtifacts.RULES_VERSION === 2 &&
     rec.userAgent === 'TestBrowser/1.0' && rec.screen === '1280x720@2' && Number.isSafeInteger(rec.startedUnixSeconds) &&
     Math.abs(rec.startedUnixSeconds - Date.now() / 1000) < 5);
 check('the batch: format, a player, no events yet', first.format === p.GameDisplayArtifacts.TELEMETRY_FORMAT &&

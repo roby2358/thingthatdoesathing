@@ -515,6 +515,21 @@ Fix the flaky test test/R-76/browser_signin.js. It fails sometimes when the whol
 ----
 Priority:   60
 Status: Done
+ID: springwall-sz3b
+Created: 2026-11-21T19:29:00Z
+Updated: 2026-11-21T19:35:31Z
+
+Springs are blocked by Walls again, undoing D-62 (pjpd springwalls-nu6v, commits 884c6b4 and d15a49c). A Spring's throw still passes over up to 2 mountains (overMountains, R-53, unchanged), but a Wall stops it the way a Wall stops a Rocket: the flight ends on the last hex before the Wall.
+Settled design:
+- Remove the overWalls flag entirely (artifacts.js THINGS templates and its comment, gameengine.js's how/wanderOf objects and the flight step check), so a Wall blocks every flight that isn't a Cannon's clears; the Cannon's lob over Walls (clears, D-36) is unchanged. Don't leave a dead flag.
+- Combined cases follow the existing rules: a throw stopped by a Wall while over a mountain comes down short of the mountain (it can't land on a mountain, R-53); a throw that can't come down anywhere doesn't throw (no move), as R-53 already says for mountains. Landing on ice still skids (D-37).
+- Player-facing text: the Spring's THING_LOOK verb line (displayartifacts.js), README's Things table, Help (it reads THING_LOOK) and anything else that says it clears Walls now say mountains only, e.g. "flings what's on it 3 hexes, over lakes and up to 2 mountains (it can't land on a mountain, so it comes down short of one; a Wall stops it)". Keep the wording style of the neighbouring rows.
+- Rules docs: a new RATIONALE decision superseding D-62 (D-62 stays as a record, marked superseded by the new one, as the doc set does elsewhere): why back (the user's call: Walls should be a hard stop for Springs), what stays (mountains, Cannon). ONTOLOGY (Thing templates, the flight/step rule), CRITERIA: R-67 is rewritten in place to the new rule ("a Spring's throw meeting a Wall: stops on the hex before it; over a mountain then a Wall, comes down short of the mountain; a Rocket likewise"), R-7 and R-53 rows lose their "(so does a Spring's flight, R-67)" / "Walls it treats as mountains" wording; test/R-67 rewritten to match; tests touched by 884c6b4 (R-12, R-15, R-53) restored to what the rule now says. DYNAMICS.md line changed by 884c6b4 reconciled. ARCHITECTURE_LOG entry. CLAUDE.md's THINGS flag list (it names overWalls) and Game Model Things line.
+- RULES_VERSION in artifacts.js goes up by 1 (a rule change; CLAUDE.md says to bump it with any rule or tuning change).
+Done when: just cc-test passes; grep -rn overWalls finds nothing outside ARCHITECTURE_LOG/RATIONALE history; just cc-sim 200 small runs without errors.
+----
+Priority:   60
+Status: Done
 ID: rptlocal-nrwi
 Created: 2026-11-21T16:05:01Z
 Updated: 2026-11-21T16:11:56Z
