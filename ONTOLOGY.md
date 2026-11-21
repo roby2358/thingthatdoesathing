@@ -749,7 +749,8 @@ startGame(seed, size):                         # GameUI.startGame: the intro's s
 command(command, args, res, state):            # GameUI.commit, every engine command but rotate
   if no game: nothing
   snap ← state after the tick: turn, delivered, lost, exGremlins, trapped,
-         things (Things on the board), crates (pieces that aren't gremlins), deliveredByColor
+         things (Things on the board), crates (pieces that aren't gremlins),
+         deliveredByColor (CRATE_COLORS.map(each color's target's delivered, 0 for a color not open))
   if command ∈ {place, remove, discard, move, scrap, bomb, blast}:
       queue event { gameKey, seq: eventSeq, unixSeconds, command, accepted: res.ok, ...snap, args }; eventSeq += 1
                                                # accepted or refused; milestones aren't numbered
@@ -815,8 +816,8 @@ Event `args`, as GameUI reads them before the command runs:
 | Record | Fields |
 |---|---|
 | game | `gameKey` (a random ID per game), `startedUnixSeconds`, `seed`, `size` (a `MAP_SIZES` key), `version` (the commit hash from `<html data-version>`), `rulesVersion` (`GameArtifacts.RULES_VERSION`), `userAgent`?, `screen`? |
-| event | `gameKey`, `seq` (0, 1, 2, … per game, in the order the recorder queued its event records), `unixSeconds`, `command` (one of the engine's commands, §7), `accepted` (bool), the snapshot after its tick: `turn`, `delivered`, `lost`, `exGremlins`, `trapped`, `things` (Things on the board), `crates` (pieces that aren't gremlins); `deliveredByColor`? (`{color: n}`); `args`? (the command's arguments: `kind`, `q`, `r`, `facing`, `color`, anything else) |
-| milestone | `gameKey`, `milestone` (the count reached: 10, 20, 50, …), `unixSeconds`, the same snapshot and `deliveredByColor`? |
+| event | `gameKey`, `seq` (0, 1, 2, … per game, in the order the recorder queued its event records), `unixSeconds`, `command` (one of the engine's commands, §7), `accepted` (bool), the snapshot after its tick: `turn`, `delivered`, `lost`, `exGremlins`, `trapped`, `things` (Things on the board), `crates` (pieces that aren't gremlins), `deliveredByColor` (4 whole numbers ≥ 0, the crates delivered to each color's target in `CRATE_COLORS` order: red, green, blue, yellow; 0 for a color not open); `args`? (the command's arguments: `kind`, `q`, `r`, `facing`, `color`, anything else) |
+| milestone | `gameKey`, `milestone` (the count reached: 10, 20, 50, …), `unixSeconds`, the same snapshot and `deliveredByColor` |
 | crash | `unixSeconds`, `message`, `format`?, `version`?, `gameKey`?, `seed`?, `size`?, `turn`? (each null if unknown), `stack`?, `userAgent`? |
 
 `?` = may be missing or null. Fields a record doesn't list are ignored, so a new optional field
@@ -829,8 +830,9 @@ One JSON object, sent as `text/plain` (no CORS preflight; `sendBeacon` can carry
   whenever a field is renamed, removed or retyped. The itch.io and Newgrounds zips run whatever
   build was uploaded for months, so old clients keep sending old shapes: the Worker keeps one
   reader per known format (`READERS`; `KNOWN_FORMATS` = [1]). Until a build that sends telemetry
-  ships, the format changes in place without a bump: an event's required `seq` (D-64) was added to
-  format 1 that way, since nothing was deployed and no portal build had shipped telemetry.
+  ships, the format changes in place without a bump, since nothing is deployed and no portal build
+  has shipped telemetry: an event's required `seq` (D-64) and the required 4-number
+  `deliveredByColor` array are format 1 that way.
 - `player` — the sender's random per-load ID (a string, at most 64 chars).
 - `token`? — the sign-in's access token while signed in (D-68; in the body, not an Authorization
   header, so `sendBeacon` can carry it and no CORS preflight is needed). Never logged or stored.
@@ -853,7 +855,7 @@ fetch(request):
   format missing, not a number, or not in KNOWN_FORMATS → 204, nothing written, console.error with no body
   READERS[format](batch) fails (a list that isn't one, > MAX_RECORDS records in all, a record
     that isn't an object, a required field missing (or an empty string), a wrong field type or length, an
-    event's seq not a whole number ≥ 0, an unknown command, a bad arg column or deliveredByColor) → 400, nothing written
+    event's seq not a whole number ≥ 0, an unknown command, a bad arg column, a deliveredByColor that isn't 4 whole numbers ≥ 0) → 400, nothing written
   else → 204 (Access-Control-Allow-Origin: *); ctx.waitUntil(identity, then one D1 batch of every row)
          identity = identityFor(batch.token) (Sign-in section) or the batch's random player
          a failed write is console.error'd and dropped
@@ -871,9 +873,14 @@ so a cross-origin page sees them and backs off.
   `INSERT OR IGNORE`: the browser resends the game record in each batch of its game.
 - `events` — PK (`game_key`, `seq`); `seq` is the event record's own, numbered by the recorder and
   bound as sent (nothing reads the game's earlier rows); `INSERT OR IGNORE`, so a resent event is kept
-  once; the snapshot columns, `kind`/`q`/`r`/`facing`/`color` from `args`
-  (null where absent), `rest` JSON `{args: the other args, deliveredByColor}`.
-- `milestones` — PK (`game_key`, `milestone`), `INSERT OR IGNORE`; the snapshot, `rest` JSON `{deliveredByColor}`.
+  once; the snapshot columns, `delivered_red`/`delivered_green`/`delivered_blue`/`delivered_yellow`
+  (INTEGER NOT NULL, `deliveredByColor` in `CRATE_COLORS` order), `kind`/`q`/`r`/`facing`/`color`
+  from `args` (null where absent), `rest` JSON `{args: the other args}`, NULL when there are none.
+- `milestones` — PK (`game_key`, `milestone`), `INSERT OR IGNORE`; the snapshot and the four
+  `delivered_<color>` columns; `rest` (JSON of fields without a column) is NULL, as none is left.
+- A table that already exists isn't altered by rerunning the schema (`CREATE TABLE IF NOT EXISTS`);
+  a local database made before a table changed is recreated: delete `.wrangler/state/v3/d1`, then
+  `just d1-local`.
 - `crashes` — `id` autoincrement, plain INSERT; `format`, `version`, `game_key`, `seed`, `size`, `turn`,
   `message`, `stack`, `user_agent`.
 - Every row carries `player_id` and `signed_in`; no foreign keys; no IP column. Indexes: games by
@@ -896,7 +903,7 @@ tool args (after the config):
   read:   four SELECTs, one per table: every game (so an older game's events in the period drop with it,
           not as left out); events, milestones, crashes with unix_seconds ≥ since
           (since = now − days × 86400, or 0); rows → records (camelCase, signedIn bool, an event's args
-          = its non-NULL arg columns + rest.args)
+          = its non-NULL arg columns + rest.args, deliveredByColor = the four delivered_<color> columns)
   period: the games started ≥ since, their events and milestones; events and milestones whose game has
           no games row are left out (counted in the heading); crashes by their own time
   print:  heading (source, period, counts of games / events / milestones / crashes, versions and

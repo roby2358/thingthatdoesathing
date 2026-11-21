@@ -8,6 +8,7 @@
 //   - one event record per place, remove, discard (pick and slot), move, scrap, bomb and blast,
 //     accepted or refused, with the args given and the snapshot after the tick; none for wait or rotate
 //   - a milestone a wait reaches gets a milestone record with the snapshot
+//   - deliveredByColor is 4 counts in CRATE_COLORS order from the targets, 0 for a color not open
 //   - sending: fetch(keepalive) when the timer fires or at TELEMETRY_FLUSH_RECORDS records, sendBeacon
 //     on pagehide and on a hidden tab; every batch carries the game record and one player; the
 //     live endpoint from anywhere but localhost, which posts to its own origin
@@ -125,7 +126,7 @@ check('one event per recorded command, in order; none for rotate or wait',
 check('the first place: accepted, its args as given, the snapshot after its tick',
     placed.ok && evs[0].accepted === true && same(evs[0].args, { kind: 'BELT', q: 2, r: 4, facing: DIR.E, color: WHITE }) &&
     same(picked(evs[0]), afterPlace) && evs[0].gameKey === rec.gameKey && Number.isSafeInteger(evs[0].unixSeconds) &&
-    same(evs[0].deliveredByColor, { red: 0 }));
+    same(evs[0].deliveredByColor, [0, 0, 0, 0]));
 check('a refused command is recorded with accepted false', evs[1].accepted === false && evs[1].args.kind === 'WALL');
 check('every other command accepted, with its args (remove names the Thing, discard how, move from and to, bomb its hexes)',
     evs.slice(2).every(e => e.accepted) && evs[2].args.kind === 'BELT' && evs[3].args.how === 'pick' && evs[4].args.how === 'slot' &&
@@ -143,8 +144,20 @@ const waited = run('wait', undefined, engine.wait());
 const ms = p.T.pending().milestones;
 check('a wait that reaches a milestone: no event, one milestone record with the snapshot',
     waited.events.some(e => e.type === 'milestone') && p.T.pending().events.length === evs.length && ms.length === 1 &&
-    ms[0].milestone === goal && ms[0].delivered === goal && same(ms[0].deliveredByColor, { red: goal }) &&
+    ms[0].milestone === goal && ms[0].delivered === goal && same(ms[0].deliveredByColor, [goal, 0, 0, 0]) &&
     same(picked(ms[0]), snapOf(state)) && ms[0].gameKey === rec.gameKey);
+
+// ---- deliveredByColor: CRATE_COLORS order, whatever order the targets are in; 0 for a closed color ----
+{
+    const saved = state.targets.slice();
+    state.targets.unshift({ q: 10, r: 2, color: 'yellow', delivered: 2 });
+    state.targets.push({ q: 10, r: 5, color: 'blue', delivered: 4 });
+    run('blast', { q: 0, r: 0 }, { ok: false });
+    const last = p.T.pending().events.at(-1);
+    check('deliveredByColor lists red, green, blue, yellow (CRATE_COLORS) from the targets, 0 for green (not open)',
+        same(g.g.GameArtifacts.CRATE_COLORS, ['red', 'green', 'blue', 'yellow']) && same(last.deliveredByColor, [goal, 0, 4, 2]));
+    state.targets.splice(0, state.targets.length, ...saved);
+}
 
 // ---- sending ----
 const pendingBefore = p.T.pending();

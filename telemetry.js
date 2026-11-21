@@ -31,7 +31,7 @@
 // after sending the queue by beacon.
 const GameTelemetry = (function () {
     const { TELEMETRY_FORMAT, TELEMETRY_ENDPOINT, TELEMETRY_FLUSH_MS, TELEMETRY_FLUSH_RECORDS, TELEMETRY_BACKOFF_MS } = GameDisplayArtifacts;
-    const { RULES_VERSION } = GameArtifacts;
+    const { RULES_VERSION, CRATE_COLORS } = GameArtifacts;
     // The commands worth a record. wait (Go is a stream of them) and rotate (free, no tick) are
     // left out; a milestone a wait reaches still gets its own record.
     const RECORDED = new Set(['place', 'remove', 'discard', 'move', 'scrap', 'bomb', 'blast']);
@@ -83,13 +83,15 @@ const GameTelemetry = (function () {
         return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' ? location.origin + '/t' : TELEMETRY_ENDPOINT;
     }
 
-    // The board after a command's tick.
+    // The board after a command's tick. deliveredByColor: the crates delivered to each color's
+    // target, in CRATE_COLORS order (one target per color; 0 for a color not open yet).
     function snapshot(state) {
+        const deliveredTo = new Map(state.targets.map(t => [t.color, t.delivered]));
         return {
             turn: state.turn, delivered: state.delivered, lost: state.lost, exGremlins: state.exGremlins,
             trapped: state.trapped, things: state.things.length,
             crates: state.pieces.filter(p => p.kind !== 'gremlin').length,
-            deliveredByColor: Object.fromEntries(state.targets.map(t => [t.color, t.delivered])),
+            deliveredByColor: CRATE_COLORS.map(c => deliveredTo.get(c) ?? 0),
         };
     }
 

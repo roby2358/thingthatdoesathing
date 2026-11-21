@@ -28,8 +28,8 @@ const LOCAL = { unknown: 'local' };
 const game = (key, t, o = {}) => ({ gameKey: key, playerId: 'p', signedIn: false, format: 1, startedUnixSeconds: t, seed: 1, size: 'small', version: 'v',
     rulesVersion: 1, userAgent: null, screen: null, ...o });
 const snap = { turn: 1, delivered: 0, lost: 0, exGremlins: 0, trapped: 0, things: 0, crates: 1 };
-const event = (key, seq, t) => ({ gameKey: key, seq, playerId: 'p', signedIn: false, unixSeconds: t, command: 'place', accepted: true, ...snap, args: {}, deliveredByColor: {} });
-const milestone = (key, n, t) => ({ gameKey: key, milestone: n, playerId: 'p', signedIn: false, unixSeconds: t, ...snap, turn: n, delivered: n, deliveredByColor: {} });
+const event = (key, seq, t) => ({ gameKey: key, seq, playerId: 'p', signedIn: false, unixSeconds: t, command: 'place', accepted: true, ...snap, args: {}, deliveredByColor: [0, 0, 0, 0] });
+const milestone = (key, n, t) => ({ gameKey: key, milestone: n, playerId: 'p', signedIn: false, unixSeconds: t, ...snap, turn: n, delivered: n, deliveredByColor: [n, 0, 0, 0] });
 const crash = (id, t, gameKey = null) => ({ id, unixSeconds: t, gameKey, playerId: 'p', signedIn: false, version: 'v', message: 'boom' });
 
 /** Rows over three days (and one before the period): a game started late on day 0 whose events

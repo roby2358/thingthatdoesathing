@@ -446,6 +446,23 @@ Settled design:
 - Docs: ONTOLOGY's tables part, RATIONALE D-64 (why: write cost, report scans), ARCHITECTURE_LOG entry, CLAUDE.md if it lists indexes.
 Done when: just cc-test passes; after just d1-local, `wrangler d1 execute ttdat-telemetry --local --command "SELECT name FROM sqlite_master WHERE type='index'"` lists events_by_time but not events_by_command.
 ----
+Priority:   66
+Status: Done
+ID: colorcol-mdy7
+Created: 2026-11-21T17:19:57Z
+Updated: 2026-11-21T18:04:34Z
+
+Move deliveredByColor out of the JSON rest field into four INTEGER columns, on both events and milestones. Today every event and milestone row carries rest like {"args":{},"deliveredByColor":{"yellow":0}}: ~40 bytes of text, mostly spelled-out key names, repeated on every row.
+Settled design:
+- Columns: delivered_red, delivered_green, delivered_blue, delivered_yellow, INTEGER NOT NULL, on both events and milestones (one per GameArtifacts.CRATE_COLORS entry, in that order), 0 for a color not open. Add them to both CREATE TABLEs.
+- Batch format: an event or milestone record's deliveredByColor becomes an array of 4 non-negative integers in CRATE_COLORS order (red, green, blue, yellow). telemetry.js builds it from the targets (one target per color). Format stays 1: nothing is deployed and no portal build has shipped telemetry; say so in the docs.
+- Worker: validates it (an array of exactly 4 non-negative integers, else 400 like other known fields) and binds each into its column. rest no longer holds deliveredByColor: an event's rest is {"args":...} only (NULL when args is empty), a milestone's rest is NULL unless something else is left in it.
+- Existing local databases: the schema file stays safe to rerun; since nothing is in production, the docs say to recreate the local D1 (delete .wrangler/state/v3/d1, then just d1-local) rather than adding ALTER TABLE migrations.
+- Report (tools/telemetry_report): wherever it reads deliveredByColor, read the four columns instead (records.js rebuilds whatever its figures use).
+- Tests: R-68 (columns stored, rest without it, bad array refused), R-69 (array in CRATE_COLORS order, zeros for closed colors), R-70 fixtures and the end-to-end through the real Worker.
+- Docs: ONTOLOGY Telemetry (records, tables), RATIONALE D-64/D-65 current state plus why (row size, typed columns), CRITERIA, ARCHITECTURE_LOG entry, CLAUDE.md if it mentions rest's contents.
+Done when: just cc-test passes; after recreating the local D1 and playing a game under just dev-worker, events and milestones rows have the four delivered_<color> integers filled and no deliveredByColor in rest.
+----
 Priority:   65
 Status: Done
 ID: signout-f4x8

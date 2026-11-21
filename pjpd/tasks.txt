@@ -1,19 +1,13 @@
-Priority:   66
+Priority:   70
 Status: ToDo
-ID: colorcol-mdy7
-Created: 2026-11-21T17:19:57Z
-Updated: 2026-11-21T17:20:22Z
+ID: prodtables-3xzh
+Created: 2026-11-21T17:56:01Z
+Updated: 2026-11-21T17:56:01Z
 
-Move deliveredByColor out of the JSON rest field into four INTEGER columns, on both events and milestones. Today every event and milestone row carries rest like {"args":{},"deliveredByColor":{"yellow":0}}: ~40 bytes of text, mostly spelled-out key names, repeated on every row.
-Settled design:
-- Columns: delivered_red, delivered_green, delivered_blue, delivered_yellow, INTEGER NOT NULL, on both events and milestones (one per GameArtifacts.CRATE_COLORS entry, in that order), 0 for a color not open. Add them to both CREATE TABLEs.
-- Batch format: an event or milestone record's deliveredByColor becomes an array of 4 non-negative integers in CRATE_COLORS order (red, green, blue, yellow). telemetry.js builds it from the targets (one target per color). Format stays 1: nothing is deployed and no portal build has shipped telemetry; say so in the docs.
-- Worker: validates it (an array of exactly 4 non-negative integers, else 400 like other known fields) and binds each into its column. rest no longer holds deliveredByColor: an event's rest is {"args":...} only (NULL when args is empty), a milestone's rest is NULL unless something else is left in it.
-- Existing local databases: the schema file stays safe to rerun; since nothing is in production, the docs say to recreate the local D1 (delete .wrangler/state/v3/d1, then just d1-local) rather than adding ALTER TABLE migrations.
-- Report (tools/telemetry_report): wherever it reads deliveredByColor, read the four columns instead (records.js rebuilds whatever its figures use).
-- Tests: R-68 (columns stored, rest without it, bad array refused), R-69 (array in CRATE_COLORS order, zeros for closed colors), R-70 fixtures and the end-to-end through the real Worker.
-- Docs: ONTOLOGY Telemetry (records, tables), RATIONALE D-64/D-65 current state plus why (row size, typed columns), CRITERIA, ARCHITECTURE_LOG entry, CLAUDE.md if it mentions rest's contents.
-Done when: just cc-test passes; after recreating the local D1 and playing a game under just dev-worker, events and milestones rows have the four delivered_<color> integers filled and no deliveredByColor in rest.
+Recreate production's telemetry events and milestones tables before the first deploy (user-run: agents may not touch production D1).
+Production's ttdat-telemetry database got its tables on 2026-11-21 from the old worker/telemetry_schema.sql. Since then events and milestones gained four INTEGER NOT NULL columns (delivered_red, delivered_green, delivered_blue, delivered_yellow) and their rest column became nullable. The schema file uses CREATE TABLE IF NOT EXISTS with no ALTER migrations, so rerunning just d1-production leaves the old tables as they are, and a deployed Worker would fail every event and milestone insert (logged and dropped).
+Steps (user, with a wrangler login): confirm the tables are empty (nothing has been deployed), drop events and milestones in production (e.g. wrangler d1 execute ttdat-telemetry --remote --env production --command "DROP TABLE events; DROP TABLE milestones;"), then run just d1-production to recreate them from the current schema.
+Done when: in production, PRAGMA table_info('events') and ('milestones') list the four delivered_<color> columns and rest is nullable, before just deploy is run.
 ----
 Priority:   49
 Status: ToDo

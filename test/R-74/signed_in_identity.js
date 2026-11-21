@@ -44,7 +44,7 @@ function fakeD1() {
 const SUB = '01JSUBJECT0000000000000042';
 const ISSUER = 'https://auth.example', CLIENT = 'ttdatClient00001';
 const GAME = { gameKey: 'g1', startedUnixSeconds: 1763700000, seed: 1, size: 'small', version: 'v', rulesVersion: 1 };
-const SNAP = { turn: 3, delivered: 0, lost: 0, exGremlins: 0, trapped: 0, things: 1, crates: 1 };
+const SNAP = { turn: 3, delivered: 0, lost: 0, exGremlins: 0, trapped: 0, things: 1, crates: 1, deliveredByColor: [0, 0, 0, 0] };
 const BATCH = { format: 1, player: 'random-player', games: [GAME],
     events: [{ gameKey: 'g1', seq: 0, unixSeconds: 1763700001, command: 'place', accepted: true, ...SNAP, args: { kind: 'BELT', q: 1, r: 1, facing: 0 } }],
     milestones: [{ gameKey: 'g1', milestone: 10, unixSeconds: 1763700002, ...SNAP }],

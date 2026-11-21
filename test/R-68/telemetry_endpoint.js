@@ -6,14 +6,17 @@
 // real SQLite database (node:sqlite) with worker/telemetry_schema.sql applied, recording every
 // bind, and a fake ctx whose waitUntil collects the writes. Cases:
 //   - a valid batch → 204 with Access-Control-Allow-Origin *, and the right rows in all four
-//     tables (args with columns in them, the rest and deliveredByColor in `rest`); a crash-only
-//     batch too, its message and stack cut
+//     tables (args with columns in them, deliveredByColor in the four delivered_<color> columns in
+//     CRATE_COLORS order, `rest` holding only the other args, NULL when there are none, and NULL on a
+//     milestone); a crash-only batch too, its message and stack cut
 //   - the schema indexes events by time only, and applied over a database that has events_by_command
 //     it drops it (and stays safe to rerun)
 //   - the batch's format is stored on the games row; TELEMETRY_FORMAT matches GameDisplayArtifacts;
 //     every KNOWN_COMMANDS entry is a GameEngine method
 //   - bad batches (too big by header or by body, too many records, a wrong field type, an unknown
-//     command, a missing required field, not JSON, an array) → 400 and nothing written
+//     command, a missing required field, a deliveredByColor that isn't 4 whole numbers ≥ 0, not
+//     JSON, an array) → 400 and nothing written
+//   - DELIVERED_COLORS is GameArtifacts.CRATE_COLORS
 //   - a missing or unknown format (a string "1" included) → 204, nothing written, a console.error
 //     that holds nothing of the body
 //   - seq is required (a whole number ≥ 0) and stored as the browser sent it, across batches and
@@ -90,7 +93,7 @@ const total = d1 => tables.reduce((n, t) => n + d1.count(t), 0);
 
 const GAME = { gameKey: 'g1', startedUnixSeconds: 1763700000, seed: 4242, size: 'small', version: 'abc1234',
     rulesVersion: 1, userAgent: 'Mozilla/5.0 test', screen: '1280x720@1' };
-const snap = { turn: 7, delivered: 3, lost: 1, exGremlins: 2, trapped: 1, things: 5, crates: 2, deliveredByColor: { red: 3 } };
+const snap = { turn: 7, delivered: 3, lost: 1, exGremlins: 2, trapped: 1, things: 5, crates: 2, deliveredByColor: [3, 0, 0, 1] };
 const EVENT = { gameKey: 'g1', seq: 0, unixSeconds: 1763700010, command: 'place', accepted: true, ...snap,
     args: { kind: 'BELT', q: 3, r: -1, facing: 0, color: 'white', how: 'pick' } };
 const MILESTONE = { gameKey: 'g1', milestone: 10, unixSeconds: 1763700100, ...snap, turn: 60, delivered: 10 };
@@ -104,8 +107,9 @@ const CRASH = { unixSeconds: 1763700200, version: 'abc1234', gameKey: 'g1', seed
     const display = fs.readFileSync(path.join(ROOT, 'displayartifacts.js'), 'utf8').match(/TELEMETRY_FORMAT:\s*(\d+)/);
     check('GameDisplayArtifacts.TELEMETRY_FORMAT is the worker\'s TELEMETRY_FORMAT', display && Number(display[1]) === TELEMETRY_FORMAT);
     check('the worker reads its own format', mod.KNOWN_FORMATS.includes(TELEMETRY_FORMAT));
-    const { GameEngine } = load();
+    const { GameEngine, GameArtifacts } = load();
     check('every KNOWN_COMMANDS entry is a GameEngine command', mod.KNOWN_COMMANDS.every(c => typeof GameEngine.prototype[c] === 'function'));
+    check('DELIVERED_COLORS is GameArtifacts.CRATE_COLORS, in order', JSON.stringify(mod.DELIVERED_COLORS) === JSON.stringify(GameArtifacts.CRATE_COLORS));
 
     // The schema's indexes on events: by time only (D-64), and the old command index dropped.
     {
@@ -139,15 +143,21 @@ const CRASH = { unixSeconds: 1763700200, version: 'abc1234', gameKey: 'g1', seed
         check('an event\'s counts and command', e0.command === 'place' && e0.accepted === 1 && e0.turn === 7 && e0.delivered === 3
             && e0.lost === 1 && e0.ex_gremlins === 2 && e0.trapped === 1 && e0.things === 5 && e0.crates === 2 && e0.unix_seconds === 1763700010);
         check('args with columns go to their columns', e0.kind === 'BELT' && e0.q === 3 && e0.r === -1 && e0.facing === 0 && e0.color === 'white');
-        check('rest holds the other args and deliveredByColor, not the columns',
-            JSON.stringify(JSON.parse(e0.rest)) === JSON.stringify({ args: { how: 'pick' }, deliveredByColor: { red: 3 } }));
+        check('deliveredByColor goes to the four delivered_<color> columns in CRATE_COLORS order',
+            e0.delivered_red === 3 && e0.delivered_green === 0 && e0.delivered_blue === 0 && e0.delivered_yellow === 1);
+        check('rest holds only the other args (no columns, no deliveredByColor)', e0.rest === '{"args":{"how":"pick"}}');
         check('a command without some args leaves those columns null', ev[1].kind === 'WALL' && ev[1].q === null && ev[1].facing === null
             && ev[1].accepted === 0 && JSON.parse(ev[1].rest).args.how === 'slot');
-        check('an event with no args at all', ev[2].command === 'wait' && ev[2].kind === null && JSON.stringify(JSON.parse(ev[2].rest).args) === '{}');
+        check('an event with no args at all: rest NULL', ev[2].command === 'wait' && ev[2].kind === null && ev[2].rest === null);
+        const allColumns = fakeD1(false);
+        await post(allColumns, { format: 1, player: 'p', events: [{ ...EVENT, args: { kind: 'BELT', q: 1, r: 1, facing: 0, color: 'white' } }] });
+        check('an event whose args all have columns: rest NULL', allColumns.rows('events', 'seq')[0].rest === null);
         check('every event row carries the batch identity', ev.every(e => e.player_id === 'p-one' && e.signed_in === 0));
         const [m] = d1.rows('milestones', 'rowid');
         check('one milestones row', d1.count('milestones') === 1 && m.milestone === 10 && m.turn === 60 && m.delivered === 10
-            && m.player_id === 'p-one' && m.signed_in === 0 && JSON.parse(m.rest).deliveredByColor.red === 3);
+            && m.player_id === 'p-one' && m.signed_in === 0);
+        check('a milestone\'s deliveredByColor in its columns, rest NULL', m.delivered_red === 3 && m.delivered_green === 0
+            && m.delivered_blue === 0 && m.delivered_yellow === 1 && m.rest === null);
         const [c] = d1.rows('crashes', 'rowid');
         check('one crashes row', d1.count('crashes') === 1 && c.message === 'TypeError: x is undefined' && c.game_key === 'g1'
             && c.turn === 61 && c.format === 1 && c.player_id === 'p-one' && c.version === 'abc1234');
@@ -180,6 +190,13 @@ const CRASH = { unixSeconds: 1763700200, version: 'abc1234', gameKey: 'g1', seed
         ['an unknown command', { format: 1, player: 'p', games: [GAME], events: [{ ...EVENT, command: 'teleport' }] }, {}, 'events[0].command'],
         ['a missing player', { format: 1, games: [GAME] }, {}, 'player'],
         ['a missing required field', { format: 1, player: 'p', milestones: [{ ...MILESTONE, turn: undefined }] }, {}, 'milestones[0].turn'],
+        ['a missing deliveredByColor', { format: 1, player: 'p', events: [{ ...EVENT, deliveredByColor: undefined }] }, {}, 'events[0].deliveredByColor'],
+        ['deliveredByColor as a { color: n } map', { format: 1, player: 'p', events: [{ ...EVENT, deliveredByColor: { red: 3 } }] }, {}, 'events[0].deliveredByColor'],
+        ['deliveredByColor with 3 entries', { format: 1, player: 'p', milestones: [{ ...MILESTONE, deliveredByColor: [1, 2, 3] }] }, {}, 'milestones[0].deliveredByColor'],
+        ['deliveredByColor with 5 entries', { format: 1, player: 'p', events: [{ ...EVENT, deliveredByColor: [0, 0, 0, 0, 0] }] }, {}, 'events[0].deliveredByColor'],
+        ['deliveredByColor with a negative', { format: 1, player: 'p', events: [{ ...EVENT, deliveredByColor: [0, -1, 0, 0] }] }, {}, 'events[0].deliveredByColor'],
+        ['deliveredByColor with a fraction', { format: 1, player: 'p', milestones: [{ ...MILESTONE, deliveredByColor: [0, 0, 1.5, 0] }] }, {}, 'milestones[0].deliveredByColor'],
+        ['deliveredByColor with a string', { format: 1, player: 'p', events: [{ ...EVENT, deliveredByColor: [0, 0, 0, '1'] }] }, {}, 'events[0].deliveredByColor'],
         ['a record list that isn\'t a list', { format: 1, player: 'p', events: {} }, {}, 'events'],
         ['not JSON', '{format: 1', {}, 'not JSON'],
         ['an array', [1, 2], {}, 'not an object'],

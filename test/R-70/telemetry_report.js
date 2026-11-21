@@ -10,7 +10,7 @@
 //     signed-in hashes across days and a game that switched identity)
 //   - the period: an old game and its events drop out; events with no game record are left out
 //   - several rules versions: every section once per version, lowest first
-//   - rows → records (signed_in, arg columns, rest)
+//   - rows → records (signed_in, arg columns, rest, the delivered_<color> columns as deliveredByColor)
 //   - playFromD1: four SELECTs with --local --json; production with the placeholder is refused
 //     without calling wrangler
 //   - the CLI: usage errors and the placeholder refusal exit 1 without running wrangler; local-d1
@@ -47,10 +47,10 @@ function game(key, o = {}) {
 const snap = { turn: 1, delivered: 0, lost: 0, exGremlins: 0, trapped: 0, things: 0, crates: 1 };
 function event(key, seq, command, o = {}) {
     return { gameKey: key, seq, playerId: 'p1', signedIn: false, unixSeconds: T0 + 10 * (seq + 1), command, accepted: true,
-        ...snap, turn: seq + 1, args: {}, deliveredByColor: {}, ...o };
+        ...snap, turn: seq + 1, args: {}, deliveredByColor: [0, 0, 0, 0], ...o };
 }
 function milestone(key, n, turn, o = {}) {
-    return { gameKey: key, milestone: n, playerId: 'p1', signedIn: false, unixSeconds: T0 + turn, ...snap, turn, delivered: n, deliveredByColor: {}, ...o };
+    return { gameKey: key, milestone: n, playerId: 'p1', signedIn: false, unixSeconds: T0 + turn, ...snap, turn, delivered: n, deliveredByColor: [n, 0, 0, 0], ...o };
 }
 function crash(o = {}) {
     return { id: 1, unixSeconds: T0 + 50, format: 1, version: 'abc1234', gameKey: null, playerId: 'p1', signedIn: false,
@@ -199,9 +199,16 @@ const text = report(fixture(), HEADING, SIZES);
 {
     const e = records.eventFromRow({ game_key: 'g', seq: 3, player_id: 'p', signed_in: 1, unix_seconds: 9, command: 'discard', accepted: 0,
         turn: 4, delivered: 1, lost: 0, ex_gremlins: 2, trapped: 0, things: 3, crates: 1, kind: 'WALL', q: null, r: null, facing: null,
-        color: null, rest: '{"args":{"how":"slot"},"deliveredByColor":{"red":1}}' });
+        color: null, delivered_red: 1, delivered_green: 0, delivered_blue: 2, delivered_yellow: 0, rest: '{"args":{"how":"slot"}}' });
     check('event row → record', e.signedIn === true && e.accepted === false && e.exGremlins === 2 && e.args.kind === 'WALL' && e.args.how === 'slot'
-        && !('q' in e.args) && e.deliveredByColor.red === 1);
+        && !('q' in e.args) && JSON.stringify(e.deliveredByColor) === '[1,0,2,0]');
+    const bare = records.eventFromRow({ game_key: 'g', seq: 4, player_id: 'p', signed_in: 0, unix_seconds: 9, command: 'place', accepted: 1,
+        turn: 4, delivered: 1, lost: 0, ex_gremlins: 0, trapped: 0, things: 3, crates: 1, kind: 'BELT', q: 1, r: 2, facing: 0,
+        color: 'white', delivered_red: 0, delivered_green: 0, delivered_blue: 0, delivered_yellow: 0, rest: null });
+    check('event row with rest NULL → its column args only', JSON.stringify(bare.args) === JSON.stringify({ kind: 'BELT', q: 1, r: 2, facing: 0, color: 'white' }));
+    const ms = records.milestoneFromRow({ game_key: 'g', milestone: 10, player_id: 'p', signed_in: 0, unix_seconds: 9, turn: 40, delivered: 10,
+        lost: 0, ex_gremlins: 0, trapped: 0, things: 3, crates: 1, delivered_red: 7, delivered_green: 3, delivered_blue: 0, delivered_yellow: 0, rest: null });
+    check('milestone row → record, deliveredByColor from its columns', ms.milestone === 10 && JSON.stringify(ms.deliveredByColor) === '[7,3,0,0]');
     const g = records.gameFromRow({ game_key: 'g', player_id: 'p', signed_in: 0, format: 1, started_unix_seconds: 5, seed: 2, size: 'huge',
         version: 'v', rules_version: 1, user_agent: null, screen: null });
     check('game row → record', g.signedIn === false && g.startedUnixSeconds === 5 && g.rulesVersion === 1);
@@ -302,7 +309,7 @@ process.stdout.write(JSON.stringify([{ results, success: true, meta: {} }]));
     const now = Math.floor(Date.now() / 1000);
     const wireGame = (key, started) => ({ gameKey: key, startedUnixSeconds: started, seed: 7, size: 'small', version: 'abc1234',
         rulesVersion: 1, userAgent: CHROME_WIN, screen: '1280x720@1' });
-    const wireSnap = { turn: 3, delivered: 1, lost: 0, exGremlins: 0, trapped: 0, things: 2, crates: 1 };
+    const wireSnap = { turn: 3, delivered: 1, lost: 0, exGremlins: 0, trapped: 0, things: 2, crates: 1, deliveredByColor: [1, 0, 0, 0] };
     const post = async batch => {
         const waits = [];
         const res = await worker.fetch(new Request('http://localhost:8787/t', { method: 'POST', body: JSON.stringify(batch) }), { TELEMETRY: d1 }, { waitUntil: p => waits.push(p) });
@@ -314,12 +321,23 @@ process.stdout.write(JSON.stringify([{ results, success: true, meta: {} }]));
             events: [{ gameKey: 'new', seq: 0, unixSeconds: now - 90, command: 'place', accepted: true, ...wireSnap, args: { kind: 'BELT', q: 1, r: 2, facing: 0, color: null } },
                 { gameKey: 'new', seq: 1, unixSeconds: now - 80, command: 'discard', accepted: true, ...wireSnap, args: { kind: 'WALL', how: 'slot' } },
                 { gameKey: 'new', seq: 2, unixSeconds: now - 70, command: 'bomb', accepted: true, ...wireSnap, args: { hexes: [{ q: 1, r: 1 }, { q: 2, r: 2 }, { q: 3, r: 3 }] } }],
-            milestones: [{ gameKey: 'new', milestone: 10, unixSeconds: now - 60, ...wireSnap, turn: 44, delivered: 10 }] }),
+            milestones: [{ gameKey: 'new', milestone: 10, unixSeconds: now - 60, ...wireSnap, turn: 44, delivered: 10, deliveredByColor: [6, 4, 0, 0] }] }),
         await post({ format: 1, player: 'load-0', games: [wireGame('old', now - 10 * DAY)],
             events: [{ gameKey: 'old', seq: 0, unixSeconds: now - 10 * DAY + 5, command: 'remove', accepted: false, ...wireSnap, args: { q: 1, r: 1, kind: null } }] }),
         await post({ format: 1, player: 'load-1', crashes: [{ unixSeconds: now - 50, message: 'TypeError at 12:7', gameKey: 'new' }] }),
     ];
     check('the Worker took the fixture batches', statuses.every(s => s === 204));
+    {
+        const evRows = db.prepare("SELECT * FROM events WHERE game_key = 'new' ORDER BY seq").all().map(r => ({ ...r }));
+        const msRow = { ...db.prepare("SELECT * FROM milestones WHERE game_key = 'new'").get() };
+        check('the Worker stored deliveredByColor in the delivered_<color> columns', evRows.every(r => r.delivered_red === 1 && r.delivered_green === 0
+            && r.delivered_blue === 0 && r.delivered_yellow === 0) && msRow.delivered_red === 6 && msRow.delivered_green === 4);
+        check('… and not in rest (an event\'s rest is its other args or NULL, a milestone\'s NULL)', evRows[0].rest === null
+            && evRows[1].rest === '{"args":{"how":"slot"}}' && evRows[2].rest === '{"args":{"hexes":[{"q":1,"r":1},{"q":2,"r":2},{"q":3,"r":3}]}}' && msRow.rest === null);
+        const back = records.playFromRows({ games: [], events: evRows, milestones: [msRow], crashes: [] });
+        check('read back as records: deliveredByColor in CRATE_COLORS order', JSON.stringify(back.events[1].deliveredByColor) === '[1,0,0,0]'
+            && back.events[1].args.how === 'slot' && JSON.stringify(back.milestones[0].deliveredByColor) === '[6,4,0,0]');
+    }
 
     const before = fs.statSync(dbFile).mtimeMs;
     const all = run(config, 'local-d1');

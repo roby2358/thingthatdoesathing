@@ -150,6 +150,10 @@ const CRASH = {
     seed: ['int', false], size: ['str', false, 16], turn: ['int', false],
     message: ['str', true, Infinity], stack: ['str', false, Infinity], userAgent: ['str', false, 512],
 };
+/** The crate colors in the order a record's deliveredByColor lists them and the delivered_<color>
+ *  columns are bound: GameArtifacts.CRATE_COLORS, restated here (the Worker can't load the game's
+ *  scripts; R-68 checks they match). */
+export const DELIVERED_COLORS = ['red', 'green', 'blue', 'yellow'];
 /** An event's args that have their own columns, in the order INSERT_EVENT binds them; `rest` keeps the others. */
 const ARG_COLUMNS = { kind: ['str', false, 16], q: ['int', false], r: ['int', false], facing: ['int', false], color: ['str', false, 16] };
 
@@ -175,13 +179,15 @@ function readFormat1(batch) {
         const args = e.args ?? {};
         if (!isObject(args)) throw new BadBatch(where + '.args');
         row.columns = fields(args, ARG_COLUMNS, where + '.args');
+        row.deliveredByColor = byColor(e, where);
         const others = Object.fromEntries(Object.entries(args).filter(([k]) => !Object.hasOwn(ARG_COLUMNS, k)));
-        row.rest = JSON.stringify({ args: others, deliveredByColor: byColor(e, where) });
+        row.rest = Object.keys(others).length > 0 ? JSON.stringify({ args: others }) : null;
         return row;
     });
     const milestones = lists.milestones.map((m, i) => {
         const where = `milestones[${i}]`;
-        return { ...fields(m, MILESTONE, where), rest: JSON.stringify({ deliveredByColor: byColor(m, where) }) };
+        // A milestone's rest holds nothing today (every field it reads has a column): NULL.
+        return { ...fields(m, MILESTONE, where), deliveredByColor: byColor(m, where), rest: null };
     });
     const crashes = lists.crashes.map((c, i) => {
         const row = fields(c, CRASH, `crashes[${i}]`);
@@ -193,13 +199,13 @@ function readFormat1(batch) {
     return { identity, games, events, milestones, crashes };
 }
 
-/** deliveredByColor: an optional { color: count } map. */
+/** deliveredByColor: required, the crates delivered to each color's target, an array of
+ *  DELIVERED_COLORS.length whole numbers ≥ 0 in DELIVERED_COLORS order (0 for a color not open). */
 function byColor(record, where) {
-    const map = record.deliveredByColor ?? {};
-    if (!isObject(map)) throw new BadBatch(where + '.deliveredByColor');
-    for (const [color, n] of Object.entries(map))
-        if (color.length > 16 || !Number.isSafeInteger(n)) throw new BadBatch(where + '.deliveredByColor');
-    return map;
+    const list = record.deliveredByColor;
+    if (!Array.isArray(list) || list.length !== DELIVERED_COLORS.length || !list.every(n => Number.isSafeInteger(n) && n >= 0))
+        throw new BadBatch(where + '.deliveredByColor');
+    return list;
 }
 
 function fields(record, spec, where) {
@@ -235,13 +241,14 @@ const INSERT_GAME = `
  *  the (game_key, seq) key keeps the first of a resent event. */
 const INSERT_EVENT = `
   INSERT OR IGNORE INTO events (game_key, seq, player_id, signed_in, unix_seconds, command, accepted, turn, delivered,
-    lost, ex_gremlins, trapped, things, crates, kind, q, r, facing, color, rest)
-  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)`;
+    lost, ex_gremlins, trapped, things, crates, delivered_red, delivered_green, delivered_blue, delivered_yellow,
+    kind, q, r, facing, color, rest)
+  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)`;
 
 const INSERT_MILESTONE = `
   INSERT OR IGNORE INTO milestones (game_key, milestone, player_id, signed_in, turn, unix_seconds, delivered, lost,
-    ex_gremlins, trapped, things, crates, rest)
-  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`;
+    ex_gremlins, trapped, things, crates, delivered_red, delivered_green, delivered_blue, delivered_yellow, rest)
+  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)`;
 
 const INSERT_CRASH = `
   INSERT INTO crashes (unix_seconds, format, version, game_key, player_id, signed_in, seed, size, turn, message, stack,
@@ -254,10 +261,10 @@ function statementsFor(db, { identity: { playerId, signedIn }, games, events, mi
         ...games.map(g => db.prepare(INSERT_GAME).bind(g.gameKey, playerId, signedIn, g.format, g.startedUnixSeconds,
             g.seed, g.size, g.version, g.rulesVersion, g.userAgent, g.screen)),
         ...events.map(e => db.prepare(INSERT_EVENT).bind(e.gameKey, e.seq, playerId, signedIn, e.unixSeconds, e.command,
-            e.accepted ? 1 : 0, e.turn, e.delivered, e.lost, e.exGremlins, e.trapped, e.things, e.crates,
+            e.accepted ? 1 : 0, e.turn, e.delivered, e.lost, e.exGremlins, e.trapped, e.things, e.crates, ...e.deliveredByColor,
             ...Object.keys(ARG_COLUMNS).map(k => e.columns[k]), e.rest)),
         ...milestones.map(m => db.prepare(INSERT_MILESTONE).bind(m.gameKey, m.milestone, playerId, signedIn, m.turn,
-            m.unixSeconds, m.delivered, m.lost, m.exGremlins, m.trapped, m.things, m.crates, m.rest)),
+            m.unixSeconds, m.delivered, m.lost, m.exGremlins, m.trapped, m.things, m.crates, ...m.deliveredByColor, m.rest)),
         ...crashes.map(c => db.prepare(INSERT_CRASH).bind(c.unixSeconds, c.format, c.version, c.gameKey, playerId,
             signedIn, c.seed, c.size, c.turn, c.message, c.stack, c.userAgent)),
     ];

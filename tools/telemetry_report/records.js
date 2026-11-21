@@ -77,6 +77,14 @@ function gameFromRow(row) {
     };
 }
 
+/** The delivered_<color> columns, in CRATE_COLORS order: a record's deliveredByColor is their
+ *  values as the browser sent them (worker/telemetry.js DELIVERED_COLORS). */
+const DELIVERED_COLUMNS = ['delivered_red', 'delivered_green', 'delivered_blue', 'delivered_yellow'];
+
+function deliveredByColor(row) {
+    return DELIVERED_COLUMNS.map(c => row[c]);
+}
+
 /** The args that have columns of their own (worker/telemetry.js ARG_COLUMNS); a NULL column is an arg the event didn't have. */
 const ARG_COLUMNS = ['kind', 'q', 'r', 'facing', 'color'];
 
@@ -86,12 +94,12 @@ function eventFromRow(row) {
     const columns = Object.fromEntries(ARG_COLUMNS.filter(k => row[k] !== null && row[k] !== undefined).map(k => [k, row[k]]));
     return {
         ...snapshot(row), seq: row.seq, ...identity(row), command: row.command, accepted: row.accepted === 1,
-        args: { ...(rest.args || {}), ...columns }, deliveredByColor: rest.deliveredByColor || {},
+        args: { ...(rest.args || {}), ...columns }, deliveredByColor: deliveredByColor(row),
     };
 }
 
 function milestoneFromRow(row) {
-    return { ...snapshot(row), milestone: row.milestone, ...identity(row), deliveredByColor: restOf(row).deliveredByColor || {} };
+    return { ...snapshot(row), milestone: row.milestone, ...identity(row), deliveredByColor: deliveredByColor(row) };
 }
 
 function crashFromRow(row) {

@@ -6,8 +6,9 @@
 --
 -- `just d1-local` and `just d1-production` apply this file, and test/R-68 applies it to its own
 -- database. Every statement is safe to run again. There is no migration history: a change to a
--- table that exists is made by hand, and said to the designer. No foreign keys: a game's events,
--- milestones and crashes are kept whether or not its games row arrived.
+-- table that exists is made by hand, and said to the designer. A local database made before a
+-- table changed is recreated instead: delete .wrangler/state/v3/d1, then run just d1-local. No
+-- foreign keys: a game's events, milestones and crashes are kept whether or not its games row arrived.
 
 -- One row per game, from the first batch that carries its game record (the browser resends the
 -- record in every batch of that game; INSERT OR IGNORE keeps the first): who started it.
@@ -46,12 +47,16 @@ CREATE TABLE IF NOT EXISTS events (
   trapped INTEGER NOT NULL,
   things INTEGER NOT NULL,                 -- Things on the board
   crates INTEGER NOT NULL,                 -- pieces that aren't gremlins
+  delivered_red INTEGER NOT NULL,          -- crates delivered to each color's target (GameArtifacts.CRATE_COLORS
+  delivered_green INTEGER NOT NULL,        -- order), 0 for a color not open
+  delivered_blue INTEGER NOT NULL,
+  delivered_yellow INTEGER NOT NULL,
   kind TEXT,                               -- the command's args, NULL where it has none
   q INTEGER,
   r INTEGER,
   facing INTEGER,
   color TEXT,
-  rest TEXT NOT NULL,                      -- JSON {"args": the other args, "deliveredByColor": {color: n}}
+  rest TEXT,                               -- JSON {"args": the args without a column}, NULL when there are none
   PRIMARY KEY (game_key, seq)
 );
 
@@ -76,7 +81,11 @@ CREATE TABLE IF NOT EXISTS milestones (
   trapped INTEGER NOT NULL,
   things INTEGER NOT NULL,
   crates INTEGER NOT NULL,
-  rest TEXT NOT NULL,                      -- JSON {"deliveredByColor": {color: n}}
+  delivered_red INTEGER NOT NULL,          -- as on events
+  delivered_green INTEGER NOT NULL,
+  delivered_blue INTEGER NOT NULL,
+  delivered_yellow INTEGER NOT NULL,
+  rest TEXT,                               -- JSON of fields without a column: none yet, so NULL
   PRIMARY KEY (game_key, milestone)
 );
 
