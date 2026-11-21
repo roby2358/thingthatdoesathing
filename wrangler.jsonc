@@ -1,0 +1,24 @@
+// Thing Factory on Cloudflare: an assets-only Worker (no script) serving the ship build.
+// `just deploy` runs `just ship` first, so ./dist/web is the current commit's files.
+// Same shape as yuwakisacloud/site.
+{
+  "name": "ttdat",
+  "compatibility_date": "2025-04-01",
+  "assets": { "directory": "./dist/web" },
+
+  // Later (telemetry, Bluesky login, achievements): add "main": "worker/index.js" for the
+  // API routes (assets still serve everything else) and a "d1_databases" binding. D1 and
+  // vars don't inherit into env.production, so restate them there with the real ids (see
+  // yuwakisacloud/auth/wrangler.jsonc).
+
+  // Routes live only under env.production so `wrangler dev` carries none. `name` is
+  // pinned so the env doesn't deploy as "ttdat-production". custom_domain has Cloudflare
+  // create the DNS record and the certificate on the first deploy; it fails if a DNS record
+  // for ttdat.yuwakisa.com already exists.
+  "env": {
+    "production": {
+      "name": "ttdat",
+      "routes": [{ "pattern": "ttdat.yuwakisa.com", "custom_domain": true }]
+    }
+  }
+}

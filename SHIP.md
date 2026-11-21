@@ -35,10 +35,10 @@ what would check it.
 
 | Target | URL | Frame size | Commit live | Date | How to deploy |
 |---|---|---|---|---|---|
-| Own site | https://ttdat.yuwakisa.com (planned) | n/a | — | — | `just deploy` (own-deploy-kfi7) |
+| Own site | https://ttdat.yuwakisa.com (planned) | n/a | — | — | `just deploy` (README "Deploy" has the one-time steps) |
 | itch.io | — | 1280x720, fullscreen on | — | — | `just ship`, upload `dist/ttdat-<commit>.zip` |
 | Newgrounds | — | 1280x720, fullscreen on | — | — | `just ship`, upload `dist/ttdat-<commit>.zip` |
-| Old copy | yuwakisa.com/thingthatdoesathing/ | n/a | f65efa8 (deploys with yuwakisaweb) | — | retire or redirect after the move (X-2) |
+| Old copy | yuwakisa.com/thingthatdoesathing/ | n/a | f65efa8 (deploys with yuwakisaweb) | — | remove from yuwakisaweb or replace with a redirect to ttdat.yuwakisa.com, when the author decides (X-2) |
 
 ## Blocking the cut line
 
@@ -47,7 +47,7 @@ it needs the author: it gets no pjpd task.
 
 | Id | Item | Tier | Status | Evidence | Task |
 |---|---|---|---|---|---|
-| WEB-1 | HTTPS at a stable URL | T1 | missing | ttdat.yuwakisa.com not set up yet | own-deploy-kfi7 |
+| WEB-1 | HTTPS at a stable URL | T1 | partial | wrangler.jsonc claims ttdat.yuwakisa.com with a custom domain; not deployed yet | you |
 | PORT-1 | Portal upload zip | T1 | done | `just ship` writes dist/ttdat-<commit>.zip, index.html at the root (test/integration/ship.js) | |
 | WEB-2 | Only the game is deployed | T1 | done | dist/web/ holds only the files index.html loads | |
 | SAVE-1 | Progress survives a reload | T1 | missing | nothing stored anywhere; an endless run is lost on reload | save-resume-tbe3 |
@@ -61,7 +61,7 @@ it needs the author: it gets no pjpd task.
 | PRIV-1 | Telemetry decision recorded | T1 | partial | direction recorded; schema and notice open | you (telemetry-v54s) |
 | ONB-1 | A stranger makes a first move unaided | T1 | unverified | needs a cold play by someone new | you |
 | ERR-1 | Clean console on a normal run | T1 | unverified | uiboot.js plays clean on a stub DOM; needs a real-browser console check | you |
-| LOAD-1 | Works on the real host from a clean profile | T1 | unverified | host not up; all paths relative and lowercase | you, after own-deploy |
+| LOAD-1 | Works on the real host from a clean profile | T1 | unverified | host not up; all paths relative and lowercase | you, after the first deploy |
 | PLAY-1 | Played on the shipped build | T1 | unverified | endless: play a fresh run on each size past a few milestones | you |
 | MENU-5 | Continue vs New Game | T2 | missing | no save yet | save-resume-tbe3 |
 | SAVE-4 | Save format versioned | T2 | missing | no save yet | save-resume-tbe3 |
@@ -100,9 +100,9 @@ it needs the author: it gets no pjpd task.
 | LOC-2 | Strings in one table | T2 | missing | text spread over index.html, THING_LOOK, gameui.js | string-table-c2cy |
 | LOC-3 | No concatenated sentences | T2 | partial | some card and banner text is built with + | string-table-c2cy |
 | LEGAL-7 | Repo license decided | T2 | done | MIT, LICENSE at the repo root | |
-| OPS-3 | Tagged, repeatable deploy | T2 | missing | no deploy steps for the new host | own-deploy-kfi7 |
-| OPS-4 | Patch path known | T2 | partial | no save versioning yet; no deploy recipe | own-deploy-kfi7 |
-| X-2 | Retire the old yuwakisa.com copy | T2 | missing | two live copies after the move | own-deploy-kfi7 |
+| OPS-3 | Tagged, repeatable deploy | T2 | done | `just deploy`; the build carries the commit hash (-dirty if uncommitted) | |
+| OPS-4 | Patch path known | T2 | partial | patch path per target in README "Deploy"; no save versioning yet | save-resume-tbe3 |
+| X-2 | Retire the old yuwakisa.com copy | T2 | missing | steps in README "Deploy"; after the first deploy | you |
 | ONB-7 | Consequences previewed | T2 | partial | legal hexes and facing shown; no path preview or undo, and remove/blast/Bomb are instant | design call: idea undo-preview-k9rq |
 | WEB-5 | Capsule and screenshots | T2 | missing | none; must come from real play | you |
 | X-1 | Newgrounds accepts an AI-made game | T2 | unverified | Newgrounds' art rules keep AI art out of the Art Portal, and since March 2024 players can report mostly-AI content; no rule found for games | you: check Newgrounds' current game rules |
@@ -276,7 +276,7 @@ are T1 as well.
 
 | Id | Item | Tier | Status | Evidence | Task |
 |---|---|---|---|---|---|
-| WEB-1 | HTTPS stable URL | T1 | missing | | own-deploy-kfi7 |
+| WEB-1 | HTTPS stable URL | T1 | partial | | you |
 | WEB-2 | Only the game deployed | T1 | done | | |
 | WEB-3 | Title, description, favicon | T2 | partial | | meta-tags-dagy |
 | WEB-4 | Link previews | T2 | missing | | meta-tags-dagy |
@@ -284,7 +284,7 @@ are T1 as well.
 | WEB-6 | Pitch | T2 | missing | | listing-r8fn |
 | WEB-7 | Way back | T2 | missing | | credits-55gy |
 | WEB-8 | Clip or GIF | T3 | missing | | |
-| WEB-9 | Old URLs | T3 | partial | the move leaves yuwakisa.com/thingthatdoesathing/ (X-2) | own-deploy-kfi7 |
+| WEB-9 | Old URLs | T3 | partial | the move leaves yuwakisa.com/thingthatdoesathing/ (X-2) | you |
 | WEB-10 | Embedding policy | T3 | missing | | |
 
 ### LEGAL
@@ -316,8 +316,8 @@ are T1 as well.
 |---|---|---|---|---|---|
 | OPS-1 | Feedback channel | T2 | missing | | credits-55gy |
 | OPS-2 | Version visible | T2 | missing | | credits-55gy |
-| OPS-3 | Tagged deploy | T2 | missing | | own-deploy-kfi7 |
-| OPS-4 | Patch path | T2 | partial | | own-deploy-kfi7 |
+| OPS-3 | Tagged deploy | T2 | done | | |
+| OPS-4 | Patch path | T2 | partial | | save-resume-tbe3 |
 | OPS-5 | Changelog | T3 | partial | ARCHITECTURE_LOG.md is for developers, not players | |
 | OPS-6 | Launch post | T3 | missing | | |
 

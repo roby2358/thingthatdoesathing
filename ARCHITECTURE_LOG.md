@@ -10,6 +10,11 @@ zips them as `dist/ttdat-<version>.zip` for the portals. The web build sits in `
 zip beside it isn't served. Before this, the whole folder (docs, tests, backlog) was what got
 served. `test/integration/ship.js` checks the zip. No game code changed.
 
+`just deploy` ships and deploys `dist/web` as an assets-only Cloudflare Worker (`ttdat`,
+`wrangler.jsonc`, the yuwakisacloud/site shape) at ttdat.yuwakisa.com, using yuwakisacloud's
+pinned wrangler; the repo stays npm-free. A Worker script and D1 for login and achievements
+would join the same config. LICENSE (MIT) added.
+
 ### 2026-11-17 — ONTOLOGY checked against the code
 Doc-only, plus one code comment. The non-goal "picking a Thing back up" now reads as getting a
 removed Thing's card back (the Mover lifts Things, D-47). The idle-redraw reset lists every

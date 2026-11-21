@@ -393,6 +393,15 @@ Updated: 2026-11-11T20:54:22Z
 
 Thing Factory: add a Slide card, a placeable Thing that acts like ice. A piece that steps onto it keeps sliding in the same direction for free, the way it does on bare ice in step(). Ideally this is one THINGS flag (e.g. `slides: true`) that the ice check in step() also reads, so there's a single code path for terrain ice and Slide Things. A Slide can be placed on water, like a Bridge [D]: it makes the water hex crossable, and the piece slides over it. Use the Bridge's water-legal placement rule and its "not sunk" check, plus the slide behavior. Add a draw weight, a THING_LOOK, and a spot in the card-unlock order if that's built. Open question: does a Spring landing on a Slide skid on, the way it does on ice? Reconcile the docs, add an R-n test (including a slide across water), and run cc-sim.
 ----
+Priority:   46
+Status: Done
+ID: ship-bundle-wyxt
+Created: 2026-11-17T02:44:16Z
+Updated: 2026-11-21T01:18:21Z
+
+Build a ship bundle with only the game files, plus cache-busting and a portal zip.
+Today the whole folder (design docs, test/, pjpd/, justfile) is what gets served. Done looks like: a `just ship` recipe (plain shell/node, no npm deps) that copies only what the page needs (index.html, index.css, the game .js files) into dist/, stamps each script/stylesheet URL in dist/index.html with a version query (?v=<short commit hash>) so a returning player never runs new HTML against old JS, writes the commit hash where the game can show it (e.g. a tiny version.js global or a data attribute), and produces dist/ttdat-<hash>.zip with index.html at the zip root, every path relative, exact filename case. dist/ is git-ignored. Add a test that runs the recipe and checks the zip has index.html at root and contains no .md, test/ or pjpd/ files. Document it in CLAUDE.md and a short SHIP.md deploy note. SHIP.md items: WEB-2, PORT-1, LOAD-3. Done when `just ship` produces the zip and `just cc-test` passes.
+----
 Priority:   45
 Status: Done
 ID: delete-sel-rcax

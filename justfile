@@ -1,3 +1,6 @@
+# wrangler comes from yuwakisacloud's pinned install (`just bootstrap` there); this repo has no npm
+wrangler := justfile_directory() + "/../yuwakisacloud/node_modules/.bin/wrangler"
+
 # List available commands
 default:
     @just --list
@@ -15,7 +18,17 @@ cc-sim games size:
 cc-sim-to games size milestones:
     node test/sim.js {{games}} {{size}} {{milestones}}
 
-# Ship build: only the files the page loads, stamped ?v=<commit> (cache-busting), into
-# dist/web/ (what deploy serves), plus dist/ttdat-<commit>.zip for itch.io / Newgrounds
+# Ship build: the page's files stamped ?v=<commit> into dist/web/, plus dist/ttdat-<commit>.zip
 ship:
     node tools/ship.js
+
+# Serve the ship build locally the way Cloudflare will (http://localhost:8794)
+preview: ship _wrangler
+    {{wrangler}} dev --port 8794
+
+# Build and deploy to https://ttdat.yuwakisa.com (needs a wrangler login)
+deploy: ship _wrangler
+    {{wrangler}} deploy --env production
+
+_wrangler:
+    @test -x {{wrangler}} || { echo "no wrangler at {{wrangler}}: run 'just bootstrap' in ../yuwakisacloud"; exit 1; }

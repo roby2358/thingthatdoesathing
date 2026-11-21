@@ -52,15 +52,6 @@ Updated: 2026-11-17T02:44:46Z
 Add a Settings panel: volume, animation speed, reduced motion, fullscreen, saved apart from the run.
 There's no settings screen. Done looks like: a "Settings" button in the top button row opens an overlay (OVERLAY_KEYS pattern) with: sound on/off (the same flag as the mute button) and a volume slider (GameSound gets setVolume); animation speed (normal / fast / instant, scaling HOP_MS and RUN_GAP_MS in the UI only); reduced motion (skips bursts and fades; defaults on when prefers-reduced-motion matches); a fullscreen toggle (requestFullscreen on the document, label follows fullscreenchange; hidden if the API is missing); and the "help seen" flag so the keys legend shows once per browser, not every load (still reachable from Help). Settings persist in localStorage under their own namespaced key (e.g. "ttdat.settings.v1"), separate from the saved run, with try/catch and defaults when storage fails; New Game never resets them. Client-only; the engine never sees settings. SHIP.md items: SET-1, SET-2, SET-3, SET-4, AUD-4, SAVE-6, ONB-9, PORT-4. Done when `just cc-test` passes, with a uiboot check that a setting survives a UI reboot on the stub DOM.
 ----
-Priority:   46
-Status: ToDo
-ID: ship-bundle-wyxt
-Created: 2026-11-17T02:44:16Z
-Updated: 2026-11-17T02:44:16Z
-
-Build a ship bundle with only the game files, plus cache-busting and a portal zip.
-Today the whole folder (design docs, test/, pjpd/, justfile) is what gets served. Done looks like: a `just ship` recipe (plain shell/node, no npm deps) that copies only what the page needs (index.html, index.css, the game .js files) into dist/, stamps each script/stylesheet URL in dist/index.html with a version query (?v=<short commit hash>) so a returning player never runs new HTML against old JS, writes the commit hash where the game can show it (e.g. a tiny version.js global or a data attribute), and produces dist/ttdat-<hash>.zip with index.html at the zip root, every path relative, exact filename case. dist/ is git-ignored. Add a test that runs the recipe and checks the zip has index.html at root and contains no .md, test/ or pjpd/ files. Document it in CLAUDE.md and a short SHIP.md deploy note. SHIP.md items: WEB-2, PORT-1, LOAD-3. Done when `just ship` produces the zip and `just cc-test` passes.
-----
 Priority:   45
 Status: ToDo
 ID: save-resume-tbe3

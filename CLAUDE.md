@@ -37,7 +37,9 @@ python -m http.server 8000
 every local script/stylesheet it names into `dist/web/`, stamps those URLs `?v=<short hash>`
 (`-dirty` with uncommitted changes) and puts the same version on `<html data-version>` (unset
 in dev), and zips `web/` as `dist/ttdat-<version>.zip` (index.html at the zip root) for the
-portals. `dist/` is git-ignored; `test/integration/ship.js` checks the zip.
+portals. `dist/` is git-ignored; `test/integration/ship.js` checks the zip. `just deploy` ships
+and runs `wrangler deploy --env production` (`wrangler.jsonc`: an assets-only Worker serving
+`dist/web` at ttdat.yuwakisa.com), with yuwakisacloud's wrangler; README "Deploy" has the steps.
 
 ## Architecture
 

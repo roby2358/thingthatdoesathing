@@ -83,3 +83,29 @@ that comes onto a target dies there, so they can't camp it.
 - `M` / Sound (top left, by Help): turn all sound on or off; remembered in this browser, works any time (not while an overlay is open)
 - Help (top left): the keys legend, also shown once when the first game opens; ticks hold while it's open
 - New Game: pick a board size (click or `1`–`4`); Esc keeps the current game
+
+## Deploy
+
+Three places run the game, all from the same ship build (`just ship`, see CLAUDE.md):
+
+| Target | Patch it with |
+|---|---|
+| https://ttdat.yuwakisa.com | `just deploy` |
+| itch.io | `just ship`, then upload `dist/ttdat-<commit>.zip` on the game's edit page |
+| Newgrounds | `just ship`, then upload the same zip |
+
+`just deploy` builds and runs `wrangler deploy --env production` (an assets-only Cloudflare
+Worker, `wrangler.jsonc`). It uses yuwakisacloud's wrangler, so that repo sits next to this
+one. `just preview` serves the build locally first. Commit before you ship: the build's
+version is the commit hash, marked `-dirty` when there are uncommitted changes.
+
+By hand, once:
+
+1. In `../yuwakisacloud`: `just bootstrap` (installs wrangler), then `just login` (or
+   `just whoami` to see you're already logged in to the account that holds yuwakisa.com).
+2. Make sure no DNS record for `ttdat.yuwakisa.com` exists in the yuwakisa.com zone.
+3. Here: `just deploy`. The first deploy creates the `ttdat` Worker, the DNS record and the
+   certificate (`custom_domain` in `wrangler.jsonc`); give the certificate a few minutes.
+4. Check https://ttdat.yuwakisa.com in a clean browser profile.
+5. When you're ready, retire the old copy at yuwakisa.com/thingthatdoesathing/: remove it from
+   yuwakisaweb, or replace it with a redirect page to https://ttdat.yuwakisa.com/.
