@@ -14,3 +14,8 @@ cc-sim games size:
 # The same bot played on to the Nth milestone: turns to each milestone, big crates spawned (D-34)
 cc-sim-to games size milestones:
     node test/sim.js {{games}} {{size}} {{milestones}}
+
+# Ship build: only the files the page loads, stamped ?v=<commit> (cache-busting), into
+# dist/web/ (what deploy serves), plus dist/ttdat-<commit>.zip for itch.io / Newgrounds
+ship:
+    node tools/ship.js

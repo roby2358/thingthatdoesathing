@@ -36,8 +36,8 @@ what would check it.
 | Target | URL | Frame size | Commit live | Date | How to deploy |
 |---|---|---|---|---|---|
 | Own site | https://ttdat.yuwakisa.com (planned) | n/a | — | — | `just deploy` (own-deploy-kfi7) |
-| itch.io | — | 1280x720, fullscreen on | — | — | upload the `just ship` zip (ship-bundle-wyxt) |
-| Newgrounds | — | 1280x720, fullscreen on | — | — | upload the `just ship` zip |
+| itch.io | — | 1280x720, fullscreen on | — | — | `just ship`, upload `dist/ttdat-<commit>.zip` |
+| Newgrounds | — | 1280x720, fullscreen on | — | — | `just ship`, upload `dist/ttdat-<commit>.zip` |
 | Old copy | yuwakisa.com/thingthatdoesathing/ | n/a | f65efa8 (deploys with yuwakisaweb) | — | retire or redirect after the move (X-2) |
 
 ## Blocking the cut line
@@ -48,8 +48,8 @@ it needs the author: it gets no pjpd task.
 | Id | Item | Tier | Status | Evidence | Task |
 |---|---|---|---|---|---|
 | WEB-1 | HTTPS at a stable URL | T1 | missing | ttdat.yuwakisa.com not set up yet | own-deploy-kfi7 |
-| PORT-1 | Portal upload zip | T1 | missing | no build step; no zip | ship-bundle-wyxt |
-| WEB-2 | Only the game is deployed | T1 | partial | today the whole folder ships, docs, test/ and pjpd/ included | ship-bundle-wyxt |
+| PORT-1 | Portal upload zip | T1 | done | `just ship` writes dist/ttdat-<commit>.zip, index.html at the root (test/integration/ship.js) | |
+| WEB-2 | Only the game is deployed | T1 | done | dist/web/ holds only the files index.html loads | |
 | SAVE-1 | Progress survives a reload | T1 | missing | nothing stored anywhere; an endless run is lost on reload | save-resume-tbe3 |
 | MOB-3 | A way past the sorry screen | T1 | done | "Try it anyway" on the sorry card boots the game (D-41) | |
 | MOB-2 | Detect by capability | T1 | done | query includes `not (any-pointer: fine)` (D-41) | |
@@ -73,7 +73,7 @@ it needs the author: it gets no pjpd task.
 | MOB-8 | HiDPI and zoom crisp | T2 | partial | gameui.js:420 has no devicePixelRatio | hidpi-678j |
 | MOB-7 | Small desktop window | T2 | unverified | check at 1280x720 and 960x600 | portal-frame-aqns |
 | ERR-3 | Visible, recoverable crash | T2 | missing | no error handlers | crash-screen-zruz |
-| LOAD-3 | Updates reach players | T2 | missing | no cache-busting | ship-bundle-wyxt |
+| LOAD-3 | Updates reach players | T2 | done | every script/stylesheet URL stamped ?v=<commit> | |
 | MENU-7 | Auto-pause when hidden | T2 | partial | Go keeps ticking from setTimeout in a background tab (gameui.js:812) | hidden-pause-y9wi |
 | LOAD-5 | Doesn't spin when idle | T2 | partial | redraws only on change; Go runs while hidden | hidden-pause-y9wi |
 | SET-1 | Settings screen | T2 | missing | none | settings-rrcw |
@@ -232,7 +232,7 @@ are T1 as well.
 |---|---|---|---|---|---|
 | LOAD-1 | Real host, clean profile | T1 | unverified | | you |
 | LOAD-2 | Something appears at once | T2 | done | tiny payload, system fonts | |
-| LOAD-3 | Updates reach players | T2 | missing | | ship-bundle-wyxt |
+| LOAD-3 | Updates reach players | T2 | done | | |
 | LOAD-4 | Frame rate | T2 | unverified | | you |
 | LOAD-5 | Idle | T2 | partial | | hidden-pause-y9wi |
 | LOAD-6 | No third-party hosts | T2 | done | no network requests in code; system font stack (index.css:15) | |
@@ -277,7 +277,7 @@ are T1 as well.
 | Id | Item | Tier | Status | Evidence | Task |
 |---|---|---|---|---|---|
 | WEB-1 | HTTPS stable URL | T1 | missing | | own-deploy-kfi7 |
-| WEB-2 | Only the game deployed | T1 | partial | | ship-bundle-wyxt |
+| WEB-2 | Only the game deployed | T1 | done | | |
 | WEB-3 | Title, description, favicon | T2 | partial | | meta-tags-dagy |
 | WEB-4 | Link previews | T2 | missing | | meta-tags-dagy |
 | WEB-5 | Capsule and screenshots | T2 | missing | | you |
@@ -338,7 +338,7 @@ Portal docs checked 2026-11-17:
 
 | Id | Item | Tier | Status | Evidence | Task |
 |---|---|---|---|---|---|
-| PORT-1 | Upload shape | T1 | missing | | ship-bundle-wyxt |
+| PORT-1 | Upload shape | T1 | done | | |
 | PORT-2 | Keyboard focus | T1 | partial | | portal-frame-aqns |
 | PORT-3 | Fits the frame | T1 | partial | | portal-frame-aqns |
 | PORT-4 | Fullscreen | T2 | missing | | settings-rrcw |

@@ -2,6 +2,14 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-21 — Ship build
+The game moved to its own repo (a fresh history; it was yuwakisaweb/thingthatdoesathing up to
+122ba86). `just ship` (`tools/ship.js`, plain Node, no npm) builds `dist/web/` from only the
+files index.html loads, stamps their URLs `?v=<short hash>` and `<html data-version>`, and
+zips them as `dist/ttdat-<version>.zip` for the portals. The web build sits in `web/` so the
+zip beside it isn't served. Before this, the whole folder (docs, tests, backlog) was what got
+served. `test/integration/ship.js` checks the zip. No game code changed.
+
 ### 2026-11-17 — ONTOLOGY checked against the code
 Doc-only, plus one code comment. The non-goal "picking a Thing back up" now reads as getting a
 removed Thing's card back (the Mover lifts Things, D-47). The idle-redraw reset lists every
