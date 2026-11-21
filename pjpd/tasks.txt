@@ -56,10 +56,12 @@ Priority:   45
 Status: ToDo
 ID: screencap-wpsv
 Created: 2026-11-17T02:50:58Z
-Updated: 2026-11-17T02:50:58Z
+Updated: 2026-11-21T01:32:46Z
 
 Add an in-game screencap key that saves the board as PNGs sized for the listings.
 The listings and link preview need images taken from real play (SHIP.md WEB-5, the og:image for WEB-4, itch.io capsule). Done looks like: pressing P (unbound today; ignored with Ctrl/Alt/Meta held and while an overlay is open) saves PNGs of what's on the board right now, drawn from the game canvas: (1) the full canvas at its current size, (2) a 1200x630 crop/scale centered on the board's view for og:image, (3) a 630x500 crop for the itch.io capsule, and (4) a 1280x720 one for screenshots. Each is rendered into an offscreen canvas at that size by re-running render() with a temporary size and transform (so it's sharp, not a scaled bitmap), without the hover highlight or ghost, then downloaded via a temporary <a download="ttdat-<seed>-<turn>-<size>.png"> with canvas.toBlob. A short "Saved 4 screenshots" note shows in the hover bar. The DOM HUD isn't included (OS screenshots cover full-UI shots). Works from file:// too. Client-only. Add P to the help legend and the README (as a capture key), a D-n in RATIONALE, an ARCHITECTURE_LOG entry, and list the outputs in SHIP.md under WEB-5. Add a uiboot check that P calls the download path on the stub DOM (stub toBlob). Done when `just cc-test` passes.
+
+Also og.png (the link-preview image; index.html already points og:image at https://ttdat.yuwakisa.com/og.png, which is missing on the live site): the author picks one of the 1200x630 captures and saves it as og.png at the repo root, committed. tools/ship.js copies only what index.html loads through src/href, so og.png (named only in a <meta content>) needs adding to the build: copy og.png into dist/web/ when it exists (no need to put it in the portal zip), and extend test/integration/ship.js to check it lands in web/ (adjust the "web/ holds the same files as the zip" check). Mark SHIP.md WEB-4's og:image done once og.png is deployed (`just deploy`).
 ----
 Priority:   45
 Status: ToDo
