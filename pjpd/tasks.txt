@@ -1,26 +1,3 @@
-Priority:   65
-Status: ToDo
-ID: signout-f4x8
-Created: 2026-11-21T08:26:34Z
-Updated: 2026-11-21T08:54:15Z
-
-A "Sign out" button for the optional Bluesky sign-in. Build on bskysignin-5sap, which comes first: it adds the Sign in button, the token in localStorage `thingfactory.auth`, and the signed-in player_id in telemetry.
-
-Settled design:
-- While signed in, a "Sign out" button sits in the top-left bar right after the signed-in label (the handle). While signed out, and wherever sign-in isn't offered (portal builds, file://), it is hidden.
-- Clicking it signs out at once, with no confirm and no reload, and the game keeps going:
-  1. Flush telemetry's pending batch under the signed-in identity.
-  2. Remove `thingfactory.auth` (try/catch).
-  3. Make a fresh random in-memory ID, used from the next batch on.
-  4. Turn the label back into the Sign in button.
-- Identity is per batch (telemetrydb-hgs4), orthogonal to play: the game in play keeps going, its rows before the click carry the signed-in hash, and its rows after carry the new random ID. Steps 1 and 3 are GameTelemetry.switchIdentity(null).
-- It is ignored while an overlay is open, like Help. It doesn't tick and works mid-animation, like Sound.
-- About page 1's sign-in line follows the change.
-- No call to auth/ to revoke the token: access tokens are short-lived, and forgetting it locally is enough. Note this in RATIONALE.
-- Docs: a CRITERIA U-row for the click, a RATIONALE D-n (no revoke, no reload, flush first), the ONTOLOGY sign-in section, an ARCHITECTURE_LOG entry, and the README UI list. Plus a uiboot.js test: with a stubbed token in localStorage, the button shows; a click removes the key, shows Sign in, and the next batch carries no token field.
-
-Done when: just cc-test passes with the new uiboot test, and under wrangler dev a signed-in session signs out by the button with the game still running. The batches before the click carry the token, the ones after don't, and the rows after carry a random player_id with signed_in 0, in the same game.
-----
 Priority:   60
 Status: ToDo
 ID: ratelimit-27qf

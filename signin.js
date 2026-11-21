@@ -92,6 +92,12 @@ const GameSignIn = (function () {
             return { token: a.token, handle: typeof a.handle === 'string' && a.handle ? a.handle : null, expiresAt: a.expiresAt };
         },
 
+        // Forget the sign-in (the bar's Sign out, GameUI.signOut): only the local copy. auth/ is
+        // never asked to revoke it; its access tokens are short-lived (D-69).
+        signOut() {
+            remove('localStorage', AUTH_KEY);
+        },
+
         // Is this page load a return from the sign-in redirect? Its OAuth state has the prefix,
         // whether the sign-in worked (code) or not (error).
         isReturn() {

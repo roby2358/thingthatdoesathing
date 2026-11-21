@@ -4,7 +4,7 @@
 // and requestAnimationFrame, then drives the UI through clicks and keys: pick a board size
 // from the intro, pick each card, turn the ghost, place, select and rotate, remove the selected Thing with D, wait, run tick animations to completion,
 // play to the first milestone (checking that no two pieces are ever drawn on one hex at a hop,
-// D-38), drive the color picker (D-32), the Mover's pick-up and carry (D-47), the Bomb's booms (D-48), the map-scale buttons (D-40), the Help and About pagers (D-60, D-61, D-59), the sorry page a phone gets (D-41), the crash screen (D-63), the save around the sign-in redirect (D-67: saved, then restored in a fresh page), and telemetry (D-65: the page is
+// D-38), drive the color picker (D-32), the Mover's pick-up and carry (D-47), the Bomb's booms (D-48), the map-scale buttons (D-40), the Help and About pagers (D-60, D-61, D-59), the sorry page a phone gets (D-41), the crash screen (D-63), the save around the sign-in redirect (D-67: saved, then restored in a fresh page), Sign out (D-69: a signed-in page signs out mid-game), and telemetry (D-65: the page is
 // stamped as a ship build, so its recorder sends; the intro sends nothing, the milestone game's
 // records are checked). Catches runtime errors in rendering and input wiring without a
 // browser. It can't judge how anything looks; that stays manual (U-rows).
@@ -14,6 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { check, done } = require('../helpers/check');
+const { memoryStorage } = require('../helpers/page');
 
 const ROOT = path.join(__dirname, '..', '..');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -1175,7 +1176,8 @@ run('New Game asks for a size, then resets', () => {
 });
 // D-41: a fresh page per pointer kind, each with its own stub DOM. `media` is what
 // window.matchMedia reports for the touch-only query, or undefined for no matchMedia at all.
-// `opts.win` adds to the stub window; `opts.patch` is `{ before, src }`: source run just before the script `before` (D-63);
+// `opts.win` adds to the stub window, `opts.doc` to the stub document and `opts.globals` to the page's globals
+// (location, fetch, crypto, …); `opts.version` stamps the page as a ship build; `opts.patch` is `{ before, src }`: source run just before the script `before` (D-63);
 // a throw out of the page is kept as `thrown`, as a browser would report it to window 'error'.
 function bootPointer(media, nav, opts = {}) {
     const pageEls = {};
@@ -1185,7 +1187,9 @@ function bootPointer(media, nav, opts = {}) {
         createElement: tag => fakeEl(tag),
         body: fakeEl('body'),
         documentElement: fakeEl('html'),
+        ...opts.doc,
     };
+    if (opts.version) page.documentElement.dataset.version = opts.version;
     const win = { location: { href: 'https://example.test/thing' }, innerWidth: 390, innerHeight: 844, getSelection: () => ({ toString: () => '' }), addEventListener: (t, fn) => (listeners[t] ||= []).push(fn), AudioContext: SilentAudio, ...opts.win };
     const asked = [];
     if (media !== undefined) win.matchMedia = q => { asked.push(q); return { matches: media, media: q }; };
@@ -1193,6 +1197,7 @@ function bootPointer(media, nav, opts = {}) {
         console, document: page, Math: seededMath, JSON, Number, String, Array, Map, Set, Object, Proxy, parseInt, Float64Array, URLSearchParams,
         window: win, performance: { now: () => clock }, requestAnimationFrame: () => {},
         setTimeout: fakeSetTimeout, clearTimeout: fakeClearTimeout, AudioContext: SilentAudio,
+        ...opts.globals,
     });
     if (nav) pageCtx.navigator = nav;
     const boot = '\n;globalThis.__boot = { get ui() { return ui; }, get state() { return state; }, get engine() { return engine; } };';
@@ -1334,9 +1339,7 @@ run('the crash screen works with no GameUI: a boot that throws, a script that th
 // fresh page with the same localStorage and the sign-in return marker in its URL picks the game
 // up: same board, turn, tallies and hand, no intro or Help, and the save is gone.
 run('saveForRedirect, then a fresh page on the sign-in return: the same game goes on, the save is gone (D-67)', () => {
-    const stored = new Map();
-    const store = { getItem: k => (stored.has(k) ? stored.get(k) : null), setItem: (k, v) => stored.set(k, String(v)), removeItem: k => stored.delete(k),
-        clear: () => { throw new Error('nothing may clear localStorage'); } };
+    const store = memoryStorage(), stored = store.map;
     ctx.window.localStorage = store;
     // Play: a placement, a discard, some waits, and the map at half size.
     const slot = ui.state.hand.findIndex(c => vm.runInContext('GameArtifacts.THINGS', ctx)[c.kind]);
@@ -1375,5 +1378,53 @@ run('saveForRedirect, then a fresh page on the sign-in return: the same game goe
     const again = bootPointer(false, undefined, { win: { localStorage: store, location: { href: url, search } } });
     if (again.boot.ui.overlay !== 'intro' || again.boot.state.hexes) throw new Error('a second load finds no save and shows the intro');
     delete ctx.window.localStorage;
+});
+// D-69: Sign out. A fresh page on the live site, a ship build, with a stored sign-in: the bar
+// shows the handle and Sign out. Under Help the click does nothing; mid-animation it signs out
+// at once: the key is gone, Sign in is back, About says signed out, what was queued went with
+// the token, and the same game's next batch carries none, under a new random ID.
+run('Sign out: a signed-in page signs out by the button mid-game, the game going on (D-69)', () => {
+    const AUTH_KEY = vm.runInContext('GameDisplayArtifacts.AUTH_KEY', ctx);
+    const store = memoryStorage({ [AUTH_KEY]: JSON.stringify({ token: '01.tok', handle: 'alice.test', expiresAt: Math.floor(Date.now() / 1000) + 600 }) }), stored = store.map;
+    const site = 'https://ttdat.yuwakisa.com';
+    const loc = { protocol: 'https:', hostname: 'ttdat.yuwakisa.com', origin: site, href: site + '/', search: '', pathname: '/', hash: '' };
+    const sent = [];
+    let ids = 0;
+    const p = bootPointer(false, { userAgent: 'UiBoot/1.0', sendBeacon: () => true }, {
+        version: TEST_VERSION, doc: { visibilityState: 'visible', addEventListener() {} },
+        win: { localStorage: store, location: loc, innerWidth: 1280, innerHeight: 720, devicePixelRatio: 1 },
+        globals: { location: loc, crypto: { randomUUID: () => 'out-' + (++ids) },
+            fetch: (url, init) => { sent.push(JSON.parse(init.body)); return Promise.resolve({ status: 204 }); } },
+    });
+    const pui = p.boot.ui, hidden = id => p.els[id].classList.set.has('hidden');
+    const press = k => p.listeners.keydown.forEach(fn => fn({ key: k, shiftKey: false, preventDefault() {} }));
+    if (hidden('signout') || !hidden('signin') || hidden('signin-label') || p.els['signin-label'].textContent !== '@alice.test')
+        throw new Error('signed in, the bar must show the handle and Sign out');
+    press('1');   // the intro's size pick; first-time Help opens over the game
+    if (pui.overlay !== 'help') throw new Error('expected first-time Help, got ' + pui.overlay);
+    p.els.signout.fire('click');
+    if (!stored.has(AUTH_KEY) || hidden('signout')) throw new Error('Sign out must do nothing under an overlay');
+    press('Escape');
+    press('1'); press('x');   // a discard: recorded, and its tick animation is in flight
+    const before = vm.runInContext('GameTelemetry.pending()', p.ctx);
+    if (!pui.anim || !before || before.token !== '01.tok' || before.events.length !== 1) throw new Error('expected a queued, token-carrying discard mid-animation');
+    const turn = pui.state.turn, sentBefore = sent.length;
+    p.els.signout.fire('click');
+    if (stored.has(AUTH_KEY)) throw new Error('Sign out must remove the stored sign-in');
+    if (!hidden('signout') || hidden('signin') || !hidden('signin-label')) throw new Error('signed out, the bar must show Sign in again');
+    if (!/Not signed in/.test(p.els['about-signin'].textContent)) throw new Error("About's line must follow");
+    const flushed = sent[sentBefore];
+    if (sent.length !== sentBefore + 1 || flushed.token !== '01.tok' || flushed.player !== before.player || flushed.events.length !== 1)
+        throw new Error('the queue must go first, under the signed-in identity: ' + JSON.stringify(flushed));
+    if (vm.runInContext('GameTelemetry.pending()', p.ctx) !== null) throw new Error('nothing may stay queued');
+    if (pui.overlay !== null || pui.state.turn !== turn || !pui.anim) throw new Error('Sign out must not tick, reload or stop the animation');
+    pui.finishAnim();
+    press('1'); press('x');   // the same game goes on
+    const after = vm.runInContext('GameTelemetry.pending()', p.ctx);
+    if (!after || 'token' in after || after.player === before.player || after.games[0].gameKey !== before.games[0].gameKey || pui.state.turn !== turn + 1)
+        throw new Error('the next batch must carry no token, under a new random ID, in the same game: ' + JSON.stringify(after && { token: after.token, player: after.player }));
+    const idsBefore = ids;
+    pui.signOut();
+    if (sent.length !== sentBefore + 1 || ids !== idsBefore || vm.runInContext('GameTelemetry.pending()', p.ctx).player !== after.player) throw new Error('signed out, Sign out does nothing');
 });
 done();

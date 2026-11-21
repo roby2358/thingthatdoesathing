@@ -515,6 +515,7 @@ const GameUI = (function () {
             this.runTimer = null;    // the pending RUN_GAP_MS timeout, if any
             this.bannerTimer = null; // hides the milestone banner
             this.handDrawn = null;   // what renderHand last drew, so it redraws only on change
+            this.signedIn = false;   // the sign-in spots show a sign-in (showSignIn), so the bar's Sign out shows (D-69)
         }
 
         // ---- Lifecycle ----
@@ -563,9 +564,12 @@ const GameUI = (function () {
         }
 
         // Each spot shows the Sign in button while signed out, or the handle ("Signed in" with
-        // none) while signed in; neither where sign-in isn't offered (portal builds, file://).
+        // none) while signed in, the bar's followed by Sign out; none of them where sign-in isn't
+        // offered (portal builds, file://).
         showSignIn(auth) {
             const offered = GameSignIn.offered();
+            this.signedIn = offered && !!auth;
+            document.getElementById('signout').classList.toggle('hidden', !this.signedIn);
             const label = auth ? (auth.handle ? '@' + auth.handle : 'Signed in') : '';
             for (const [button, tag] of SIGNIN_SPOTS) {
                 document.getElementById(button).classList.toggle('hidden', !offered || !!auth);
@@ -577,6 +581,18 @@ const GameUI = (function () {
             line.classList.toggle('hidden', !offered);
             line.textContent = !auth ? 'Not signed in. Signing in with Bluesky is optional.'
                 : auth.handle ? 'Signed in with Bluesky as @' + auth.handle + '.' : 'Signed in with Bluesky.';
+        }
+
+        // The bar's Sign out (D-69): at once, no confirm, no reload, and the game keeps going (no
+        // tick, so it works mid-animation, like Sound). Ignored under an overlay, like Help.
+        // Telemetry sends its queue under the signed-in identity and takes a fresh random one
+        // for the batches after; the stored sign-in is forgotten (auth/ isn't asked to revoke
+        // it); the label turns back into Sign in, and About's line follows.
+        signOut() {
+            if (this.overlay || !this.signedIn) return;
+            GameTelemetry.switchIdentity(null);
+            GameSignIn.signOut();
+            this.showSignIn(null);
         }
 
         // The top-left bar's Sign in, over the game: ignored under an overlay (the panels have
@@ -1997,6 +2013,7 @@ const GameUI = (function () {
             document.getElementById('news-panel').addEventListener('click', () => this.dismissOverlay());
             document.getElementById('sound').addEventListener('click', () => this.toggleMute());
             document.getElementById('signin').addEventListener('click', () => this.signInFromGame());
+            document.getElementById('signout').addEventListener('click', () => this.signOut());
             document.getElementById('intro-signin').addEventListener('click', () => this.signInFromPanel());
             document.getElementById('size-signin').addEventListener('click', () => this.signInFromPanel());
             this.showMute();

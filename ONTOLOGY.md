@@ -188,7 +188,7 @@ in one command (`bomb`, D-48).
 | `running` | bool — Go/Pause. While true, the client calls `wait()` `RUN_GAP_MS` after each animation ends, and holds while a card is picked, a hex is selected or an overlay is open. [D] |
 | `sound` | `GameSound`, `Math.random` only; muted by the Sound button or `M`, remembered in `localStorage` (D-53). |
 | (crash screen) | Not GameUI state: `crash.js`, loaded before every other script, owns it, so it works if GameUI never booted or a script failed to load (D-63). Its window `error` / `unhandledrejection` handlers show `#crash-panel` once (`crashed`): the error, the version (`<html data-version>` or "dev") and, with a board, the seed, selectable; Go stops and keys stop reaching the game; Reload reloads; Start fresh removes only `localStorage[SAVE_KEY]` (`'thingfactory.run'`, the saved run's key, written only around the sign-in redirect, D-67) and reloads. |
-| (sign-in) | Not GameUI state: `GameSignIn` (signin.js) reads the sign-in from `localStorage[AUTH_KEY]` each time it's asked, and GameUI only shows it (`showSignIn`: the Sign in buttons or the handle label in the bar and both size panels, About's line). Offered only on `SIGNIN_SITES` origins (§9, D-68). |
+| (sign-in) | Not GameUI state: `GameSignIn` (signin.js) reads the sign-in from `localStorage[AUTH_KEY]` each time it's asked, and GameUI only shows it (`showSignIn`: the Sign in buttons or the handle label in the bar and both size panels, the bar's Sign out, About's line) and keeps `signedIn` (bool: what the spots show, so Sign out shows and acts, D-69). Offered only on `SIGNIN_SITES` origins (§9, D-68). |
 
 ---
 
@@ -896,7 +896,7 @@ run in the browser (`signin.js`, `GameSignIn`), with two small server halves in 
 (`worker/auth.js`). auth/ is reached from the Worker only through the `AUTH_SERVICE` service
 binding; its issuer is `AUTH_ISSUER` and this game's client row `TTDAT_CLIENT_ID` (wrangler.jsonc
 vars, per environment). The client row lives in auth/'s D1, another repo: README "Deploy" has its
-seed SQL. Signing out is its own task.
+seed SQL. Signing out (the bar's Sign out, D-69) only forgets the sign-in locally.
 
 ### Browser — `GameSignIn` (signin.js) and GameUI's spots
 ```
@@ -909,7 +909,8 @@ current(): localStorage[AUTH_KEY] = { token, handle (or null), expiresAt (unix s
 
 spots (the top-left bar by Help, About and Sound; the intro, beside About; New Game, under Keep playing):
   signed out → a "Sign in" button, title "Sign in with Bluesky (optional)"
-  signed in  → a plain label in its place: "@" + handle, or "Signed in" with no handle
+  signed in  → a plain label in its place: "@" + handle, or "Signed in" with no handle;
+               in the bar only, a "Sign out" button right after it (D-69)
   About's credits page, one line: "Not signed in. Signing in with Bluesky is optional." /
   "Signed in with Bluesky as @handle." / "Signed in with Bluesky."
 
@@ -918,6 +919,14 @@ Sign in from the bar (signInFromGame):
   the picked card goes back and the selection goes (in the view only, no command sent)
   a board: saveForRedirect() (D-67); refused → REASONS.signInSave, nothing else
   Go off; begin()
+Sign out from the bar (signOut, D-69):            # no tick: works mid-animation, like Sound
+  under an overlay, or signed out → nothing
+  GameTelemetry.switchIdentity(null)   # the queue goes under the signed-in identity (with the token),
+                                       # then a fresh random player, no token, for the next batches
+  localStorage[AUTH_KEY] removed (GameSignIn.signOut, try/catch)   # no revoke call to auth/
+  the spots and About's line show signed out
+  no confirm, no reload: the game in play, Go and the animation carry on; its later rows carry the
+  random ID, signed_in 0 (identity is per batch, D-64)
 Sign in from the intro or New Game (signInFromPanel):
   no save (no game, or New Game ends it); Go off; begin()       # the return lands on the intro
 begin():
