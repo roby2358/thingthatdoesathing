@@ -157,6 +157,11 @@ const GameArtifacts = (function () {
         return n;
     };
 
+    // Which rules a game ran under, for telemetry (D-65): the game record carries it, so games
+    // under different rules can be told apart. Bump it by hand, by one, in the same change as any
+    // rule change or any change to a tuning number play depends on (ONTOLOGY Numbers).
+    const RULES_VERSION = 1;
+
     const BIG_CRATE_START = 0.01;      // big-crate chance at the start, no milestones reached
     const BIG_CRATE_AT_FIFTH = 0.05;   // big-crate chance by the fifth milestone
     const BIG_CRATE_EASE = 0.85;       // past the fifth, the share still plain shrinks by this per milestone
@@ -201,6 +206,7 @@ const GameArtifacts = (function () {
         MAP_SIZES,
 
         FIRST_MILESTONE,
+        RULES_VERSION,
         BIG_CRATE_START,
         BIG_CRATE_AT_FIFTH,
         BIG_CRATE_EASE,

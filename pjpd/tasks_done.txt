@@ -128,6 +128,47 @@ Update: ONTOLOGY (the spawn rule and the new state fields), CRITERIA (rewrite th
 ----
 Priority:   80
 Status: Done
+ID: telemetry-q77g
+Created: 2026-11-21T08:33:51Z
+Updated: 2026-11-21T09:34:18Z
+
+The browser half of Thing Factory's telemetry, on starreach's pattern (../starreach app/src/telemetry.ts; its RATIONALE D-51). The game records what players do and posts batches to the ttdat Worker's POST /t, for tuning: how far games get, how fast, and what players build. Build on task telemetrydb-hgs4 (the Worker, D1 and the batch format it defines), which comes first. The privacy page, README and SHIP.md updates are task privacydocs-ntj5, right after this one.
+
+Settled design:
+
+Browser (telemetry.js, a plain-script IIFE global GameTelemetry, loaded after displayartifacts.js):
+- Player ID: crypto.randomUUID() made at page load, kept only in memory, never stored. It goes once per batch, as the batch's `player`, not on each record (the Worker stamps rows per batch, telemetrydb-hgs4). Identity is orthogonal to play: expose GameTelemetry.switchIdentity(), which flushes the queue under the current identity, then switches (to a fresh random ID; bskysignin-5sap adds the token side), so each batch holds a single identity. The sign-in tasks call it; this task only adds it and tests it.
+- Game key: a fresh crypto.randomUUID() per new game (startGame).
+- Nothing starts before the player picks a board. The intro's size pick is the first startGame, so a crawler or a visitor who never picks a board sends nothing: no game record, no flush timer, no pagehide beacon. Hook the recorder's start into startGame only, never page load. A uiboot test checks that a booted page left on the intro sends nothing.
+- Game record: game key, start time, seed, size, version, rules_version (new RULES_VERSION = 1 in artifacts.js, bumped by hand in the same change as any rule or tuning-number change; say so in CLAUDE.md and ONTOLOGY), navigator.userAgent, and screen as `${innerWidth}x${innerHeight}@${devicePixelRatio}`.
+- Events: GameUI's commit() hands each command and its result to the recorder. Recorded commands: place (kind, q, r, facing, color), remove (q, r, kind removed), discard (kind, how: 'pick' or 'slot'), move (kind, from q,r, to q,r, facing), scrap (kind, q, r), bomb (hexes), blast (q, r).
+  - wait and rotate are NOT recorded. Go is a stream of waits; the turn on each event shows the gap.
+  - Each event carries accepted and a snapshot after the tick: turn, delivered (total, and per color in rest), lost, exGremlins, trapped, things (state.things.length), crates (pieces that aren't gremlins).
+- Milestones: every milestone{count} in a commit's events, including commits from wait/Go, becomes a milestone record with the same snapshot.
+- Sending: queue records. POST the queue to /t with fetch(keepalive) every 30 s (TELEMETRY_FLUSH_MS) or at 50 queued records (TELEMETRY_FLUSH_RECORDS), whichever comes first. On pagehide / visibilitychange to hidden, send the rest with navigator.sendBeacon.
+  - A failed send is dropped, never retried, never shown, and never throws into the game (try/catch around everything).
+- When it sends: only when <html data-version> is set (ship builds: the live site and the itch.io/Newgrounds zip) and location.protocol is http: or https:. Dev and file:// send nothing.
+  - The endpoint is the absolute https://ttdat.yuwakisa.com/t, so portal builds post there too. On localhost under wrangler dev, use the page's own origin.
+- Global Privacy Control: if navigator.globalPrivacyControl is true, record and send nothing. No opt-out setting yet (settings-rrcw may add one later).
+- The engine knows nothing of telemetry.
+
+- Batches use the format telemetrydb-hgs4 defines. Every batch carries its game's record again (the Worker ignores repeats), so a dropped first batch doesn't lose it.
+
+Tests:
+- A CRITERIA R-row owning test/R-n/: the recorder in a vm with stubbed fetch/sendBeacon. The right records for each command; wait/rotate absent; milestones from a wait; nothing sent without data-version, from file:, or with GPC; a throwing fetch doesn't break play.
+- uiboot.js: playing to a milestone queues the expected records.
+- ship.js: telemetry.js is shipped.
+
+Docs: the ONTOLOGY Telemetry section's recording rules and numbers (TELEMETRY_FLUSH_MS, TELEMETRY_FLUSH_RECORDS, RULES_VERSION); a RATIONALE D-n (why browser-side batches over POST, not sockets; why a per-load random ID; why wait/rotate are excluded; why milestones get their own table; why UA and screen size are kept; GPC); the CRITERIA rows, plus a U-row for the walk below; ARCHITECTURE_LOG; the CLAUDE.md module table (telemetry.js).
+
+Out of scope: the privacy page, README and SHIP.md (privacydocs-ntj5), the report (telemetryrpt-7erk), sign-in (bskysignin-5sap), rate limiting (ratelimit-27qf).
+
+Done when:
+- just cc-test passes.
+- just ship then just dev-worker with the local D1: a game played to the first milestone leaves its games row, event rows (no waits) and a milestones row, with no IP anywhere.
+----
+Priority:   80
+Status: Done
 ID: cannon-first-xkni
 Created: 2026-11-17T08:27:22Z
 Updated: 2026-11-17T18:54:19Z

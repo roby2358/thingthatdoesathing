@@ -212,10 +212,11 @@
     </div>
     <!-- Plain script includes (globals), not ES modules: the page runs on a double-click
     (D-9). The crash screen first, so it catches an error in any script after it (D-63), then
-    dependency order: artifacts → display artifacts → libs → piece/board → state → engine → ui → bootstrap. -->
+    dependency order: artifacts → display artifacts → telemetry → libs → piece/board → state → engine → ui → bootstrap. -->
     <script src="crash.js"></script>
     <script src="artifacts.js"></script>
     <script src="displayartifacts.js"></script>
+    <script src="telemetry.js"></script>
     <script src="rando.js"></script>
     <script src="colortheory.js"></script>
     <script src="hex.js"></script>

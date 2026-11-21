@@ -160,6 +160,12 @@ const GameDisplayArtifacts = (function () {
         // The telemetry batch format the browser sends (D-64); worker/telemetry.js's TELEMETRY_FORMAT,
         // bumped with it whenever a batch field is renamed, removed or retyped.
         TELEMETRY_FORMAT: 1,
+        // The browser recorder (telemetry.js, D-65): where batches go from a ship build (a page on
+        // localhost posts to its own origin instead), and how often: every TELEMETRY_FLUSH_MS, or
+        // once TELEMETRY_FLUSH_RECORDS records are queued, whichever comes first.
+        TELEMETRY_ENDPOINT: 'https://ttdat.yuwakisa.com/t',
+        TELEMETRY_FLUSH_MS: 30000,
+        TELEMETRY_FLUSH_RECORDS: 50,
         // The unlisted screencap key (P, D-58): beside the window-sized shot, one PNG per entry,
         // same center and zoom as the screen; the name goes in the file name.
         CAPTURE_SIZES: [

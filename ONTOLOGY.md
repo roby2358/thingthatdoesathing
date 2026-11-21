@@ -577,7 +577,7 @@ The count only drops when the whole shore is walled off or full.
 
 ## §6 Numbers [T]
 
-The code constant in `GameArtifacts` is the single source.
+The code constant in `GameArtifacts` is the single source. A change to any rule, or to a number here that play depends on, bumps `RULES_VERSION` by one in the same change (the Telemetry section, D-65).
 
 | Name | Value | Unit |
 |---|---|---|
@@ -679,17 +679,68 @@ The client reads state, calls commands and queries, never writes state, never ca
 
 ---
 
-## §8 Telemetry [D; D-64]
+## §8 Telemetry [D; D-64, D-65]
 *Serves:* tuning §6 from real play (how far games get, how fast, what players build), and bugs
-players never report. The browser recorder that makes and sends the records is [D, unbuilt]; what
-is built is the batch format and the server side: the ttdat Worker's `POST /t` and its D1
-database. The engine knows nothing of telemetry.
+players never report. Two halves: the browser recorder (`telemetry.js`, `GameTelemetry`, D-65),
+which makes the records and sends them in batches, and the server side (D-64): the ttdat
+Worker's `POST /t` and its D1 database. The engine knows nothing of telemetry; GameUI hands the
+recorder each new game and each committed command.
+
+### Recorder — `GameTelemetry` (telemetry.js) [D-65]
+```
+page load:
+  nothing: no player, record, timer or listener until the first startGame
+  player ← a random UUID with the first recorded game (or a switchIdentity), in memory only,
+           never stored, kept for the page load              # identity, sent once per batch
+
+startGame(seed, size):                         # GameUI.startGame: the intro's size pick, New Game
+  flush('fetch')                               # the last game's records, under its own game record
+  if not allowed(): stop recording             # allowed = <html data-version> set (a ship build)
+                                               #   and location.protocol is http: or https:
+                                               #   and navigator.globalPrivacyControl isn't true
+  game ← { gameKey: a fresh random UUID, startedUnixSeconds, seed, size, version: data-version,
+           rulesVersion: RULES_VERSION, userAgent (cut to 512), screen: "${innerWidth}x${innerHeight}@${devicePixelRatio}" }
+  the first time: listen for pagehide, and visibilitychange to hidden → flush('beacon')
+  start the flush timer
+
+command(command, args, res, state):            # GameUI.commit, every engine command but rotate
+  if no game: nothing
+  snap ← state after the tick: turn, delivered, lost, exGremlins, trapped,
+         things (Things on the board), crates (pieces that aren't gremlins), deliveredByColor
+  if command ∈ {place, remove, discard, move, scrap, bomb, blast}:
+      queue event { gameKey, unixSeconds, command, accepted: res.ok, ...snap, args }
+  for each milestone{count} in res.events (wait and Go included): queue milestone { gameKey, milestone: count, unixSeconds, ...snap }
+  queued records ≥ TELEMETRY_FLUSH_RECORDS → flush('fetch'), else start the timer if it isn't running
+
+flush(via):                                    # also when the timer fires (TELEMETRY_FLUSH_MS)
+  nothing queued and the game record already sent → nothing
+  batch ← { format, player, games: [game], events, milestones }; empty the queue
+  via 'fetch': fetch(endpoint, POST, keepalive, credentials omit); via 'beacon': navigator.sendBeacon
+  any failure: dropped, never retried, never shown, never thrown into the game
+
+switchIdentity():  flush('fetch') under the current player, then player ← a fresh random UUID
+endpoint: TELEMETRY_ENDPOINT (https://ttdat.yuwakisa.com/t) from anywhere, portal builds too;
+          a page on localhost, 127.0.0.1 or [::1] (wrangler dev) posts to its own origin + '/t'
+```
+Event `args`, as GameUI reads them before the command runs:
+
+| command | args |
+|---|---|
+| `place` | `kind`, `q`, `r`, `facing` (null for a kind that doesn't aim), `color` |
+| `remove` | `q`, `r`, `kind` (the Thing removed; null if none) |
+| `discard` | `kind` (the card), `how`: `'pick'` (picked, then the Discard spot or X; a tool's too, before its first click) or `'slot'` (the card's ×, Shift+1/2/3) |
+| `move` | `kind` (the Thing carried), `fromQ`, `fromR`, `q`, `r` (where it lands), `facing` (null if it doesn't aim) |
+| `scrap` | `kind`, `q`, `r` |
+| `bomb` | `hexes`: [{q, r}…] |
+| `blast` | `q`, `r` |
+
+`wait` and `rotate` get no event record.
 
 ### Records (JSON fields camelCase; D1 columns snake_case)
 
 | Record | Fields |
 |---|---|
-| game | `gameKey` (a random ID per game), `startedUnixSeconds`, `seed`, `size` (a `MAP_SIZES` key), `version` (the commit hash from `<html data-version>`), `rulesVersion` (an integer for the rules the game ran under; the recorder, [D, unbuilt], names its constant), `userAgent`?, `screen`? |
+| game | `gameKey` (a random ID per game), `startedUnixSeconds`, `seed`, `size` (a `MAP_SIZES` key), `version` (the commit hash from `<html data-version>`), `rulesVersion` (`GameArtifacts.RULES_VERSION`), `userAgent`?, `screen`? |
 | event | `gameKey`, `unixSeconds`, `command` (one of the engine's commands, §7), `accepted` (bool), the snapshot after its tick: `turn`, `delivered`, `lost`, `exGremlins`, `trapped`, `things` (Things on the board), `crates` (pieces that aren't gremlins); `deliveredByColor`? (`{color: n}`); `args`? (the command's arguments: `kind`, `q`, `r`, `facing`, `color`, anything else) |
 | milestone | `gameKey`, `milestone` (the count reached: 10, 20, 50, …), `unixSeconds`, the same snapshot and `deliveredByColor`? |
 | crash | `unixSeconds`, `message`, `format`?, `version`?, `gameKey`?, `seed`?, `size`?, `turn`? (each null if unknown), `stack`?, `userAgent`? |
@@ -748,3 +799,7 @@ or any header but its length; Cloudflare observability is off.
 | `MAX_RECORDS` | 200 | records per batch, all four lists together |
 | `CRASH_MESSAGE_CHARS` | 500 | a crash's message is cut to this |
 | `CRASH_STACK_CHARS` | 2000 | a crash's stack is cut to this (its first lines) |
+| `TELEMETRY_FLUSH_MS` | 30000 | ms the recorder waits before sending what it has queued (`GameDisplayArtifacts`, D-65) |
+| `TELEMETRY_FLUSH_RECORDS` | 50 | queued records that send at once, before the timer (D-65) |
+| `TELEMETRY_ENDPOINT` | https://ttdat.yuwakisa.com/t | where batches go from anywhere but localhost (D-65) |
+| `RULES_VERSION` | 1 | `GameArtifacts`: the rules a game ran under, on its game record. Bumped by hand, by one, in the same change as any rule change or any change to a Numbers-table value play depends on (D-65) |

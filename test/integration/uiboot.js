@@ -4,7 +4,9 @@
 // and requestAnimationFrame, then drives the UI through clicks and keys: pick a board size
 // from the intro, pick each card, turn the ghost, place, select and rotate, remove the selected Thing with D, wait, run tick animations to completion,
 // play to the first milestone (checking that no two pieces are ever drawn on one hex at a hop,
-// D-38), drive the color picker (D-32), the Mover's pick-up and carry (D-47), the Bomb's booms (D-48), the map-scale buttons (D-40), the Help and About pagers (D-60, D-61, D-59), the sorry page a phone gets (D-41), and the crash screen (D-63). Catches runtime errors in rendering and input wiring without a
+// D-38), drive the color picker (D-32), the Mover's pick-up and carry (D-47), the Bomb's booms (D-48), the map-scale buttons (D-40), the Help and About pagers (D-60, D-61, D-59), the sorry page a phone gets (D-41), the crash screen (D-63), and telemetry (D-65: the page is
+// stamped as a ship build, so its recorder sends; the intro sends nothing, the milestone game's
+// records are checked). Catches runtime errors in rendering and input wiring without a
 // browser. It can't judge how anything looks; that stays manual (U-rows).
 'use strict';
 
@@ -45,11 +47,20 @@ function fakeEl(tag) {
 }
 
 const els = {};
+const docListeners = {};
 const document = {
     getElementById: id => (els[id] ||= fakeEl(id)),
     createElement: tag => fakeEl(tag),
     documentElement: fakeEl('html'),
+    visibilityState: 'visible',
+    addEventListener: (t, fn) => (docListeners[t] ||= []).push(fn),
 };
+// This page is a ship build on the live site, so telemetry (D-65) records and sends: every
+// fetch and beacon it makes is kept here.
+const TEST_VERSION = 'test1234';
+document.documentElement.dataset.version = TEST_VERSION;
+const posted = [], beaconed = [];
+let uuids = 0;
 let selectedText = '';   // what window.getSelection() holds
 let rafQueue = [];
 let clock = 0;
@@ -78,7 +89,7 @@ const windowListeners = {};
 const ctx = vm.createContext({
     console, document, Math: seededMath, JSON, Number, String, Array, Map, Set, Object, Proxy, parseInt, Float64Array,
     window: {
-        innerWidth: 1280, innerHeight: 720,
+        innerWidth: 1280, innerHeight: 720, devicePixelRatio: 1,
         getSelection: () => ({ toString: () => selectedText }),
         addEventListener: (t, fn) => (windowListeners[t] ||= []).push(fn),
     },
@@ -86,6 +97,10 @@ const ctx = vm.createContext({
     requestAnimationFrame: fn => rafQueue.push(fn),
     setTimeout: fakeSetTimeout, clearTimeout: fakeClearTimeout,
     AudioContext: undefined,
+    location: { protocol: 'https:', hostname: 'ttdat.yuwakisa.com', origin: 'https://ttdat.yuwakisa.com', href: 'https://ttdat.yuwakisa.com/' },
+    navigator: { userAgent: 'UiBoot/1.0', sendBeacon: (url, body) => { beaconed.push({ url, batch: JSON.parse(body) }); return true; } },
+    fetch: (url, init) => { posted.push({ url, init, batch: JSON.parse(init.body) }); return Promise.resolve({ status: 204 }); },
+    crypto: { randomUUID: () => 'uuid-' + (++uuids) },
 });
 // GameSound needs an AudioContext; give it a silent one.
 const SilentAudio = class {
@@ -184,6 +199,12 @@ run('before a size is picked, early events on the bare canvas do nothing and thr
     advance(500);
     if (ui.overlay !== 'intro' || ui.state.hexes || ui.hoveredHex || ui.running)
         throw new Error('early events must leave the intro up with no board, hover or Go');
+});
+run('a page left on the intro sends no telemetry: no record, timer, beacon or pagehide listener (D-65)', () => {
+    advance(vm.runInContext('GameDisplayArtifacts.TELEMETRY_FLUSH_MS', ctx) * 2);
+    (windowListeners.pagehide || []).forEach(fn => fn({}));
+    if (posted.length || beaconed.length || windowListeners.pagehide || docListeners.visibilitychange || vm.runInContext('GameTelemetry.pending()', ctx) !== null)
+        throw new Error('the intro must send nothing: ' + JSON.stringify({ posted: posted.length, beaconed: beaconed.length }));
 });
 run('a size from the intro opens Help on its Keys page; any key closes it', () => {
     key('1');
@@ -409,6 +430,12 @@ run('a game plays through the UI to the first milestone banner', () => {
     els['new-game'].fire('click'); key('1');
     const s = ui.state, e = ui.engine;
     const goal = vm.runInContext('GameArtifacts.FIRST_MILESTONE', ctx);
+    // Count the places and waits the engine takes, for the telemetry check after.
+    const engPlace = e.place, engWait = e.wait;
+    let places = 0, waits = 0;
+    e.place = (...a) => { places++; return engPlace.apply(e, a); };
+    e.wait = (...a) => { waits++; return engWait.apply(e, a); };
+    const sentBefore = posted.length;
     for (let i = 0; i < 2000 && s.delivered < goal; i++) {
         // Lay belts toward the target along a BFS path, else wait.
         const prev = new Map([[s.sources[0].q + ',' + s.sources[0].r, null]]);
@@ -451,7 +478,28 @@ run('a game plays through the UI to the first milestone banner', () => {
         if (overlap) throw new Error('two pieces drawn on one hex: ' + overlap);
         settle();
     }
+    e.place = engPlace; e.wait = engWait;
     if (s.delivered < goal) throw new Error('no milestone in 2000 commands: ' + JSON.stringify({ src: s.sources, tgt: s.targets, things: s.things, pieces: s.pieces.map(p => [p.kind, p.q, p.r]), d: s.delivered, turn: s.turn, hand: s.hand }));
+    // Telemetry (D-65): what this game sent plus what's still queued is its game record, one
+    // place event per place (none for the waits) and one milestone record.
+    const pending = vm.runInContext('GameTelemetry.pending()', ctx);
+    const batches = [...posted.slice(sentBefore).map(x => x.batch), ...(pending ? [pending] : [])]
+        .filter(b => b.games[0].seed === s.seed);
+    const game = batches[0] && batches[0].games[0];
+    const evs = batches.flatMap(b => b.events), mss = batches.flatMap(b => b.milestones);
+    if (!game || game.size !== 'small' || game.version !== TEST_VERSION || game.rulesVersion !== vm.runInContext('GameArtifacts.RULES_VERSION', ctx) || game.userAgent !== 'UiBoot/1.0' || game.screen !== '1280x720@1')
+        throw new Error('telemetry game record: ' + JSON.stringify(game));
+    if (!batches.every(b => b.games[0].gameKey === game.gameKey && b.player === batches[0].player)) throw new Error('every batch must carry the game record and one player');
+    if (!posted.slice(sentBefore).every(x => x.url === 'https://ttdat.yuwakisa.com/t' && x.init.keepalive)) throw new Error('batches go to the live endpoint with keepalive');
+    if (waits === 0 || places === 0 || evs.length !== places || !evs.every(ev => ev.command === 'place' && ev.accepted && ev.args.kind && Number.isInteger(ev.args.q)))
+        throw new Error(`telemetry events: ${evs.length} for ${places} places and ${waits} waits: ${JSON.stringify(evs.slice(0, 3))}`);
+    if (!evs.every((ev, i) => i === 0 || ev.turn > evs[i - 1].turn)) throw new Error('event turns must rise');
+    if (mss.length !== 1 || mss[0].milestone !== goal || mss[0].delivered < goal || mss[0].turn > s.turn) throw new Error('telemetry milestones: ' + JSON.stringify(mss));
+    if (pending) {
+        (windowListeners.pagehide || []).forEach(fn => fn({}));
+        if (vm.runInContext('GameTelemetry.pending()', ctx) !== null || beaconed.length === 0 || beaconed[beaconed.length - 1].batch.games[0].gameKey !== game.gameKey)
+            throw new Error('pagehide must beacon the rest');
+    }
     const banner = els.milestone.classList.set;
     if (banner.has('hidden') || els['milestone-title'].textContent !== 'IT DOES THE THING') throw new Error('no milestone banner');
     // The small board's first milestone unlocks the Slide (R-49): the banner names it, and with
@@ -621,6 +669,7 @@ run('About opens over the game and holds Go; < > and the arrow keys turn its pag
     const s = ui.state;
     const shown = id => !els[id].classList.set.has('hidden');
     const page = () => [0, 1].filter(i => shown('about-page-' + i)).join();
+    delete document.documentElement.dataset.version;   // this page is stamped for telemetry; About reads dev unstamped
     els.go.fire('click');
     advance(1000);
     els.about.fire('click');
@@ -667,7 +716,7 @@ run('About opens over the game and holds Go; < > and the arrow keys turn its pag
         els['about-panel'].fire('click');
         if (ui.overlay) throw new Error('a click must close About');
     } finally {
-        delete document.documentElement.dataset.version;
+        document.documentElement.dataset.version = TEST_VERSION;
     }
 });
 run('the Sound button and M flip the muted flag', () => {

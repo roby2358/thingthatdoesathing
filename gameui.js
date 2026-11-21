@@ -526,6 +526,7 @@ const GameUI = (function () {
         startGame(size) {
             const fromIntro = this.overlay === 'intro';
             this.engine.newGame(Math.floor(Math.random() * 0x100000000), size);
+            GameTelemetry.startGame({ seed: this.state.seed, size });   // telemetry starts here, never at page load (D-65)
             this.picked = null;
             this.choosing = null;
             this.selected = null;
@@ -856,13 +857,16 @@ const GameUI = (function () {
         // there's no color picker (D-32 call 6, D-47).
         putDown(q, r) {
             const { slot, from } = this.picked;
-            this.commit(() => this.engine.move(slot, from.q, from.r, q, r, this.facing), () => this.sound.place());
+            const kind = this.picked.kind;
+            this.commit(() => this.engine.move(slot, from.q, from.r, q, r, this.facing), () => this.sound.place(),
+                { command: 'move', args: { kind, fromQ: from.q, fromR: from.r, q, r, facing: aims(kind) ? this.facing : null } });
         }
 
         // Backing out of a carried Thing scraps it: the Thing is gone, the card spent, one tick.
         scrapCarried() {
             const { slot, from } = this.picked;
-            this.commit(() => this.engine.scrap(slot, from.q, from.r), () => this.sound.discard());
+            this.commit(() => this.engine.scrap(slot, from.q, from.r), () => this.sound.discard(),
+                { command: 'scrap', args: { kind: this.picked.kind, q: from.q, r: from.r } });
         }
 
         // The Bomb blows up `hex` (D-48): it bursts now and is drawn cleared from here on, in
@@ -913,7 +917,7 @@ const GameUI = (function () {
             this.commit(() => {
                 const res = this.engine.bomb(slot, booms);
                 return res.ok ? { ...res, events: res.events.filter(unshown) } : res;
-            }, () => {});
+            }, () => {}, { command: 'bomb', args: { hexes: booms.map(m => ({ q: m.q, r: m.r })) } });
         }
 
         // The Thing a carry took off the board, or null.
@@ -950,11 +954,13 @@ const GameUI = (function () {
             this.render();
         }
 
-        // ---- Commands: snapshot, call the engine, animate from its events ----
-        commit(fn, cue) {
+        // ---- Commands: snapshot, call the engine, hand it to telemetry, animate from its events ----
+        // `record` is { command, args } for the recorder (D-65), args read before the command runs.
+        commit(fn, cue, record) {
             const before = new Map(this.state.pieces.map(p =>
                 [p.id, { q: p.q, r: p.r, color: p.color, label: p.label, kind: p.kind }]));
             const res = fn();
+            GameTelemetry.command(record.command, record.args, res, this.state);
             if (!res.ok) { this.render(); return false; }
             this.picked = null;
             this.notice = null;
@@ -965,7 +971,9 @@ const GameUI = (function () {
 
         place(q, r, color) {
             const slot = this.picked.slot;
-            this.commit(() => this.engine.place(slot, q, r, this.facing, color), () => this.sound.place());
+            const kind = this.picked.kind;
+            this.commit(() => this.engine.place(slot, q, r, this.facing, color), () => this.sound.place(),
+                { command: 'place', args: { kind, q, r, facing: aims(kind) ? this.facing : null, color } });
         }
 
         // A click on a legal hex: with one color to choose from (every kind but Pushers and
@@ -1044,7 +1052,9 @@ const GameUI = (function () {
             if (!this.selected) { this.notify(REASONS.selectFirst); return; }
             if (this.queue.defer(() => this.removeSelected())) return;
             const { q, r } = this.selected;
-            if (this.commit(() => this.engine.remove(q, r), () => this.sound.sink())) this.selected = null;
+            const thing = this.engine.thingAt(q, r);
+            if (this.commit(() => this.engine.remove(q, r), () => this.sound.sink(),
+                { command: 'remove', args: { q, r, kind: thing ? thing.kind : null } })) this.selected = null;
             else this.notify(REASONS.nothingToRemove);
         }
 
@@ -1060,7 +1070,7 @@ const GameUI = (function () {
         blastAt(q, r) {
             if (this.overlay || this.handLocked()) return;
             if (this.queue.defer(() => this.blastAt(q, r))) return;
-            if (!this.commit(() => this.engine.blast(q, r), () => {})) this.notify(REASONS.noCrate);
+            if (!this.commit(() => this.engine.blast(q, r), () => {}, { command: 'blast', args: { q, r } })) this.notify(REASONS.noCrate);
         }
 
         // The Discard spot or X: throw the card in play away, as its mode says; it ticks like
@@ -1074,7 +1084,8 @@ const GameUI = (function () {
 
         discardCard() {
             const slot = this.picked.slot;
-            this.commit(() => this.engine.discard(slot), () => this.sound.discard());
+            this.commit(() => this.engine.discard(slot), () => this.sound.discard(),
+                { command: 'discard', args: { kind: this.picked.card, how: 'pick' } });
         }
 
         // A card's red X or Shift+1/2/3: throw that card away in one action, without picking it
@@ -1087,7 +1098,8 @@ const GameUI = (function () {
             if (slot < 0 || slot >= this.state.hand.length) return;
             if (this.queue.defer(() => this.discardSlot(slot))) return;
             if (this.picked && this.picked.slot !== slot) this.unpick();
-            this.commit(() => this.engine.discard(slot), () => this.sound.discard());
+            this.commit(() => this.engine.discard(slot), () => this.sound.discard(),
+                { command: 'discard', args: { kind: this.state.hand[slot].kind, how: 'slot' } });
         }
 
         // L2.1 the primary action (Wait button, Space). Not while a spent card is in play: the
@@ -1095,7 +1107,7 @@ const GameUI = (function () {
         primaryAction() {
             if (this.overlay || this.anim) return;
             if (this.refusedLocked()) return;
-            this.commit(() => this.engine.wait(), () => this.sound.endTurn());
+            this.commit(() => this.engine.wait(), () => this.sound.endTurn(), { command: 'wait' });
         }
 
         // Space: do one tick, or finish the one in flight, then stop. While Go runs it turns
@@ -1132,7 +1144,7 @@ const GameUI = (function () {
         runStep() {
             if (!this.running || this.overlay) return;
             if (this.anim || this.picked || this.selected) { this.scheduleRun(); return; }
-            this.commit(() => this.engine.wait(), () => {});
+            this.commit(() => this.engine.wait(), () => {}, { command: 'wait' });
         }
 
         // ---- Tick animation ----
