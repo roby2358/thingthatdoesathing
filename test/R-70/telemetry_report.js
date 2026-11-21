@@ -15,7 +15,8 @@
 //     without calling wrangler
 //   - the CLI: usage errors and the placeholder refusal exit 1 without running wrangler; local-d1
 //     end to end, batches written by the real Worker into node:sqlite with the schema, read back by
-//     a fake wrangler running the report's SQL
+//     a fake wrangler running the report's SQL; its d1 info call for the Volume section's size
+//     (failing locally → unknown (local), a size, production's --env production)
 'use strict';
 
 const fs = require('fs');
@@ -91,7 +92,7 @@ function fixture() {
     };
 }
 
-const HEADING = { source: 'fixture', period: 'all time', since: 0 };
+const HEADING = { source: 'fixture', period: 'all time', since: 0, size: { unknown: 'local' } };
 
 // ---- figures from fixtures ----
 {
@@ -173,7 +174,7 @@ const text = report(fixture(), HEADING, SIZES);
     const { play: kept, leftOut } = fig.inPeriod(play, T0 - DAY);
     check('an old game and its events drop out', kept.games.length === 3 && !kept.events.some(e => e.gameKey === 'old'));
     check('events and milestones with no game record are left out', leftOut.events === 1 && leftOut.milestones === 1 && !kept.events.some(e => e.gameKey === 'ghost'));
-    const t = report(play, { source: 'x', period: 'games started in the last 1 day', since: T0 - DAY }, SIZES);
+    const t = report(play, { ...HEADING, source: 'x', period: 'games started in the last 1 day', since: T0 - DAY }, SIZES);
     check('heading says what was left out', t.includes('left out: 1 event and 1 milestone with no game record') && t.includes('  3 games, 11 events'));
     play.events.push(event('old', 1, 'place', { unixSeconds: T0 }));
     check('an older game\'s event inside the period drops with its game, not left out', fig.inPeriod(play, T0 - DAY).leftOut.events === 1);
@@ -251,14 +252,21 @@ const fs = require('fs');
 fs.writeFileSync(${JSON.stringify(marker)}, 'ran');
 const args = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(callLog)}, JSON.stringify(args) + '\\n');
+if (args[1] === 'info') {
+    // wrangler's d1 info asks Cloudflare's API: FAKE_INFO is its answer, else it fails as it does for the local database
+    if (!process.env.FAKE_INFO) { process.stderr.write('ERROR: The database local-only-ttdat-telemetry could not be found [code: 7404]'); process.exit(1); }
+    process.stdout.write(process.env.FAKE_INFO);
+    process.exit(0);
+}
 const { DatabaseSync } = require('node:sqlite');
 const db = new DatabaseSync(${JSON.stringify(dbFile)}, { readOnly: true });
 const results = db.prepare(args[args.indexOf('--command') + 1]).all().map(r => ({ ...r }));
 process.stdout.write(JSON.stringify([{ results, success: true, meta: {} }]));
 `);
     fs.chmodSync(fake, 0o755);
-    const run = (configPath, ...args) => spawnSync(process.execPath, [TOOL, configPath, ...args],
-        { encoding: 'utf8', env: { ...process.env, WRANGLER: fake } });
+    const runWith = (extraEnv, configPath, ...args) => spawnSync(process.execPath, [TOOL, configPath, ...args],
+        { encoding: 'utf8', env: { ...process.env, WRANGLER: fake, ...extraEnv } });
+    const run = (configPath, ...args) => runWith({}, configPath, ...args);
 
     const config = path.join(tmp, 'wrangler.jsonc');
     fs.writeFileSync(config, PLACEHOLDER_CONFIG.replace('PUT-THE-DATABASE-ID-HERE', 'a-real-id'));
@@ -322,17 +330,35 @@ process.stdout.write(JSON.stringify([{ results, success: true, meta: {} }]));
     check('local-d1 figures from the Worker rows', /\n  BELT +1 +0\n/.test(out) && /\n  3 +1 +100%\n/.test(out) && out.includes('TypeError at N:N')
         && out.includes('Chrome / Windows') && /\n  slot +1\n/.test(out));
     const calls = fs.readFileSync(callLog, 'utf8').trim().split('\n').map(JSON.parse);
-    check('the CLI asked wrangler four read-only SELECTs, --local --json, with the config', calls.length === 4
-        && calls.every(a => a.includes('--local') && a.includes('--json') && a[a.indexOf('--config') + 1] === config && /^SELECT /.test(a.at(-1))));
+    const executes = calls.filter(a => a[1] === 'execute'), infos = calls.filter(a => a[1] === 'info');
+    check('the CLI asked wrangler four read-only SELECTs, --local --json, with the config', executes.length === 4
+        && executes.every(a => a.includes('--local') && a.includes('--json') && a[a.indexOf('--config') + 1] === config && /^SELECT /.test(a.at(-1))));
+    check('and one d1 info --json for the size, no --env', calls.length === 5 && infos.length === 1 && infos[0][2] === 'ttdat-telemetry'
+        && infos[0].includes('--json') && infos[0][infos[0].indexOf('--config') + 1] === config && !infos[0].includes('--env'));
+    check('local-d1 prints the Volume section last', out.includes('\nVolume: rows written per day (UTC)') && out.indexOf('\nVolume:') > out.indexOf('\nPlayers (signed in)'));
+    const oldDay = new Date((now - 10 * DAY) * 1000).toISOString().slice(0, 10);
+    check('local-d1 Volume: the 10-day-old game and its event count on their own day', new RegExp('\\n  ' + oldDay + ' +1 +1 +0 +0 +2 +0%\\n').test(out));
+    check('local-d1 Volume: the busiest day line', /\n  busiest day \d{4}-\d\d-\d\d \d+ rows = 0% of the free plan's daily writes\n/.test(out));
+    check('d1 info failing for the local database: size: unknown (local)', out.trimEnd().endsWith('  size: unknown (local)'));
+    const sized = runWith({ FAKE_INFO: JSON.stringify({ uuid: 'x', name: 'ttdat-telemetry', num_tables: 4, database_size: 61440 }) }, config, 'local-d1');
+    check('a size from d1 info is printed against the free plan', sized.status === 0 && sized.stdout.includes("  size: 61.4 KB = 0% of the free plan's 500.0 MB per database"));
 
     fs.writeFileSync(callLog, '');
     const week = run(config, '7', 'local-d1');
     check('days in either order: the old game and its event drop out', week.status === 0 && week.stdout.includes('period: games started in the last 7 days')
         && week.stdout.includes('  1 game, 3 events, 1 milestone, 1 crash'));
     check('the number reaches the SQL as the period start', fs.readFileSync(callLog, 'utf8').trim().split('\n').map(JSON.parse)
-        .filter(a => !/FROM games /.test(a.at(-1)))
+        .filter(a => a[1] === 'execute' && !/FROM games /.test(a.at(-1)))
         .every(a => { const m = /(>=) (\d+)/.exec(a.at(-1)); return m && Math.abs(Number(m[2]) - (now - 7 * DAY)) < 60; }));
     check('an old game is not counted as left out', !week.stdout.includes('left out'));
+    // production (a real id in the config) asks d1 info with --env production; a big database warns
+    fs.writeFileSync(callLog, '');
+    const prod = runWith({ FAKE_INFO: JSON.stringify({ database_size: 260 * 1000 * 1000 }) }, config);
+    const prodInfo = fs.readFileSync(callLog, 'utf8').trim().split('\n').map(JSON.parse).filter(a => a[1] === 'info');
+    check('production: d1 info with --env production', prod.status === 0 && prodInfo.length === 1 && prodInfo[0].join(' ').includes('--env production'));
+    check('production: a database at or over half the free size warns', prod.stdout.includes("  WARNING: size: 260.0 MB = 52% of the free plan's 500.0 MB per database"));
+    const prodNoSize = runWith({ FAKE_INFO: '{}' }, config);
+    check('production: no size from d1 info', prodNoSize.status === 0 && prodNoSize.stdout.includes('  size: unknown (wrangler d1 info gave no size)'));
     check('the database is unchanged by the reports', db.prepare('SELECT COUNT(*) AS n FROM events').get().n === 4 && fs.statSync(dbFile).mtimeMs === before);
     db.close();
     fs.rmSync(tmp, { recursive: true, force: true });

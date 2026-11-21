@@ -49,11 +49,14 @@ the sign-in (seed SQL run in yuwakisacloud by hand, never from here).
 
 `just telemetry-report [local-d1] [days]` (`tools/telemetry_report.js` + `tools/telemetry_report/`:
 `records.js` four read-only SELECTs through `$WRANGLER d1 execute --json`, rows → camelCase records;
-`figures.js` pure sums over records; `render.js` the tables; plain Node, D-66) prints the telemetry
+`figures.js` pure sums over records; `render.js` the tables; `volume.js` the Volume section's figures, its d1
+info call and the D1 free-plan numbers, D-72; plain Node, D-66) prints the telemetry
 report: production's D1 by default (refused before wrangler runs while `wrangler.jsonc` holds
 `PUT-THE-DATABASE-ID-HERE`), `local-d1` for wrangler dev's; a number limits it to games started in
 that many days. Sections Games, Milestones, Commands, Bomb, Sessions (`LONG_PAUSE_SECONDS` 300),
-Clients, Crashes, Players, once per rules version when there are several. R-70 tests it on fixtures
+Clients, Crashes, Players, once per rules version when there are several, then Volume once (rows
+written per UTC day against `D1_FREE_ROWS_WRITTEN_PER_DAY`, the size from `wrangler d1 info --json`
+against `D1_FREE_DB_BYTES`, WARNING at `WARN_SHARE`; "unknown (local)" for wrangler dev's). R-70 tests it on fixtures
 and end to end with a fake wrangler over node:sqlite.
 
 ## Architecture

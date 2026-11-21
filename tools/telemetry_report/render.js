@@ -4,6 +4,7 @@
 'use strict';
 
 const { LONG_PAUSE_SECONDS, WINDOW_BUCKET_PX, byRulesVersion, crashFigures, figures, inPeriod } = require('./figures');
+const { D1_FREE_ROWS_WRITTEN_PER_DAY, D1_FREE_DB_BYTES, WARN_SHARE, volumeFigures } = require('./volume');
 
 /** A length of real time: 45s, 2m 05s, 1h 02m 03s. */
 function formatSeconds(seconds) {
@@ -144,9 +145,53 @@ function seen(values) {
     return list.length === 0 ? 'none' : list.map(([v, n]) => `${v} (${n})`).join(', ');
 }
 
-/** The whole report. `heading` is {source, period, since} in words and Unix seconds; `sizeOrder`
- *  the MAP_SIZES keys in order. Every section is printed once per rules version, lowest first,
- *  when the period's games ran under more than one. */
+/** A share of a free limit as a percentage, to one decimal when it isn't whole. */
+function percent(part, whole) {
+    return formatNumber(Math.round((1000 * part) / whole) / 10) + '%';
+}
+
+/** A size in bytes, in decimal units: 950 B, 12.3 KB, 4.5 MB. */
+function formatBytes(bytes) {
+    if (bytes < 1000) return bytes + ' B';
+    if (bytes < 1000 * 1000) return (bytes / 1000).toFixed(1) + ' KB';
+    return (bytes / (1000 * 1000)).toFixed(1) + ' MB';
+}
+
+/** A Volume line, with a WARNING: prefix when it is at or over WARN_SHARE of its limit. */
+function warned(atRisk, line) {
+    return '  ' + (atRisk ? 'WARNING: ' : '') + line;
+}
+
+/** The database size line. `size` is {bytes} or {unknown: why}. */
+function sizeLine(size) {
+    if (size.bytes === undefined) return `  size: unknown (${size.unknown})`;
+    return warned(size.bytes >= WARN_SHARE * D1_FREE_DB_BYTES,
+        `size: ${formatBytes(size.bytes)} = ${percent(size.bytes, D1_FREE_DB_BYTES)} of the free plan's ${formatBytes(D1_FREE_DB_BYTES)} per database`);
+}
+
+/** The Volume section (D-72): `volume` from volumeFigures, `size` from sizeFromD1. */
+function volumeSection(volume, size) {
+    const limit = D1_FREE_ROWS_WRITTEN_PER_DAY;
+    const rows = volume.perDay.map(d => [d.day, d.games, d.events, d.milestones, d.crashes, d.total,
+        percent(d.total, limit), d.warn ? '*' : '']);
+    const busiest = volume.busiest === null
+        ? '  busiest day: none (no rows written in the period)'
+        : warned(volume.busiest.warn, `busiest day ${volume.busiest.day} ${volume.busiest.total} rows = ${percent(volume.busiest.total, limit)} of the free plan's daily writes`);
+    return [
+        `Volume: rows written per day (UTC), against the D1 free plan's ${limit} rows written per day`,
+        table(['day', 'games', 'events', 'milestones', 'crashes', 'total', 'of limit', ''], rows),
+        `  * at or over ${percent(WARN_SHARE, 1)} of the daily limit`,
+        busiest,
+        '  not counted: index writes (D1 counts another row written for each indexed column a write touches) and',
+        "  the Worker's requests, which the tables don't hold; the real counts are higher.",
+        sizeLine(size),
+    ].join('\n');
+}
+
+/** The whole report. `heading` is {source, period, since, size} in words, Unix seconds and
+ *  the database's size ({bytes} or {unknown}, sizeFromD1); `sizeOrder` the MAP_SIZES keys
+ *  in order. Every section is printed once per rules version, lowest first, when the period's
+ *  games ran under more than one; the Volume section, about the database, once, last. */
 function report(loaded, heading, sizeOrder) {
     const { play, leftOut } = inPeriod(loaded, heading.since);
     const { versions, unattached } = byRulesVersion(play);
@@ -161,15 +206,16 @@ function report(loaded, heading, sizeOrder) {
         ...(leftOut.events + leftOut.milestones === 0 ? []
             : [`  left out: ${plural(leftOut.events, 'event', 'events')} and ${plural(leftOut.milestones, 'milestone', 'milestones')} with no game record`]),
     ].join('\n');
+    const volume = volumeSection(volumeFigures(loaded, heading.since), heading.size);
     if (versions.length === 0) {
         const crashes = play.crashes.length === 0 ? '' : '\n\n' + crashesBody(crashFigures(play.crashes, new Set()));
-        return `${head}\n\nNo games recorded.${crashes}\n`;
+        return `${head}\n\nNo games recorded.${crashes}\n\n${volume}\n`;
     }
-    if (versions.length === 1) return `${head}\n\n${sections(play, sizeOrder)}\n`;
+    if (versions.length === 1) return `${head}\n\n${sections(play, sizeOrder)}\n\n${volume}\n`;
     const perVersion = versions.map(v => `=== Rules version ${v.rulesVersion}: ${plural(v.play.games.length, 'game', 'games')} ===\n\n${sections(v.play, sizeOrder)}`);
     if (unattached.length > 0)
         perVersion.push(`=== Crashes with no game in this report ===\n\n${crashesBody(crashFigures(unattached, new Set()))}`);
-    return `${head}\n\n${perVersion.join('\n\n')}\n`;
+    return `${head}\n\n${perVersion.join('\n\n')}\n\n${volume}\n`;
 }
 
-module.exports = { formatSeconds, formatNumber, formatShare, table, report };
+module.exports = { formatSeconds, formatNumber, formatShare, formatBytes, table, volumeSection, report };

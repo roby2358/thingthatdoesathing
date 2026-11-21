@@ -1,8 +1,9 @@
 // tools/telemetry_report.js — `just telemetry-report [local-d1] [days]`: prints the telemetry
 // report (ONTOLOGY "Telemetry report", D-66) as plain text, for tuning. It reads the ttdat-telemetry
-// D1 database (D-64) through wrangler, with four read-only SELECTs, and never writes: production's
-// when no source is named (refused before wrangler runs while wrangler.jsonc still holds the
-// placeholder id), wrangler dev's local one with `local-d1`. A number limits it to games started
+// D1 database (D-64) through wrangler, with four read-only SELECTs and a `d1 info` for its size
+// (the Volume section, D-72), and never writes: production's when no source is named (refused
+// before wrangler runs while wrangler.jsonc still holds the placeholder id), wrangler dev's local
+// one with `local-d1`. A number limits it to games started
 // in that many days. Plain Node, no npm packages. WRANGLER names the wrangler to run (the
 // justfile passes yuwakisacloud's pinned one).
 //
@@ -16,6 +17,7 @@ const { execFile } = require('child_process');
 
 const { SECONDS_PER_DAY } = require('./telemetry_report/figures');
 const { D1_TARGETS, ReportRefusal, playFromD1 } = require('./telemetry_report/records');
+const { sizeFromD1 } = require('./telemetry_report/volume');
 const { report } = require('./telemetry_report/render');
 
 const USAGE = 'usage: just telemetry-report [local-d1] [days]   (production when no source is named; every day when no number is given)';
@@ -63,9 +65,10 @@ async function main(argv) {
     const since = days === null ? 0 : Math.floor(Date.now() / 1000) - days * SECONDS_PER_DAY;
     const config = { path: configPath, text: fs.readFileSync(configPath, 'utf8') };
     const play = await playFromD1(runWrangler, source, config, since);
+    const size = await sizeFromD1(runWrangler, source, config);
     const period = days === null ? 'all time' : `games started in the last ${days} day${days === 1 ? '' : 's'}`;
     const label = `${SOURCES[source]} (wrangler d1 execute ${D1_TARGETS[source].join(' ')}, ${configPath})`;
-    process.stdout.write(report(play, { source: label, period, since }, sizeOrder()));
+    process.stdout.write(report(play, { source: label, period, since, size }, sizeOrder()));
 }
 
 main(process.argv.slice(2)).catch(error => {

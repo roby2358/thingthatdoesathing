@@ -871,7 +871,7 @@ so a cross-origin page sees them and backs off.
 ### Telemetry report — `just telemetry-report` (tools/telemetry_report.js) [D-66]
 *Serves:* tuning §6 from what the tables hold, as plain text a designer reads in a terminal.
 Plain Node, no npm: `tools/telemetry_report.js` (the CLI) and `tools/telemetry_report/`
-(`records.js` rows → records, `figures.js` pure sums, `render.js` tables). It reads and never writes.
+(`records.js` rows → records, `figures.js` pure sums, `render.js` tables, `volume.js` the Volume section's figures, size and free-plan numbers). It reads and never writes.
 ```
 just telemetry-report [local-d1] [days]          # node tools/telemetry_report.js wrangler.jsonc …, WRANGLER = yuwakisacloud's
   args: at most one local-d1 and one whole number ≥ 1, in either order; anything else → the usage, exit 1
@@ -887,7 +887,12 @@ just telemetry-report [local-d1] [days]          # node tools/telemetry_report.j
   print:  heading (source, period, counts of games / events / milestones / crashes, versions and
           rules versions seen with their game counts, signed-in games), then the sections; with
           several rules versions every section once per rules version, lowest first (a crash goes
-          with its game; crashes with no game in the report get a last block of their own)
+          with its game; crashes with no game in the report get a last block of their own); then
+          Volume once, last (it is about the database, not a rules version)
+  size:   wrangler d1 info ttdat-telemetry --config … --json (production: + --env production), after the
+          SELECTs; its database_size in bytes; no size or a failure → "unknown (local)" for local-d1
+          (wrangler's d1 info asks Cloudflare's API, so it never knows the local database),
+          "unknown (wrangler d1 info gave no size)" for production — the report still prints
 ```
 Sections, in order (a table with no rows prints `(none)`):
 - **Games** — started per UTC day; by board size (`MAP_SIZES` order, read from artifacts.js); by version (games, first and last day).
@@ -898,12 +903,16 @@ Sections, in order (a table with no rows prints `(none)`):
 - **Clients** — per game: the User-Agent bucketed to "browser / OS" by a small regex table (Edge, Opera, Samsung Internet, Firefox, Chrome, Safari; Windows, iOS, Android, ChromeOS, macOS, Linux; else "other", none "unknown"); window sizes rounded down to `WINDOW_BUCKET_PX`; device pixel ratios.
 - **Crashes** — per version; messages with numbers as N, most first, with distinct games hit; crashes with no game, and with a game not in the report.
 - **Players** — distinct signed-in `player_id`s (rows of any table with `signed_in` 1: identity is per batch) and those seen on more than one UTC day, or "no signed-in games"; games whose rows carry more than one identity (switched mid-game).
+- **Volume** (figures in tools/telemetry_report/volume.js, printed by render.js, D-72; printed once, last) — rows written per UTC day over the period, per table (games, events, milestones, crashes) and in total, each row on the day of its own time column (`started_unix_seconds` for games, `unix_seconds` for the others), every row read in the period whether or not its game is in the report; each day's share of `D1_FREE_ROWS_WRITTEN_PER_DAY`, marked `*` at or over `WARN_SHARE`; then `busiest day <day> N rows = P% of the free plan's daily writes` (`WARNING: ` before it at or over `WARN_SHARE`; "busiest day: none" with no rows); a note that index writes and the Worker's requests aren't in the tables, so aren't counted; then `size: <bytes> = P% of the free plan's <D1_FREE_DB_BYTES> per database` (`WARNING: ` at or over `WARN_SHARE` of `D1_FREE_DB_BYTES`) or `size: unknown (…)`.
 
 ### Numbers [T]
 | Name | Value | Meaning |
 |---|---|---|
 | `LONG_PAUSE_SECONDS` | 300 | the report: a gap this long or longer between a game's records is a long pause, left out of its active length (D-66) |
 | `WINDOW_BUCKET_PX` | 100 | the report: window sizes are rounded down to this many px each way (D-66) |
+| `D1_FREE_ROWS_WRITTEN_PER_DAY` | 100000 | [P] the report's Volume section: D1's free-plan rows written per day, from https://developers.cloudflare.com/d1/platform/pricing/, checked 2026-11-21 (tools/telemetry_report/volume.js, D-72) |
+| `D1_FREE_DB_BYTES` | 500 MB (500 000 000 bytes) | [P] the report's Volume section: D1's free-plan maximum database size, from https://developers.cloudflare.com/d1/platform/limits/, checked 2026-11-21; read as decimal MB (D-72) |
+| `WARN_SHARE` | 0.5 | the report's Volume section: a day's writes, or the database's size, at or over this share of its free limit is marked and its line starts `WARNING:` (D-72) |
 | `TELEMETRY_FORMAT` | 1 | the batch format this build sends and reads |
 | `MAX_BODY_BYTES` | 64 KB | the largest batch body |
 | `MAX_RECORDS` | 200 | records per batch, all four lists together |

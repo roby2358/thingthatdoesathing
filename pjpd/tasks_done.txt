@@ -635,6 +635,30 @@ Today rejected actions are silent: clicking a hex that isn't a legal placement, 
 ----
 Priority:   52
 Status: Done
+ID: rptvolume-4yqg
+Created: 2026-11-21T08:42:42Z
+Updated: 2026-11-21T11:35:57Z
+
+Add a Volume section to the telemetry report, so the D1 limits of Cloudflare's free plan are seen coming before they're hit. Not expected to matter yet. Build on telemetryrpt-7erk (the report) and telemetrydb-hgs4 (the tables), which come first.
+
+Settled design:
+- A Volume section, printed last:
+  - Rows written per UTC day over the period, per table (games, events, milestones, crashes) and in total. A row counts on the day of its own time column: started_unix_seconds for games, unix_seconds for the others.
+  - The busiest day and its total.
+  - Days at or over half the daily write limit are marked. The limit is the constant D1_FREE_ROWS_WRITTEN_PER_DAY = 100000; WARN_SHARE = 0.5.
+  - Below the table, one line: "busiest day N rows = P% of the free plan's daily writes", with a "WARNING:" prefix when the busiest day is at or over WARN_SHARE.
+- Index writes and the Worker's request count aren't in the tables, so they aren't counted. Say so in a note under the section.
+- Database size:
+  - For production and local-d1, also run `wrangler d1 info ttdat-telemetry --json` (with --env production for production) and print the database's size.
+  - Compare it with D1_FREE_DB_BYTES, set from Cloudflare's current D1 limits page when this task is done; cite the URL and date in a comment and in RATIONALE.
+  - If wrangler's d1 info gives no size for the local database, print "size: unknown (local)".
+- Put the numbers in ONTOLOGY's Numbers table (marked [P], with the date checked) and in the report's code in one place.
+- Docs: the ONTOLOGY Telemetry report section, a RATIONALE D-n (why a warning in the report, not alerts: no infrastructure, and the report is run by hand), a CRITERIA row in the report's R-n (fixture rows over several days → the per-day table, the busiest day, and the warning line at and over the threshold), ARCHITECTURE_LOG.
+
+Done when: just cc-test passes with the new fixtures, and `just telemetry-report local-d1` prints the Volume section with the local database's size or "unknown (local)".
+----
+Priority:   52
+Status: Done
 ID: key-mods-dsxi
 Created: 2026-11-17T02:44:27Z
 Updated: 2026-11-17T19:26:16Z
