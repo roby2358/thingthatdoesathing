@@ -1,3 +1,306 @@
+Priority:   85
+Status: ToDo
+ID: telemetrydb-hgs4
+Created: 2026-11-21T08:36:16Z
+Updated: 2026-11-21T08:54:15Z
+
+The telemetry database and its server side for Thing Factory, on starreach's pattern (../starreach: adapters/cloudflare/src/telemetry.ts, adapters/cloudflare/telemetry_schema.sql, tools/telemetry_db.sh; its docs/RATIONALE D-53). This adds the ttdat Worker's POST /t, which checks a batch of telemetry records and writes it to D1. The browser recorder that sends the batches is task telemetry-q77g, which comes next. This task defines the batch format both sides use.
+
+Batch format (JSON, sent as text/plain): { format: 1, player: string (the sender's random per-load ID), token?: string (reserved for bskysignin-5sap's access token, in the body so sendBeacon can carry it and no CORS preflight is needed; ignored by this task), games: [gameRecord…], events: [event…], milestones: [milestone…], crashes: [crash…] } (every array optional).
+
+The format field: the itch.io and Newgrounds zips keep running whatever build was uploaded, for months, so old clients will keep sending old shapes after the format changes. The Worker keeps a KNOWN_FORMATS list (just [1] for now) and a reader per format.
+  - A batch with a missing or unknown format gets 204 and is dropped quietly, with a console.error that has no body. It does not get 400: an old client is not malformed.
+  - A known format that fails its checks still gets 400.
+  - Store the format as a column on games (format), so the report can tell builds apart.
+  - Bump TELEMETRY_FORMAT (in the worker, and in GameDisplayArtifacts for the browser task to send) whenever a field is renamed, removed or retyped. A new optional field doesn't need a bump.
+  - Say all this in ONTOLOGY and in the RATIONALE D-n.
+
+The fields are those of the tables below, camelCase in JSON. An event's command-specific args (kind, q, r, facing, color, plus anything else) come as an args object; columns take what has a column, and rest takes the remainder plus deliveredByColor.
+
+Settled design:
+
+Worker:
+- ttdat stops being assets-only. wrangler.jsonc gets "main": "worker/index.js" (a plain-JS ES module, no build) and a D1 binding TELEMETRY (database ttdat-telemetry).
+  - Locally: a made-up local-only id.
+  - In env.production: a placeholder PUT-THE-DATABASE-ID-HERE, replaced on the designer's go-ahead. Bindings don't inherit, so restate it there.
+  - Assets still serve every file. Only POST /t reaches the script; anything else gets 404.
+- Keep Cloudflare observability/request logging off. Never log or store CF-Connecting-IP or any IP (ratelimit-27qf will read it only as the rate limiter's in-memory key). The privacy page says no IP addresses are kept.
+- POST /t takes one JSON batch (sent as text/plain, so no CORS preflight) and answers 204 with Access-Control-Allow-Origin: *.
+- Checks: body at most 64 KB, at most 200 records, known record types and field types. A batch that fails gets 400 and nothing is written.
+- Writes go to ctx.waitUntil, so the response never waits on D1. A failed write is console.error'd and dropped.
+- Each event's seq is counted inside its insert, as starreach's INSERT_EVENT does.
+
+D1 schema: worker/telemetry_schema.sql, every statement CREATE ... IF NOT EXISTS, no migration history.
+- Identity is per batch, not per game: sign-in and sign-out are orthogonal to play, so one game can run under a random ID, then a signed-in hash, then a new random ID. The Worker resolves one identity per batch (for now always the batch's `player`, signed_in 0; bskysignin-5sap adds the token check) and stamps it as player_id and signed_in on every row the batch writes.
+- games: game_key PK, player_id and signed_in (the identity of the batch that first inserted the row: who started the game), started_unix_seconds, seed, size, version (the commit hash from <html data-version>), rules_version, user_agent, screen. Insert with INSERT OR IGNORE: the browser resends the game record in each batch of that game, so a dropped first batch doesn't lose it.
+- events: game_key, seq, unix_seconds, command, accepted, turn, delivered, lost, ex_gremlins, trapped, things, crates, then kind, q, r, facing, color as columns where the command has them (null otherwise), and rest JSON (the remaining args plus delivered per color). PK (game_key, seq). Every row also has player_id and signed_in from its batch. No foreign key.
+- milestones: game_key, milestone (the count: 10, 20, 50, …), player_id, signed_in, turn, unix_seconds, delivered, lost, ex_gremlins, trapped, things, crates, rest JSON (delivered per color). PK (game_key, milestone), INSERT OR IGNORE. No seq, no colors opened, no cards unlocked.
+- crashes: id INTEGER PK AUTOINCREMENT, unix_seconds, format, version, game_key (null if no game had started), player_id and signed_in (from the batch), seed, size, turn (each null if unknown), message (cut to 500 chars), stack (cut to 2000 chars: the first lines), user_agent. Plain INSERT, no dedupe. The browser side that sends crash records is a later task (crashreport-zj3f); this task only defines and accepts them.
+- Indexes: games by start time, events by time and command, crashes by time and version.
+
+justfile: d1-local (apply the schema to wrangler dev's local D1), d1-production (create the database while the placeholder is there and print the id to paste; run again, apply the schema), and a deploy check in just deploy that refuses while the placeholder remains (a --dry-run passes). Model these on starreach's tools/telemetry_db.sh. Use yuwakisacloud's wrangler as just deploy does. Add just dev-worker (wrangler dev on dist/web after just ship) for local checks.
+
+Tests:
+- A CRITERIA R-row owning test/R-n/: the worker imported in Node with a fake D1 that records binds and a fake ctx.waitUntil. A valid batch → the right rows in all four tables (a crash-only batch included). A bad batch (too big, too many records, a wrong type, an unknown command) → 400 and nothing written. A missing or unknown format → 204 and nothing written. The format is stored on the game row. seq follows arrival order. Two batches of one game with different players stamp their own rows with their own player_id. A game record sent twice is inserted once, and so is a milestone sent twice. No IP in any bind or log. A non-/t path or method → 404. A D1 failure is logged, and the response is still 204.
+- ship.js: worker/ is not in dist/web.
+
+Docs: the ONTOLOGY Telemetry section's records (crash records included), batch format, endpoint and database parts; a RATIONALE D-n (D1 tables and columns vs rest, INSERT OR IGNORE for resent records, no foreign keys, the placeholder id and deploy check, no IP); the CRITERIA row, plus a U-row for the curl check below; ARCHITECTURE_LOG; the CLAUDE.md module table (worker/); README Deploy (the D1 steps).
+
+Done when:
+- just cc-test passes.
+- just d1-local, then just ship and just dev-worker; a curl POST of a hand-written batch to http://localhost:8787/t gets 204, and its rows show in the local D1.
+- just deploy refuses while the production id is the placeholder.
+----
+Priority:   80
+Status: ToDo
+ID: telemetry-q77g
+Created: 2026-11-21T08:33:51Z
+Updated: 2026-11-21T08:54:15Z
+
+The browser half of Thing Factory's telemetry, on starreach's pattern (../starreach app/src/telemetry.ts; its RATIONALE D-51). The game records what players do and posts batches to the ttdat Worker's POST /t, for tuning: how far games get, how fast, and what players build. Build on task telemetrydb-hgs4 (the Worker, D1 and the batch format it defines), which comes first. The privacy page, README and SHIP.md updates are task privacydocs-ntj5, right after this one.
+
+Settled design:
+
+Browser (telemetry.js, a plain-script IIFE global GameTelemetry, loaded after displayartifacts.js):
+- Player ID: crypto.randomUUID() made at page load, kept only in memory, never stored. It goes once per batch, as the batch's `player`, not on each record (the Worker stamps rows per batch, telemetrydb-hgs4). Identity is orthogonal to play: expose GameTelemetry.switchIdentity(), which flushes the queue under the current identity, then switches (to a fresh random ID; bskysignin-5sap adds the token side), so each batch holds a single identity. The sign-in tasks call it; this task only adds it and tests it.
+- Game key: a fresh crypto.randomUUID() per new game (startGame).
+- Nothing starts before the player picks a board. The intro's size pick is the first startGame, so a crawler or a visitor who never picks a board sends nothing: no game record, no flush timer, no pagehide beacon. Hook the recorder's start into startGame only, never page load. A uiboot test checks that a booted page left on the intro sends nothing.
+- Game record: game key, start time, seed, size, version, rules_version (new RULES_VERSION = 1 in artifacts.js, bumped by hand in the same change as any rule or tuning-number change; say so in CLAUDE.md and ONTOLOGY), navigator.userAgent, and screen as `${innerWidth}x${innerHeight}@${devicePixelRatio}`.
+- Events: GameUI's commit() hands each command and its result to the recorder. Recorded commands: place (kind, q, r, facing, color), remove (q, r, kind removed), discard (kind, how: 'pick' or 'slot'), move (kind, from q,r, to q,r, facing), scrap (kind, q, r), bomb (hexes), blast (q, r).
+  - wait and rotate are NOT recorded. Go is a stream of waits; the turn on each event shows the gap.
+  - Each event carries accepted and a snapshot after the tick: turn, delivered (total, and per color in rest), lost, exGremlins, trapped, things (state.things.length), crates (pieces that aren't gremlins).
+- Milestones: every milestone{count} in a commit's events, including commits from wait/Go, becomes a milestone record with the same snapshot.
+- Sending: queue records. POST the queue to /t with fetch(keepalive) every 30 s (TELEMETRY_FLUSH_MS) or at 50 queued records (TELEMETRY_FLUSH_RECORDS), whichever comes first. On pagehide / visibilitychange to hidden, send the rest with navigator.sendBeacon.
+  - A failed send is dropped, never retried, never shown, and never throws into the game (try/catch around everything).
+- When it sends: only when <html data-version> is set (ship builds: the live site and the itch.io/Newgrounds zip) and location.protocol is http: or https:. Dev and file:// send nothing.
+  - The endpoint is the absolute https://ttdat.yuwakisa.com/t, so portal builds post there too. On localhost under wrangler dev, use the page's own origin.
+- Global Privacy Control: if navigator.globalPrivacyControl is true, record and send nothing. No opt-out setting yet (settings-rrcw may add one later).
+- The engine knows nothing of telemetry.
+
+- Batches use the format telemetrydb-hgs4 defines. Every batch carries its game's record again (the Worker ignores repeats), so a dropped first batch doesn't lose it.
+
+Tests:
+- A CRITERIA R-row owning test/R-n/: the recorder in a vm with stubbed fetch/sendBeacon. The right records for each command; wait/rotate absent; milestones from a wait; nothing sent without data-version, from file:, or with GPC; a throwing fetch doesn't break play.
+- uiboot.js: playing to a milestone queues the expected records.
+- ship.js: telemetry.js is shipped.
+
+Docs: the ONTOLOGY Telemetry section's recording rules and numbers (TELEMETRY_FLUSH_MS, TELEMETRY_FLUSH_RECORDS, RULES_VERSION); a RATIONALE D-n (why browser-side batches over POST, not sockets; why a per-load random ID; why wait/rotate are excluded; why milestones get their own table; why UA and screen size are kept; GPC); the CRITERIA rows, plus a U-row for the walk below; ARCHITECTURE_LOG; the CLAUDE.md module table (telemetry.js).
+
+Out of scope: the privacy page, README and SHIP.md (privacydocs-ntj5), the report (telemetryrpt-7erk), sign-in (bskysignin-5sap), rate limiting (ratelimit-27qf).
+
+Done when:
+- just cc-test passes.
+- just ship then just dev-worker with the local D1: a game played to the first milestone leaves its games row, event rows (no waits) and a milestones row, with no IP anywhere.
+----
+Priority:   78
+Status: ToDo
+ID: privacydocs-ntj5
+Created: 2026-11-21T08:36:52Z
+Updated: 2026-11-21T08:36:52Z
+
+The player-facing and release docs for telemetry: the About privacy page, README and SHIP.md. Build on telemetry-q77g (the browser recorder) and telemetrydb-hgs4 (the Worker and D1), which come first, so the text describes what was actually built. Read what they shipped and correct any wording below that no longer matches. The design docs (ONTOLOGY, CRITERIA, RATIONALE, ARCHITECTURE_LOG, CLAUDE.md) are not in scope here: those tasks keep them in step with their code.
+
+Settled design:
+- index.html About page 1 (Privacy). Keep it terse and in the current voice.
+  - The first line becomes "While you play, the game sends your moves, the board size, the seed, the game version, your browser type and window size to our own server. They're used only to tune the game."
+  - The ID line becomes "They're tied to a random ID made fresh each time you open the game. No cookies, no account, no IP addresses kept, no personal data."
+  - Add one line: "Your browser's Global Privacy Control setting turns it off."
+  - Keep "Your browser keeps your settings (like mute). Map saves are planned."
+  - No hostname. Don't call the data anonymous.
+- If uiboot.js or any test checks the privacy text, update it to match.
+- README: the About bullet says the privacy page lists what's sent; add a short "Telemetry" paragraph under Deploy covering what is recorded, that only ship builds send, GPC, and the D1 database and its just recipes (point to CLAUDE.md for the details).
+- SHIP.md: mark the privacy/telemetry items these tasks close (PRIV-*, OPS-* as they apply) done, with evidence pointing at the tasks' R-rows and the U-row. Recount the tier totals.
+- Not here: sign-in wording (bskysignin-5sap adds its own line).
+
+Done when: just cc-test passes; the About privacy page in a browser shows the three lines above; and README and SHIP.md match what telemetry-q77g and telemetrydb-hgs4 shipped.
+----
+Priority:   75
+Status: ToDo
+ID: telemetryrpt-7erk
+Created: 2026-11-21T08:33:51Z
+Updated: 2026-11-21T08:54:15Z
+
+A telemetry report: `just telemetry-report [local-d1] [days]` prints plain-text tables of what Thing Factory players do, for tuning. Modelled on starreach's tools/telemetry_report/ and its ONTOLOGY "Telemetry report" and RATIONALE D-54. Build on telemetrydb-hgs4 (the D1 tables games, events, milestones and crashes, worker/telemetry_schema.sql) and telemetry-q77g (the recorder), which come first.
+
+Settled design:
+- Plain Node JS, no npm: tools/telemetry_report.js plus a tools/telemetry_report/ folder (records, figures, render) if it grows. It reads and never writes.
+- Sources:
+  - No argument: the production D1, via four read-only SELECTs (one per table) through yuwakisacloud's `wrangler d1 execute ttdat-telemetry --remote --env production --json`. Refused before wrangler runs if wrangler.jsonc still holds the PUT-THE-DATABASE-ID-HERE placeholder.
+  - `local-d1`: wrangler dev's local database, via the same queries with --local.
+  - A number argument, in either order, limits it to games started in that many days. A game's events and milestones go with it.
+  - Anything else prints the usage and fails.
+- The heading gives the source, the period, the counts of games, events, milestones and crashes, the versions and rules versions seen, and how many games are signed in. With several rules_versions, every section is printed once per rules version, lowest first.
+- Sections:
+  - Games: started per UTC day; by board size; by version.
+  - Milestones: per board size, for each milestone count (10, 20, 50, …): how many games reached it, and the turn reached (least, median, mean, most); also delivered/lost/ex-gremlins/trapped at that milestone (median).
+  - Commands: per command, count and refused, most first; place and discard broken out by card kind; discards by how ('pick' vs 'slot').
+  - Bomb: hexes per bomb (distribution).
+  - Sessions: games per random player_id (a page load; signed_in 0 rows); a game's real length, first to last record, with and without long pauses (LONG_PAUSE_SECONDS 300); turns per game at its last record.
+  - Clients: top User-Agents bucketed to browser family and OS (a small regex table; the rest are "other"); window sizes bucketed to 100 px; device pixel ratios.
+  - Crashes: count per version; the most common messages (numbers replaced by N, as starreach's refusals), with how many distinct games each hit; crashes with no game.
+  - Players: distinct signed-in player hashes (from rows of any table with signed_in 1, since identity is per batch) and those seen on more than one UTC day; games that switched identity mid-game (shows "no signed-in games" until the sign-in task lands).
+- The figures are pure functions over plain records, so the tests feed fixtures.
+- A just recipe: `telemetry-report *args`.
+- Docs: an ONTOLOGY "Telemetry report" section (invocations, sections, LONG_PAUSE_SECONDS), RATIONALE D-n, a CRITERIA R-row owning test/R-n/ (fixture records → expected tables; usage errors; the placeholder refusal without running wrangler), ARCHITECTURE_LOG, CLAUDE.md, README.
+
+Done when: just cc-test passes with the new rows, and `just telemetry-report local-d1` after a local wrangler dev game (from the telemetry task's U-row) prints every section.
+----
+Priority:   72
+Status: ToDo
+ID: savelogin-hf44
+Created: 2026-11-21T08:57:31Z
+Updated: 2026-11-21T08:57:31Z
+
+Save the game in the browser when the player signs in, and restore it when they come back, so signing in never costs the game in play. Sign-in (bskysignin-5sap) is a full-page redirect to auth/ and back, which reloads the page. This task is the save/restore core; save-resume-tbe3 later builds autosave and Continue on it. It comes before bskysignin-5sap, which calls it, so nothing here depends on the sign-in code: expose the two calls and test them with a simulated reload.
+
+Settled design:
+- GameState gets toJSON/fromJSON if it lacks them: the full state, including the Rando stream state and the seed, so the restored world ticks exactly as the original would have. The engine and state stay DOM-free; GameUI does the storage.
+- GameUI.saveForRedirect():
+  - Writes { version: SAVE_VERSION (1), savedAt: unix seconds, state, ui } to localStorage under GameDisplayArtifacts.SAVE_KEY ('thingfactory.run', which the crash screen's Start fresh already removes, D-63). try/catch throughout.
+  - ui is the small UI context worth keeping: map zoom and pan, the telemetry game key (so the restored game keeps its telemetry game record), and whether Go was running. Go is restored off.
+  - A picked card, selection, open overlay or held Mover/Bomb is not saved. The caller backs it out first (unpick/scrap rules as for Esc), so the save is a settled state.
+  - With no game in play (the intro, or the New Game panel), it saves nothing.
+- On boot: if the URL is a return from the sign-in redirect (bskysignin-5sap defines the marker; until then, the test can set one) and a save under SAVE_KEY exists, has the right version and is under 30 minutes old (SAVE_REDIRECT_MAX_AGE_S = 1800), restore it. That means: skip the intro and the first-time Help, rebuild GameState from it, put the UI context back, render, and remove the save. This works whether sign-in succeeded or was cancelled.
+  - A bad, old or wrong-version save is removed with no message, and boot goes on as normal.
+  - On any boot that isn't a sign-in return, remove a leftover save. save-resume-tbe3 will change that, since it keeps saves for good.
+- bskysignin-5sap's confirm ("Signing in reloads the page and ends this game") is dropped: that task now calls saveForRedirect() before redirecting. Its description says so.
+- Privacy page (About page 1): the browser-storage line becomes "Your browser keeps your settings (like mute), and your game while you sign in. It never leaves your computer." Update any test that checks it. (bskysignin-5sap and save-resume-tbe3 adjust this line further when they land.)
+- Docs: an ONTOLOGY note (the save's shape, the restore rule, SAVE_VERSION, SAVE_REDIRECT_MAX_AGE_S), a RATIONALE D-n (why save only around the redirect for now; why settled states only; why Go restores off; why the telemetry game key is kept), CRITERIA R-rows owning test/R-n/ (round trip: a mid-game state saved, rebuilt, and ticked N times matches an unsaved copy tick for tick; a bad or old save is dropped and boots normally; nothing is saved from the intro), ARCHITECTURE_LOG, CLAUDE.md, README (UI: the sign-in keeps your game).
+- uiboot.js: play some commands, call saveForRedirect(), boot a fresh stub DOM with the return marker and the same localStorage, and check the board, turn, tallies and hand match and the save is gone.
+
+Done when: just cc-test passes with the new rows and the uiboot test.
+----
+Priority:   70
+Status: ToDo
+ID: bskysignin-5sap
+Created: 2026-11-21T08:15:47Z
+Updated: 2026-11-21T08:57:31Z
+
+Optional "Sign in with Bluesky" for Thing Factory, through yuwakisacloud's auth/ (the bskyoidc "Sign in with Bluesky" flow starreach uses). Playing never needs it. For now, signing in only changes how telemetry counts the player. Signed out, telemetry carries a truly random ID: made fresh at every page load, kept only in memory, never stored. Signed in, it carries a salted hash of the auth/ `sub`. Later, saves and achievements build on it.
+
+Depends on telemetrydb-hgs4 (the ttdat Worker and `POST /t`) and telemetry-q77g (the recorder). Do that one first.
+
+Settled design:
+- Thing Factory is a public OAuth client of auth/: authorization code with PKCE, run in the browser. Redirect URI: https://ttdat.yuwakisa.com/ (plus http://localhost:8787/ for wrangler dev). Its own scope: `ttdat:play`.
+- The client row lives in yuwakisacloud's auth/ D1, which is another repo. Write the seed SQL and steps into ttdat's README "Deploy" and leave them to the designer. Don't commit in yuwakisacloud.
+- The sign-in is offered only on the live site, when the page origin is https://ttdat.yuwakisa.com, or on localhost under wrangler dev. The portal builds (itch.io, Newgrounds iframes) and file:// show nothing: redirects break inside portal iframes.
+- UI: a "Sign in" button in the top-left bar beside Help, About and Sound, visible while playing. The same button also appears on the board-size panels (the intro and New Game), so a player can sign in before the first game. From those panels there's no confirm: on the intro no game is in play, and New Game is ending it anyway. Coming back from the redirect lands on the intro, signed in. Its title is "Sign in with Bluesky (optional)". Signed in, the button becomes a plain label showing the handle if the token's claims carry one (else "Signed in"). Signing out is task signout (a separate button), not this one. About page 1 repeats the state in one line. Sign-in is a full-page redirect and back. The button is ignored while an overlay is open, like Help.
+  - No confirm: before redirecting from the top-left bar, call GameUI.saveForRedirect() (savelogin-hf44, which comes first), and on return the game is restored and play goes on. Add the return marker to the redirect URI's state so savelogin-hf44's boot check sees a sign-in return.
+- Identity is orthogonal to play, per batch (telemetrydb-hgs4): a player can play under the random ID, sign in, keep playing under the hashed ID, sign out, and keep playing under a new random ID. On a successful sign-in, call GameTelemetry.switchIdentity(token). The game continues across the redirect (savelogin-hf44), and its next batches carry the signed-in identity.
+- Token storage: the access token goes in localStorage `thingfactory.auth` (try/catch). An expired or invalid token silently counts as signed out. No refresh tokens.
+- Telemetry: while signed in, each batch to `POST /t` carries the access token in the batch body's `token` field (reserved by telemetrydb-hgs4), not an Authorization header, so sendBeacon batches carry it too and no CORS preflight is needed. The Worker never logs or stores the token.
+  - The Worker verifies it offline with auth/'s keys, fetched through an AUTH_SERVICE service binding, as starreach's adapters/cloudflare/src/auth.ts does. Vendor the auth-client the same way.
+  - A valid token makes the batch's identity a salted SHA-256 of `sub` (its own salt constant), with signed_in 1, stamped on every row the batch writes.
+  - A missing or invalid token keeps the random per-load ID the batch carries. A batch is never refused over auth.
+  - Neither the handle nor `sub` is stored.
+- Privacy page: the ID line becomes "They're tied to a random ID made fresh each time you open the game. If you sign in with Bluesky, they're tied to a hashed form of that account instead. We don't keep your handle." The browser-storage line adds the sign-in: "Your browser keeps your settings (like mute) and, if you sign in, your sign-in." Merge it with whatever that line says by then (savelogin-hf44 adds "your game while you sign in"; save-resume-tbe3 may later make it "your game in progress").
+- Docs: an ONTOLOGY sign-in section, a RATIONALE D-n (why optional, why live site only, why no refresh token), CRITERIA rows (the Worker's token→player_id mapping as an R-row with tests using a stub verifier; the redirect flow as a U-row), an ARCHITECTURE_LOG entry, and CLAUDE.md and README.
+
+Done when:
+- just cc-test passes, including the new R-row tests: a valid token gives the sub-hash, and an invalid or missing token keeps the random ID.
+- Under wrangler dev with yuwakisacloud's `just dev-up`, the U-row walk works: sign in, the handle shows on About, a played batch lands in local D1 with the sub-based player_id.
+- The portal zip and file:// show no Sign in button.
+----
+Priority:   65
+Status: ToDo
+ID: signout-f4x8
+Created: 2026-11-21T08:26:34Z
+Updated: 2026-11-21T08:54:15Z
+
+A "Sign out" button for the optional Bluesky sign-in. Build on bskysignin-5sap, which comes first: it adds the Sign in button, the token in localStorage `thingfactory.auth`, and the signed-in player_id in telemetry.
+
+Settled design:
+- While signed in, a "Sign out" button sits in the top-left bar right after the signed-in label (the handle). While signed out, and wherever sign-in isn't offered (portal builds, file://), it is hidden.
+- Clicking it signs out at once, with no confirm and no reload, and the game keeps going:
+  1. Flush telemetry's pending batch under the signed-in identity.
+  2. Remove `thingfactory.auth` (try/catch).
+  3. Make a fresh random in-memory ID, used from the next batch on.
+  4. Turn the label back into the Sign in button.
+- Identity is per batch (telemetrydb-hgs4), orthogonal to play: the game in play keeps going, its rows before the click carry the signed-in hash, and its rows after carry the new random ID. Steps 1 and 3 are GameTelemetry.switchIdentity(null).
+- It is ignored while an overlay is open, like Help. It doesn't tick and works mid-animation, like Sound.
+- About page 1's sign-in line follows the change.
+- No call to auth/ to revoke the token: access tokens are short-lived, and forgetting it locally is enough. Note this in RATIONALE.
+- Docs: a CRITERIA U-row for the click, a RATIONALE D-n (no revoke, no reload, flush first), the ONTOLOGY sign-in section, an ARCHITECTURE_LOG entry, and the README UI list. Plus a uiboot.js test: with a stubbed token in localStorage, the button shows; a click removes the key, shows Sign in, and the next batch carries no token field.
+
+Done when: just cc-test passes with the new uiboot test, and under wrangler dev a signed-in session signs out by the button with the game still running. The batches before the click carry the token, the ones after don't, and the rows after carry a random player_id with signed_in 0, in the same game.
+----
+Priority:   60
+Status: ToDo
+ID: ratelimit-27qf
+Created: 2026-11-21T08:29:12Z
+Updated: 2026-11-21T08:48:54Z
+
+Rate-limit the telemetry endpoint. `POST /t` takes data from any browser, and from any script that copies what a browser sends, so a loop could flood the D1 database. Build on the telemetry task (the ttdat Worker and `POST /t`), which comes first.
+
+Settled design:
+- Use a Workers Rate Limiting binding, `TELEMETRY_LIMIT`, in wrangler.jsonc's top-level `ratelimits` (wrangler 4.90 supports it): `{ "name": "TELEMETRY_LIMIT", "namespace_id": "<any unused integer>", "simple": { "limit": 1000, "period": 10 } }`. Bindings don't inherit, so restate it in env.production.
+- The key is the request's `CF-Connecting-IP`. The limit is 100 a second, as 1000 per 10 s (the binding's period must be 10 or 60). It is a precaution, not a budget: a normal player sends about 2 batches a minute, and even many players behind one shared IP (a school, an office) never come near it. Only a deliberate flood trips it. Keep the numbers in one place in the worker's comment and in ONTOLOGY.
+- Over the limit: answer 429 and write nothing.
+- The IP is used only as the limiter's key: never written to D1, never logged, never echoed back. The limiter's counters are Cloudflare's, short-lived and in memory, so the privacy page's "no IP addresses kept" stays true. Say this in the RATIONALE entry.
+- The limiter runs before the body is parsed. The telemetry task's shape and size checks still apply after it.
+- An Origin allow-list (a `TELEMETRY_ORIGINS` constant in the worker) stops other websites posting from their visitors' browsers. A request with an Origin header not on the list gets 403 and nothing is written.
+  - On the list: https://ttdat.yuwakisa.com, plus the origins the itch.io and Newgrounds builds post from (itch: https://html-classic.itch.zone; Newgrounds: https://uploads.ungrounded.net).
+  - Under wrangler dev, also allow http://localhost:8787 (set by a var in wrangler.jsonc's top-level vars, not in env.production).
+  - Confirm both portal origins from a real upload's request when the designer next uploads, and note them in SHIP.md.
+  - A request with no Origin header (sendBeacon from some browsers, or curl) goes on to the rate limiter. Origin is trivially forged outside a browser, so the limiter is the real guard; the list only stops drive-by posting from other sites.
+- Browser side (telemetry.js): on a 429 or 403, drop the batch and send nothing more for 5 minutes (`TELEMETRY_BACKOFF_MS`). Events made meanwhile are dropped, not queued.
+- Under wrangler dev, the binding is simulated locally; that is enough for the manual check.
+- Docs: an ONTOLOGY telemetry-endpoint note (the limit and the backoff numbers, and the IP as an unstored key), a RATIONALE D-n (why per IP, why 100 a second (a tripwire for floods that normal play, shared IPs included, never reaches), why not Turnstile or a per-game cap: no friction for players, and the volume is tiny), a CRITERIA R-row owning test/R-n/ (the worker with a stub limiter: allowed → written; limited → 429, nothing written; a foreign Origin → 403; no Origin → allowed; the IP never reaches a D1 bind or console), an ARCHITECTURE_LOG entry, and CLAUDE.md.
+
+Done when: just cc-test passes with the new R-row tests, and under wrangler dev a parallel burst of about 1200 POSTs within 10 s gets 429 for roughly the excess, with only the allowed batches in the local D1. If the local simulation doesn't enforce the limit, note that in the U-row and rely on the stub tests.
+----
+Priority:   55
+Status: ToDo
+ID: crashreport-zj3f
+Created: 2026-11-21T08:41:37Z
+Updated: 2026-11-21T08:54:20Z
+
+Crash reports: when the crash screen shows (crash.js, D-63), send one crash record to the telemetry endpoint, so bugs players never report still show up. Build on telemetrydb-hgs4, which already defines the crashes table and accepts `crashes: [...]` in a batch, and on telemetry-q77g (the recorder, its send rules and IDs).
+
+Settled design:
+- crash.js stays DOM-only and loads first. At crash time, inside the existing try/catch, it builds one crash record:
+  - format (GameDisplayArtifacts.TELEMETRY_FORMAT, falling back to the literal 1 if displayartifacts.js never loaded)
+  - unix_seconds, version (<html data-version>)
+  - game_key from GameTelemetry if it loaded, else null
+  - seed, size and turn from index.js's state if any, else null
+  - message (cut to 500 chars)
+  - stack (the first lines, cut to 2000 chars)
+  - navigator.userAgent
+- It sends it with navigator.sendBeacon as a batch `{ format, player, crashes: [record] }` (player and, once sign-in lands, token from GameTelemetry; if it never loaded, a fresh random player ID) to the same endpoint the recorder uses. It sends only under the recorder's rules: data-version set, http:/https:, and no Global Privacy Control. crash.js checks these itself, so a crash before telemetry.js loads is still reported.
+- Once only, like the crash screen itself (the crashed flag). A failed send is ignored. Nothing about the send shows on the crash card.
+- If GameTelemetry is loaded, also flush its queue with sendBeacon first, so the moves leading up to the crash arrive.
+- Privacy page (About page 1): add "…and any error the game hits" to the line listing what is sent.
+- The report already has a Crashes section (telemetryrpt-7erk); nothing to change there.
+- Docs: the crash parts of ONTOLOGY (the crash screen and Telemetry sections), a RATIONALE D-n (why send, what is cut and why, GPC still honoured), a CRITERIA R-row owning test/R-n/, ARCHITECTURE_LOG, CLAUDE.md (crash.js row), README (crash bullet), SHIP.md (ERR items).
+
+Tests: the R-row in uiboot style. A throw with data-version set and a stub sendBeacon → one batch with one crash record carrying the fields above. A throw before displayartifacts.js loads → still sent, format 1, nulls for unknowns. No data-version, file:, or GPC → nothing sent. A second error → no second send.
+
+Done when: just cc-test passes, and under just dev-worker a forced throw (from the devtools console: setTimeout(() => { throw new Error('test') })) shows the crash card and leaves one row in the local D1 crashes table.
+----
+Priority:   52
+Status: ToDo
+ID: rptvolume-4yqg
+Created: 2026-11-21T08:42:42Z
+Updated: 2026-11-21T08:42:42Z
+
+Add a Volume section to the telemetry report, so the D1 limits of Cloudflare's free plan are seen coming before they're hit. Not expected to matter yet. Build on telemetryrpt-7erk (the report) and telemetrydb-hgs4 (the tables), which come first.
+
+Settled design:
+- A Volume section, printed last:
+  - Rows written per UTC day over the period, per table (games, events, milestones, crashes) and in total. A row counts on the day of its own time column: started_unix_seconds for games, unix_seconds for the others.
+  - The busiest day and its total.
+  - Days at or over half the daily write limit are marked. The limit is the constant D1_FREE_ROWS_WRITTEN_PER_DAY = 100000; WARN_SHARE = 0.5.
+  - Below the table, one line: "busiest day N rows = P% of the free plan's daily writes", with a "WARNING:" prefix when the busiest day is at or over WARN_SHARE.
+- Index writes and the Worker's request count aren't in the tables, so they aren't counted. Say so in a note under the section.
+- Database size:
+  - For production and local-d1, also run `wrangler d1 info ttdat-telemetry --json` (with --env production for production) and print the database's size.
+  - Compare it with D1_FREE_DB_BYTES, set from Cloudflare's current D1 limits page when this task is done; cite the URL and date in a comment and in RATIONALE.
+  - If wrangler's d1 info gives no size for the local database, print "size: unknown (local)".
+- Put the numbers in ONTOLOGY's Numbers table (marked [P], with the date checked) and in the report's code in one place.
+- Docs: the ONTOLOGY Telemetry report section, a RATIONALE D-n (why a warning in the report, not alerts: no infrastructure, and the report is run by hand), a CRITERIA row in the report's R-n (fixture rows over several days → the per-day table, the busiest day, and the warning line at and over the threshold), ARCHITECTURE_LOG.
+
+Done when: just cc-test passes with the new fixtures, and `just telemetry-report local-d1` prints the Volume section with the local database's size or "unknown (local)".
+----
 Priority:   49
 Status: ToDo
 ID: run-stats-m6pe
@@ -47,10 +350,10 @@ Priority:   45
 Status: ToDo
 ID: save-resume-tbe3
 Created: 2026-11-17T02:44:11Z
-Updated: 2026-11-17T02:44:11Z
+Updated: 2026-11-21T08:57:31Z
 
 Save the run so a reload or closed tab doesn't lose an endless game.
-Today nothing is stored (no localStorage anywhere), so an hours-long Thing Factory run is gone on reload. Done looks like: the UI autosaves the full GameState (including the Rando stream state and the seed, so resume is the same world) after every completed command/tick, to localStorage under a namespaced key (e.g. "ttdat.save.v1"); on boot, if a valid save exists, the intro offers Continue (resume) next to the board-size picker, and picking a size there asks before overwriting the saved run. Every storage touch (including the first access of window.localStorage) is in try/catch; if storage is unavailable the game plays normally and says saving is off in one quiet line. A save with bad JSON, an unexpected shape or a different version number is discarded with a short message and falls back to a new game, never a blank page. The save carries a `version` field; a version bump discards old saves with a message (no migration). Never call localStorage.clear(). State/engine stay DOM-free (GameState gets toJSON/fromJSON if missing; the UI does the storage). Tests: round-trip a mid-game state through JSON and check the next tick is identical to an unsaved copy; a corrupt save falls back cleanly. Record a D-n in RATIONALE and reconcile docs. SHIP.md items: SAVE-1, SAVE-2, SAVE-3, SAVE-4, SAVE-5, SAVE-8, MENU-5. Done when `just cc-test` passes.
+Today only the mute setting is stored, so an hours-long Thing Factory run is gone on reload. Done looks like: the UI autosaves the full GameState (including the Rando stream state and the seed, so resume is the same world) after every completed command/tick, to localStorage under GameDisplayArtifacts.SAVE_KEY ('thingfactory.run', which the crash screen's Start fresh already removes, D-63); on boot, if a valid save exists, the intro offers Continue (resume) next to the board-size picker, and picking a size there asks before overwriting the saved run. Every storage touch (including the first access of window.localStorage) is in try/catch; if storage is unavailable the game plays normally and says saving is off in one quiet line. A save with bad JSON, an unexpected shape or a different version number is discarded with a short message and falls back to a new game, never a blank page. The save carries a `version` field; a version bump discards old saves with a message (no migration). Never call localStorage.clear(). State/engine stay DOM-free (GameState gets toJSON/fromJSON if missing; the UI does the storage). Tests: round-trip a mid-game state through JSON and check the next tick is identical to an unsaved copy; a corrupt save falls back cleanly. Record a D-n in RATIONALE and reconcile docs. SHIP.md items: SAVE-1, SAVE-2, SAVE-3, SAVE-4, SAVE-5, SAVE-8, MENU-5. Done when `just cc-test` passes. Build on savelogin-hf44, which already has GameState toJSON/fromJSON, the save shape under SAVE_KEY, and the restore after a sign-in redirect. Extend it to autosave after every command and keep saves across ordinary reloads (drop its "remove a leftover save" rule). A sign-in return still restores straight away, with no Continue prompt. Privacy page (About page 1): the line browser-storage line says "your game in progress" in place of "your game while you sign in", keeping the rest. Update any test that checks that text.
 ----
 Priority:   45
 Status: ToDo
@@ -82,6 +385,25 @@ Updated: 2026-11-17T02:44:55Z
 
 Scale the canvas backing store by devicePixelRatio so the board is crisp on HiDPI screens.
 Today resize() sets canvas.width/height to window.innerWidth/innerHeight (gameui.js), so the board is blurry on retina displays and at browser zoom. Done looks like: the backing store is innerWidth*dpr by innerHeight*dpr with CSS size at innerWidth/innerHeight; render() folds dpr into its one setTransform; hexToScreen/screenToHex and the color picker placement stay in CSS pixels so clicks land correctly; MIN_TEXT_PX readability is judged in CSS pixels; the hand card canvases get the same treatment. Re-check on a matchMedia resolution change or resize. SHIP.md item: MOB-8. Done when `just cc-test` passes.
+----
+Priority:   45
+Status: ToDo
+ID: secretsalt-ewf3
+Created: 2026-11-21T08:46:11Z
+Updated: 2026-11-21T08:48:54Z
+
+Move the signed-in player hash's salt out of the code and into a Worker secret set by command, so nobody with the repo can hash a known Bluesky account and find its rows. Today (from bskysignin-5sap) the salt is a constant in a public repo, which makes signed-in rows pseudonymous data under GDPR Recital 26. Build on bskysignin-5sap, which comes first.
+
+Settled design:
+- The Worker computes the signed-in player_id as HMAC-SHA256(key = env.TELEMETRY_PLAYER_KEY, message = sub), hex, using crypto.subtle. This replaces the salted SHA-256 with the code constant. Delete the constant.
+- `just telemetry-key` runs yuwakisacloud's `wrangler secret put TELEMETRY_PLAYER_KEY --env production`. Wrangler prompts for the value, which is never written to the repo or echoed. README "Deploy" says to generate it with `openssl rand -hex 32` and keep no copy. With no copy kept, even the designer can't re-hash an account, which is as close to anonymous as a stable per-player hash gets. Say this in RATIONALE.
+- Local: wrangler dev reads TELEMETRY_PLAYER_KEY from .dev.vars, which is git-ignored (check .gitignore and add it if missing). README says to put any dev value there.
+- If the secret is missing in a request's env, still write the batch, but with player_id null for signed-in games and one console.error a request (no token or sub in it). A batch is never refused over this.
+- Changing the key breaks every signed-in player's link to their old rows. That's intended: rotating the key is how to cut old history loose. Document it, but don't schedule rotation.
+- Existing rows hashed under the old public salt stay as they are, unless the designer asks for them to be cleared. Write the one-line SQL for that into README "Deploy" (UPDATE games SET player_id = NULL WHERE signed_in = 1 AND unix start before the switch); don't run it.
+- Docs: ONTOLOGY (the player hash's construction), a RATIONALE D-n (why HMAC with a secret key, keep no copy, what rotation does, Recital 26), a CRITERIA R-row update (the token→hash tests use a test key from the stub env; missing key → null hash, batch written), ARCHITECTURE_LOG, CLAUDE.md, README Deploy.
+
+Done when: just cc-test passes; no salt constant remains in the repo (search for the old constant name); and under wrangler dev with .dev.vars set, a signed-in batch lands with an HMAC player_id that changes when the dev key changes.
 ----
 Priority:   40
 Status: ToDo
