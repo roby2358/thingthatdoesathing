@@ -21,7 +21,7 @@ const GameEngine = (function () {
     };
     const MOVER = 'MOVER';   // the tool card move() and scrap() spend
     // A wanderer's own step, as a push; `wrecks` comes from its piece template.
-    const wanderOf = piece => ({ n: 1, splat: false, flies: false, overMountains: false, clears: 0, wrecks: PIECES[piece.kind].wrecks });
+    const wanderOf = piece => ({ n: 1, splat: false, flies: false, overMountains: false, overWalls: false, clears: 0, wrecks: PIECES[piece.kind].wrecks });
     // How each phase of a motion travels, one hex per hop (D-38):
     //   over   — a shot's cleared hexes: passes over everything, unseen (D-36)
     //   air    — a flight: meets what's on each hex it enters
@@ -608,10 +608,10 @@ const GameEngine = (function () {
             return 'moved';
         }
 
-        // May a flight carrying `piece` come down on `hex`? Not on a mountain (only a flight
-        // overMountains is ever over one), nor on another color's target.
+        // May a flight carrying `piece` come down on `hex`? Not on a mountain or a Wall (only
+        // a flight overMountains / overWalls is ever over one), nor on another color's target.
         canLand(piece, hex) {
-            return hex.terrain !== TERRAIN.MOUNTAIN && !this.wrongTarget(piece, hex);
+            return hex.terrain !== TERRAIN.MOUNTAIN && !this.wallAt(hex) && !this.wrongTarget(piece, hex);
         }
 
         // Could `piece` stand on `hex` once it's there: no Wall, no other piece.
@@ -638,7 +638,7 @@ const GameEngine = (function () {
         // across the near hex and pull the piece on the far hex back into the near one.
         actionOf(thing) {
             const tpl = THINGS[thing.kind];
-            const how = n => ({ n, splat: tpl.splat, flies: tpl.flies, overMountains: tpl.overMountains, clears: tpl.clears, wrecks: false });
+            const how = n => ({ n, splat: tpl.splat, flies: tpl.flies, overMountains: tpl.overMountains, overWalls: tpl.overWalls, clears: tpl.clears, wrecks: false });
             const d = aims(thing.kind) && NEIGHBOR_DIRS[thing.facing];
             if (tpl.push) return { piece: this.pieceAt(thing.q, thing.r), dir: thing.facing, how: how(tpl.push) };
             if (tpl.shove) return { piece: this.pieceAt(thing.q + d.q, thing.r + d.r), dir: thing.facing, how: how(tpl.shove) };
@@ -679,8 +679,8 @@ const GameEngine = (function () {
             return m;
         }
 
-        // Start `piece` going `dir` as `how` says ({ n, splat, flies, overMountains, clears,
-        // wrecks }, from a Thing's template or wanderOf). A shot (`clears`) is aimed by
+        // Start `piece` going `dir` as `how` says ({ n, splat, flies, overMountains, overWalls,
+        // clears, wrecks }, from a Thing's template or wanderOf). A shot (`clears`) is aimed by
         // `aimShot`; a flight's length is fixed now (`flightLength`, D-35); a ground push goes
         // up to n hexes, slick ground free (up to MAX_SLIDE slick-to-slick moves, D-52).
         launch(run, piece, dir, how, rank) {
@@ -695,14 +695,15 @@ const GameEngine = (function () {
         }
 
         // How many hexes a flight goes, settled at launch from what doesn't move (D-35, D-38):
-        // up to n hexes, stopping before the map's edge, a Wall, or a mountain (unless it flies
-        // overMountains), and on its color's target or the outer sea (which take it); then
-        // backed up off any mountain or other color's target it would end over.
+        // up to n hexes, stopping before the map's edge, a Wall (unless it flies overWalls), or
+        // a mountain (unless it flies overMountains), and on its color's target or the outer sea
+        // (which take it); then backed up off any mountain, Wall or other color's target it would
+        // end over (D-62).
         flightLength(piece, dir, how) {
             const hexes = [];
             for (let at = piece; hexes.length < how.n;) {
                 const hex = this.neighborHex(at, dir);
-                if (!hex || this.wallAt(hex) || (hex.terrain === TERRAIN.MOUNTAIN && !how.overMountains)) break;
+                if (!hex || (this.wallAt(hex) && !how.overWalls) || (hex.terrain === TERRAIN.MOUNTAIN && !how.overMountains)) break;
                 hexes.push(hex);
                 at = hex;
                 if (this.goalFor(piece, hex) || (this.isOpenWater(hex) && hex.isEdge)) break;
@@ -1032,7 +1033,7 @@ const GameEngine = (function () {
         }
 
         // An airborne piece stopped by a piece comes down on the hex it's over. Over a
-        // mountain or another color's target, a flight drops back next hop to the last hex it
+        // mountain, a Wall or another color's target, a flight drops back next hop to the last hex it
         // flew over that it may land on, or where it started (D-35). A shot over a hex that
         // can't take it (a mountain, another color's target, a Wall, another piece) crashes.
         comeDownHere(m, run) {

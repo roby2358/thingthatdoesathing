@@ -28,7 +28,7 @@ for why it works and [ONTOLOGY.md](ONTOLOGY.md) for the rules.
 | Thing | Does |
 |---|---|
 | Belt | moves what's on it 1 hex in its facing |
-| Spring | flings what's on it 3 hexes, over lakes and up to 2 mountains (it can't land on a mountain, so it comes down short of one); it skids on if it lands on ice |
+| Spring | flings what's on it 3 hexes, over lakes and up to 2 mountains or Walls (it can't land on a mountain or a Wall, so it comes down short of one); it skids on if it lands on ice |
 | Rocket | blasts what's on it up to 8 hexes, stopping early at something solid or the outer sea, and delivering if it crosses its color's target (it flies over lakes); a crate that lands on ice skids on (unless it splatted a gremlin, then it stops there); splats any gremlin it hits, and any gremlin riding it |
 | Cannon | lobs what's on it over the next 4 hexes, whatever is on them (water, mountains, Walls, crates, gremlins: it touches none of them), then moves it into the 5th like a Belt would (it can sink, deliver, slide on ice or bump a line there); if the 5th is blocked it comes down on the 4th, and if the 4th can't take it either the Cannon doesn't fire |
 | Pusher | pushes whatever is on the hex in front of it 1 hex on |

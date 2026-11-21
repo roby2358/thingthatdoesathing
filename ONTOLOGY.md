@@ -133,10 +133,11 @@ gremlins treat it the same (D-34).
 | `splat` | Its push splats pieces that splat: the one it lands on and the one it launches (Rocket). [D] |
 | `flies` | Its push is airborne: it passes over inland open water (only the outer sea, an edge hex, takes the piece mid-flight), every hex counts (ice is no shortcut mid-air), and it sinks if it comes down on water (Spring, Rocket). Every landing skids: a flight (or a `clears` shot) that comes down on slick ground (bare ice or a Slide), at full range or short, slides on, on the ground (a skid, Motion rule); there is no per-Thing flag. The one exception is a flight that splatted a gremlin in its way (it stops on that hex); a gremlin riding a Rocket splats where it lands. [D; skid on landing D-17, D-29, D-37 (settled 2026-11-12)] |
 | `overMountains` | A flying push that passes over mountains too; it can't come down on one, so a flight that ends over a mountain lands on the last hex short of it that it flew over, or stays put if there's none (Spring: over two mountains, landing on the third). [D-35] |
+| `overWalls` | A flying push that passes over Walls too, treating a Wall hex exactly like a mountain: it can't come down on one, so a flight that ends over a Wall lands on the last hex short of it that it flew over, or stays put if there's none (Spring only; the Rocket stops at a Wall, and the Cannon's `clears` already pass over them). [D-62] |
 | `clears` | How many hexes at the start of its push pass over everything: water (the outer sea too), mountains, Walls, pieces (gremlins unsplatted), targets, Traps; the shot touches nothing on them, and the rest of the push goes through `step` from the last one, on the ground unless `flies` (Cannon: 4 of its 5). Stopped right after them, it comes down on the last cleared hex if the ground there would take it (no Wall, no other piece, not open water, not a mountain or another color's target; its color's target delivers it), else it doesn't fire; a path that leaves the map within them doesn't fire. 0 for every other kind. [D-36: the clearing and the 4th-hex landing D; off-map and the target cases P] |
 | `shove` | Hexes it pushes the piece on the **near hex** (the one it faces) on, along `facing` (Pusher). [D] |
 | `pull` | Hexes it pulls the piece on the **far hex** (two ahead along `facing`) back toward itself, into the **near hex** (one ahead) (Puller). |
-| `blocks` | Pieces can't enter (Wall). |
+| `blocks` | Pieces can't enter (Wall); only a flight `overWalls` passes over it (D-62). |
 | `traps` | A piece that splats dies when it comes onto this hex: walked, pushed, slid, or coming down from a flight; a flight passing over doesn't count (Trap). Every target does the same, with no Thing (Motion rule). [D] |
 | `colored` | Placed in an open crate color the player picks, never white (`colorChoices`, D-32); its card is drawn plain, and only once two or more colors are open (Pusher, Puller). [D] |
 | `slides` | Slick ground: a piece that comes onto it on the ground keeps going the same way, free, exactly like bare ice (Slide), up to `MAX_SLIDE` slick-to-slick moves per motion, so at most 4 slick hexes in a row (D-52). The one slick test, `isSlick`, reads it: a Thing on a hex decides by `slides`; with no Thing, the hex is slick if it's ICE. [D-29] |
@@ -194,7 +195,7 @@ in one command (`bomb`, D-48).
   `targets.length <= MAP_SIZES[size].colors`, and the targets' colors are distinct `CRATE_COLORS`. [D]
 - At most one Thing per hex. No Thing on a target. Bridges only on water; Slides on plains or
   water (never bare ice); every other kind only on land. [P; Slide D-29]
-- At most one piece per hex, between commands and after every hop of a tick (a Cannon's shot passing over doesn't count, D-36, D-38). No piece on a Wall, on mountain, or on open water (water with no Thing over it), between commands (a Spring's flight passes over a mountain mid-tick, D-35; a Cannon's shot over anything, D-36). [P; every hop D-38]
+- At most one piece per hex, between commands and after every hop of a tick (a Cannon's shot passing over doesn't count, D-36, D-38). No piece on a Wall, on mountain, or on open water (water with no Thing over it), between commands (a Spring's flight passes over a mountain or a Wall mid-tick, D-35, D-62; a Cannon's shot over anything, D-36). [P; every hop D-38]
 - `hand.length === HAND_SIZE` whenever a command returns. [P]
 - `1 <= unlocks <= UNLOCKS.length`, and every card kind (`CARDS`: `THINGS` and `TOOLS`) is in exactly one `UNLOCKS` step. [D]
 - Every command that returns `ok:true` ran exactly one tick and raised `turn` by 1, except `rotate`, which ran none and left everything but that facing alone. [P; rotate D]
@@ -325,7 +326,7 @@ terrain fits THINGS[kind].on:  'land' → PLAINS or ICE;  'water' → WATER;  'u
 THINGS[kind].blocks ⇒ no piece on hex, and not a source   # the crates must flow
 ```
 
-### Motion — the lockstep hop simulation [D-38; splat, flies, wrecks, bump D; overMountains D-35; clears D-36; every landing skids D-37; slide cap D-52; slide-bump splat D-54]
+### Motion — the lockstep hop simulation [D-38; splat, flies, wrecks, bump D; overMountains D-35; overWalls D-62; clears D-36; every landing skids D-37; slide cap D-52; slide-bump splat D-54]
 *Serves:* G-1; one code path for every way a piece moves (movers, springs, rockets, cannons,
 ice, Slides, bumps, gremlins); the animation replays exactly what happened.
 
@@ -351,7 +352,7 @@ groundOpen(hex) = on the map, not MOUNTAIN, no blocking Thing, not another color
 land:   the landing checks on its hex (its color's target delivers; open water sinks; a Trap kills
         a piece that splats); then a gremlin on a Rocket (doomed) splats; else on slick ground it
         skids (phase skid), unless it splatted a gremlin to land there; else it stops
-comeDownHere: a flight over a MOUNTAIN or another color's target drops back (phase drop, next hop)
+comeDownHere: a flight over a MOUNTAIN, a Wall or another color's target drops back (phase drop, next hop)
         to the last hex it flew over that it may land on, or its start (D-35); a shot over a hex
         that's a MOUNTAIN, another color's target, a Wall or another piece crashes; else land
 crash:  remove it; lost += its value; emit splat{id, by: what it hit or null, trap: false}
@@ -369,9 +370,10 @@ shot (clears > 0):  hexes 1..clears must be on the map, and either hex clears+1 
                     hex clears could take it (not MOUNTAIN, not another color's target, no Wall, no
                     piece, not open water), as the board stands now; else no fire (still claimed)
                     → phase over for clears hexes, then ground for n - clears
-flight (flies):     its length is fixed now: up to n hexes, stopping before the map's edge, a Wall or a
-                    MOUNTAIN (unless overMountains), and on its color's target or the outer sea; then
-                    trimmed back off any MOUNTAIN or other color's target it would end over (D-35)
+flight (flies):     its length is fixed now: up to n hexes, stopping before the map's edge, a Wall
+                    (unless overWalls) or a MOUNTAIN (unless overMountains), and on its color's target
+                    or the outer sea; then trimmed back off any MOUNTAIN, Wall or other color's target
+                    it would end over (D-35, D-62)
                     → phase air for that many hops (0: it stays, and lands where it stands)
 otherwise:          phase ground for n hexes (a wander: n = 1, wrecks)
 ```
@@ -428,12 +430,13 @@ sliding (pushed off plains, flying, or its first wander step off ice) follows as
 **Flights.** A flight meets whatever is on a hex at the hop it gets there. A Rocket's flight
 (`flies`, range `THINGS.ROCKET.push`) crosses movers, Bridges, ice, inland water and other
 colors' targets, delivers on its color's target, and sinks in the outer sea, or in inland
-water if it comes down there. A Spring's throw (`flies`, `overMountains`) does the same over
-its 3 hexes and passes over mountains too, so it can clear two and land on the third; a throw
-that would end over a mountain is trimmed at launch to the last hex short of it, or doesn't
-leave the Spring if all three are mountain (D-35). Walls stop a flight (planned at launch);
-a piece that stays in its way stops it mid-flight and it comes down where it is, dropping back
-the next hop if that's over a mountain. **Two airborne pieces entering one hex on the same
+water if it comes down there. A Spring's throw (`flies`, `overMountains`, `overWalls`) does the
+same over its 3 hexes and passes over mountains and Walls too, so it can clear two and land on
+the third; a Wall hex is to it exactly a mountain hex (D-62): a throw that would end over a
+mountain or a Wall is trimmed at launch to the last hex short of it, or doesn't leave the
+Spring if all three are mountain or Wall (D-35). Walls stop every other flight (planned at
+launch); a piece that stays in its way stops it mid-flight and it comes down where it is,
+dropping back the next hop if that's over a mountain or a Wall. **Two airborne pieces entering one hex on the same
 hop, or swapping hexes, both crash** (D-38); a flight never blows up a piece on the ground. Every
 landing skids on bare ice or a Slide (D-29, D-37): the skid is a ground motion, so it sinks in
 open water, delivers on its color's target, stops at a Wall, a mountain or another color's
@@ -464,11 +467,11 @@ for thing in things with shove or pull, then the rest (each in placement order),
     Pusher: p = piece on hex 1 ahead;  dir = facing;            n = shove
     Puller: p = piece on hex 2 ahead;  dir = opposite(facing);  n = pull
     skip p if thing.color != WHITE and p is cargo of another color   # affects(thing, p)
-    if p and p.id not in claimed: claimed += p; launch(p, dir, {n, splat, flies, overMountains, clears of THINGS[kind], wrecks: false}, rank)
+    if p and p.id not in claimed: claimed += p; launch(p, dir, {n, splat, flies, overMountains, overWalls, clears of THINGS[kind], wrecks: false}, rank)
 for piece with PIECES[kind].wanders (creation order), not claimed, ranked after every Thing:
     dirs = directions whose neighbor is land or covered water (Bridge, Slide), no blocking Thing,
            and empty or holding cargo it wrecks, as the tick starts
-    if dirs: claimed += piece; launch(piece, Rando.choice(dirs), {n: 1, splat: false, flies: false, overMountains: false, clears: 0, wrecks: PIECES[kind].wrecks}, rank)
+    if dirs: claimed += piece; launch(piece, Rando.choice(dirs), {n: 1, splat: false, flies: false, overMountains: false, overWalls: false, clears: 0, wrecks: PIECES[kind].wrecks}, rank)
 run hops 1, 2, … until every motion has stopped                     # Motion rule
 emit one move per piece that moved, then every end (sink/deliver/splat) in the order they happened
 color = spawnCycle[spawnSlot]; spawnSlot = (spawnSlot + 1) % length(spawnCycle)   # one slot a tick (D-43)

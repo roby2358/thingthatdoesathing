@@ -19,10 +19,10 @@ const { flatGame, DIR } = require('../helpers/load');
 }
 {
     const { state, engine, put, piece, terrain, T } = flatGame();
-    put('SPRING', 0, 4, DIR.E); terrain(1, 4, T.WATER); put('WALL', 2, 4);
+    put('ROCKET', 0, 4, DIR.E); terrain(1, 4, T.WATER); put('WALL', 2, 4);
     const c = piece('crate', 0, 4);
     engine.wait();
-    check('a Spring stopped above a lake comes down in it', !state.pieces.includes(c) && state.lost === 1);
+    check('a Rocket stopped above a lake by a Wall comes down in it', !state.pieces.includes(c) && state.lost === 1);
 }
 {
     const { state, engine, put, piece, terrain, T } = flatGame();

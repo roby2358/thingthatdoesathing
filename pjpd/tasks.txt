@@ -1,13 +1,3 @@
-Priority:   51
-Status: ToDo
-ID: springwalls-nu6v
-Created: 2026-11-21T03:24:25Z
-Updated: 2026-11-21T03:24:25Z
-
-The Spring leaps over Walls, the same way it leaps over mountains.
-Thing Factory (read CLAUDE.md). Today a Spring's flight (THINGS.SPRING: flies, overMountains, push 3) passes over inland water and mountains, but a Wall ends it: gameengine.js's flight loop breaks on `this.wallAt(hex)` (around the line that also checks `hex.terrain === TERRAIN.MOUNTAIN && !how.overMountains`). The Cannon already passes over Walls (its first `clears` hexes touch nothing, D-36), so it needs no change. The Rocket keeps stopping at Walls.
-Done looks like: a Spring's flight treats a Wall hex exactly like a mountain hex: it passes over it, and it can't come down on it (wherever the code handles "can't land on a mountain", a Wall hex gets the same treatment, so the throw comes down where it would if that hex were a mountain). Drive it from the data, not a kind check: give overMountains a sibling flag in THINGS (e.g. `overWalls`, true only for SPRING; document it in the template comment in artifacts.js) or broaden overMountains if that reads cleaner, recording the choice. Update the Spring's THING_LOOK.does line to say it leaps lakes, mountains and Walls (keep the "up to N hexes, leaping over ... in between" pattern; test/integration/doesnumbers.js must still pass), and the README "The Things" row. Docs in the same change: ONTOLOGY.md (the Spring rule/pseudocode), a new CRITERIA.md R-row owning a new test/R-n/ dir (a Spring throws a crate over a Wall; a Spring whose landing hex is a Wall comes down where it would for a mountain; a Rocket still stops at a Wall), a RATIONALE.md D-entry, and a dated ARCHITECTURE_LOG.md entry. Run `just cc-sim 200 small` before and after and note any change in the D-entry. Done when `just cc-test` passes.
-----
 Priority:   50
 Status: ToDo
 ID: staletext-pear

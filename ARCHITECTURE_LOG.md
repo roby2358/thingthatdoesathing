@@ -2,6 +2,15 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-21 — A Spring leaps Walls (D-62)
+Before, a Wall ended every flight; now a Spring's throw treats a Wall hex exactly like a
+mountain: it passes over it and can't come down on it (trimmed back short of it, or no throw if
+all three hexes are mountain or Wall). New `THINGS` flag `overWalls` (Spring only), read in
+`flightLength`; `canLand` now refuses a Wall. The Rocket still stops at Walls; the Cannon
+already cleared them. Spring's does line, README row, ONTOLOGY (template, Motion, Flights,
+invariant), DYNAMICS updated; new R-67; R-53 lost its "a Wall still stops it" check, R-12's and
+R-15's Wall checks now fire a Rocket. `cc-sim 200 small` unchanged.
+
 ### 2026-11-21 — Help: Keys split in two (D-60)
 The Keys page was too tall; `B` and the lines after it moved to a new "More keys" page after Keys. Help is now five pages: Keys, More keys, Special cards, Things, World.
 

@@ -25,6 +25,8 @@ const GameArtifacts = (function () {
     //            ground, full range or short, unless it splatted a gremlin (D-17, D-37)
     //   overMountains — a flying push that passes over mountains too; it can't come down on
     //            one, so it lands on the last hex short of it that it flew over (D-35)
+    //   overWalls — a flying push that passes over Walls too, treating a Wall hex exactly like
+    //            a mountain: it can't come down on one either (Spring only; D-62)
     //   clears — how many hexes of its push pass over everything (water, mountains, Walls,
     //            pieces, targets, Traps): the shot touches nothing on them, and the rest of the
     //            push goes on the ground from the last one. Stopped right after them, it comes
@@ -42,16 +44,16 @@ const GameArtifacts = (function () {
     //            which already slides, D-29): where it may be built
     //   weight — relative draw chance for the hand
     const THINGS = {
-        BELT:    { push: 1, pull: 0, shove: 0, splat: false, flies: false, overMountains: false, clears: 0, blocks: false, traps: false, colored: false, slides: false, on: 'land',  weight: 6 },
-        SPRING:  { push: 3, pull: 0, shove: 0, splat: false, flies: true,  overMountains: true,  clears: 0, blocks: false, traps: false, colored: false, slides: false, on: 'land',  weight: 2 },
-        ROCKET:  { push: 8, pull: 0, shove: 0, splat: true,  flies: true,  overMountains: false, clears: 0, blocks: false, traps: false, colored: false, slides: false, on: 'land',  weight: 1 },
-        PUSHER:  { push: 0, pull: 0, shove: 1, splat: false, flies: false, overMountains: false, clears: 0, blocks: false, traps: false, colored: true,  slides: false, on: 'land',  weight: 0.5 },
-        PULLER:  { push: 0, pull: 1, shove: 0, splat: false, flies: false, overMountains: false, clears: 0, blocks: false, traps: false, colored: true,  slides: false, on: 'land',  weight: 0.5 },
-        WALL:    { push: 0, pull: 0, shove: 0, splat: false, flies: false, overMountains: false, clears: 0, blocks: true,  traps: false, colored: false, slides: false, on: 'land',  weight: 2 },
-        TRAP:    { push: 0, pull: 0, shove: 0, splat: false, flies: false, overMountains: false, clears: 0, blocks: false, traps: true,  colored: false, slides: false, on: 'land',  weight: 1 },
-        BRIDGE:  { push: 1, pull: 0, shove: 0, splat: false, flies: false, overMountains: false, clears: 0, blocks: false, traps: false, colored: false, slides: false, on: 'water', weight: 1 },
-        SLIDE:   { push: 0, pull: 0, shove: 0, splat: false, flies: false, overMountains: false, clears: 0, blocks: false, traps: false, colored: false, slides: true,  on: 'unslick', weight: 2 },
-        CANNON:  { push: 5, pull: 0, shove: 0, splat: false, flies: false, overMountains: false, clears: 4, blocks: false, traps: false, colored: false, slides: false, on: 'land',  weight: 1 },
+        BELT:    { push: 1, pull: 0, shove: 0, splat: false, flies: false, overMountains: false, overWalls: false, clears: 0, blocks: false, traps: false, colored: false, slides: false, on: 'land',  weight: 6 },
+        SPRING:  { push: 3, pull: 0, shove: 0, splat: false, flies: true,  overMountains: true,  overWalls: true,  clears: 0, blocks: false, traps: false, colored: false, slides: false, on: 'land',  weight: 2 },
+        ROCKET:  { push: 8, pull: 0, shove: 0, splat: true,  flies: true,  overMountains: false, overWalls: false, clears: 0, blocks: false, traps: false, colored: false, slides: false, on: 'land',  weight: 1 },
+        PUSHER:  { push: 0, pull: 0, shove: 1, splat: false, flies: false, overMountains: false, overWalls: false, clears: 0, blocks: false, traps: false, colored: true,  slides: false, on: 'land',  weight: 0.5 },
+        PULLER:  { push: 0, pull: 1, shove: 0, splat: false, flies: false, overMountains: false, overWalls: false, clears: 0, blocks: false, traps: false, colored: true,  slides: false, on: 'land',  weight: 0.5 },
+        WALL:    { push: 0, pull: 0, shove: 0, splat: false, flies: false, overMountains: false, overWalls: false, clears: 0, blocks: true,  traps: false, colored: false, slides: false, on: 'land',  weight: 2 },
+        TRAP:    { push: 0, pull: 0, shove: 0, splat: false, flies: false, overMountains: false, overWalls: false, clears: 0, blocks: false, traps: true,  colored: false, slides: false, on: 'land',  weight: 1 },
+        BRIDGE:  { push: 1, pull: 0, shove: 0, splat: false, flies: false, overMountains: false, overWalls: false, clears: 0, blocks: false, traps: false, colored: false, slides: false, on: 'water', weight: 1 },
+        SLIDE:   { push: 0, pull: 0, shove: 0, splat: false, flies: false, overMountains: false, overWalls: false, clears: 0, blocks: false, traps: false, colored: false, slides: true,  on: 'unslick', weight: 2 },
+        CANNON:  { push: 5, pull: 0, shove: 0, splat: false, flies: false, overMountains: false, overWalls: false, clears: 4, blocks: false, traps: false, colored: false, slides: false, on: 'land',  weight: 1 },
     };
 
     // Tool cards: cards that aren't Things. A tool is never built; it's played on the board
