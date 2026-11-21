@@ -24,7 +24,22 @@ const { check, done } = require('../helpers/check');
 const { bootPage, memoryStorage } = require('../helpers/page');
 
 const tick = () => new Promise(r => setImmediate(r));
+// For checks with no WebCrypto work pending: nothing starts, or only the stub fetch's promises
+// (a failed return), which settle within these turns.
 async function settle() { for (let i = 0; i < 10; i++) await tick(); }
+// Wait for something async to happen (begin()'s real WebCrypto digest, finish()'s exchange),
+// polling until cond() holds; past WAIT_MS it throws a clear message instead of a fixed turn count
+// that a loaded machine can outrun. A short settle() after catches a second, unwanted redirect.
+const WAIT_MS = 5000;
+async function until(cond, what) {
+    const end = Date.now() + WAIT_MS;
+    while (!cond()) {
+        if (Date.now() > end) throw new Error('timed out after ' + WAIT_MS + ' ms waiting for ' + what);
+        await new Promise(r => setTimeout(r, 5));
+    }
+    await settle();
+}
+const redirected = p => until(() => p.assigned.length > 0, 'the sign-in redirect');
 const hidden = (p, id) => p.els[id].classList.set.has('hidden');
 const SPOTS = ['signin', 'intro-signin', 'size-signin'];
 const LABELS = ['signin-label', 'intro-signin-label', 'size-signin-label'];
@@ -77,7 +92,7 @@ function page({ origin = 'https://ttdat.yuwakisa.com', search = '', storage = me
         const p = page({ origin: 'http://localhost:8787' });
         check('the intro is up', p.ui.overlay === 'intro');
         p.ui.signInFromPanel();
-        await settle();
+        await redirected(p);
         check('the intro\'s Sign in redirects once', p.assigned.length === 1);
         const url = new URL(p.assigned[0]);
         const q = Object.fromEntries(url.searchParams);
@@ -98,7 +113,7 @@ function page({ origin = 'https://ttdat.yuwakisa.com', search = '', storage = me
         p.ui.dismissOverlay();
         p.ui.newGame();
         p.ui.signInFromPanel();
-        await settle();
+        await redirected(p);
         check('New Game\'s Sign in redirects without saving', p.assigned.length === 1 && !p.storage.map.has(SAVE_KEY));
     }
 
@@ -120,7 +135,7 @@ function page({ origin = 'https://ttdat.yuwakisa.com', search = '', storage = me
         check('it puts the card back, drops the selection and turns Go off', p.ui.picked === null && p.ui.selected === null && p.ui.running === false);
         const save = p.storage.map.has(SAVE_KEY) && JSON.parse(p.storage.map.get(SAVE_KEY));
         check('it saves the game first, Go as it was', save && JSON.stringify(save.state) === JSON.stringify(p.engine.save()) && save.ui.running === true);
-        await settle();
+        await redirected(p);
         check('then redirects', p.assigned.length === 1 && p.assigned[0].startsWith(SIGNIN_SITES['https://ttdat.yuwakisa.com'].issuer + '/authorize?'));
     }
     {
@@ -146,7 +161,7 @@ function page({ origin = 'https://ttdat.yuwakisa.com', search = '', storage = me
     {
         const p = page({ search: '?code=C0DE&state=' + state, storage: memoryStorage({ [SAVE_KEY]: saveText }), session: memoryStorage({ [SIGNIN_FLOW_KEY]: flowText }), reply: tokenReply });
         check('a return restores the game', p.ui.overlay === null && JSON.stringify(p.engine.save()) === JSON.stringify(maker.engine.save()));
-        await settle();
+        await until(() => p.els['signin-label'].textContent === '@alice.test', 'the code exchange to show the handle');
         const ex = p.fetches.find(f => f.url === SIGNIN_TOKEN_PATH);
         const sent = ex && Object.fromEntries(new URLSearchParams(ex.init.body));
         check('it trades the code at SIGNIN_TOKEN_PATH with the verifier and the redirect URI', ex && ex.init.method === 'POST' &&

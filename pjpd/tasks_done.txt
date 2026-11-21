@@ -448,6 +448,14 @@ Updated: 2026-11-11T20:39:28Z
 
 Thing Factory: give the Bridge a built-in belt so it pushes the piece on it in its facing direction, like a Belt over water. Right now a crate that reaches a bridge just stops there, which is annoying. That makes the Bridge a facing mover: it rotates on click, has a ghost facing, and is included in aims(kind). Check that the order of the tick and the "each piece moves at most once" rule still hold. Update THING_LOOK so the arrow shows on the bridge. Reconcile ONTOLOGY / CRITERIA (+ test/R-n for the bridge push) / RATIONALE / log, and the hover verb line.
 ----
+Priority:   62
+Status: Done
+ID: flakysignin-rg9e
+Created: 2026-11-21T10:45:37Z
+Updated: 2026-11-21T10:59:41Z
+
+Fix the flaky test test/R-76/browser_signin.js. It fails sometimes when the whole suite runs (just cc-test) and passes when run alone. The failing check is "the intro's Sign in redirects once", which then throws "TypeError: Invalid URL". Cause: its settle() waits a fixed 10 event-loop turns, which isn't always long enough for the real WebCrypto PKCE hashing under load. Fix: wait for the redirect itself (poll until the stub location's assigned URL is set, with a generous timeout of a few seconds that fails with a clear message), not for a fixed number of turns. Apply the same to any other settle() use in R-76 that waits on async crypto. Change only the test, not signin.js. Done when: just cc-test passes 10 runs in a row (loop it), and R-76 still checks everything it checked before.
+----
 Priority:   60
 Status: Done
 ID: mute-button-twa8

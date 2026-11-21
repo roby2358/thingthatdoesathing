@@ -2,6 +2,9 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-21 — R-76 waits for the redirect, not 10 turns
+Before, R-76's browser test checked the sign-in redirects after a fixed 10 event-loop turns, which the real WebCrypto digest in `GameSignIn.begin()` sometimes outran under the full suite ("redirects once" failed, then `new URL(undefined)` threw). Now the three redirect checks wait with `until()`: poll every 5 ms until `assigned` has the redirect (5 s cap, failing with "timed out … waiting for the sign-in redirect"), then the 10 turns to catch a second one; the successful return waits until the bar shows the handle. The other checks keep the fixed wait: nothing starts there, or (a failed return) only the stub fetch's promises, with no WebCrypto work. Same checks as before; signin.js unchanged.
+
 ### 2026-11-21 — Sign out (D-69)
 Before, a sign-in lasted until its token expired; there was no way to sign out but clearing `thingfactory.auth` by hand. Now, while signed in, the top-left bar shows a "Sign out" button (`#signout`) after the handle: `GameUI.signOut()` (ignored under an overlay, no tick) calls `GameTelemetry.switchIdentity(null)` (the queue goes with the token, later batches under a fresh random ID and no token), the new `GameSignIn.signOut()` (removes `AUTH_KEY`) and `showSignIn(null)`; no reload, no revoke call to auth/, and the game keeps going. `showSignIn` keeps `this.signedIn` (ONTOLOGY's GameUI state row, CLAUDE.md's signin.js row and Sign-in bullet follow). New U-38; uiboot's `bootPointer` takes `opts.doc`, `opts.globals` and `opts.version` and gains the sign-out walk; ONTOLOGY §9 and README follow.
 
