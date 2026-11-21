@@ -868,12 +868,15 @@ so a cross-origin page sees them and backs off.
 - Every row carries `player_id` and `signed_in`; no foreign keys; no IP column. Indexes: games by
   start time, events by time and by command, crashes by time and by version.
 
-### Telemetry report — `just telemetry-report` (tools/telemetry_report.js) [D-66]
+### Telemetry report — `just telemetry-report` / `just telemetry-local` (tools/telemetry_report.js) [D-66]
 *Serves:* tuning §6 from what the tables hold, as plain text a designer reads in a terminal.
 Plain Node, no npm: `tools/telemetry_report.js` (the CLI) and `tools/telemetry_report/`
 (`records.js` rows → records, `figures.js` pure sums, `render.js` tables, `volume.js` the Volume section's figures, size and free-plan numbers). It reads and never writes.
 ```
-just telemetry-report [local-d1] [days]          # node tools/telemetry_report.js wrangler.jsonc …, WRANGLER = yuwakisacloud's
+just telemetry-report [days]                     # node tools/telemetry_report.js wrangler.jsonc …, WRANGLER = yuwakisacloud's
+  a local-d1 argument → "telemetry-report reads production only; … just telemetry-local [days]", exit 1, the tool never run
+just telemetry-local [days]                      # the same with local-d1 passed
+tool args (after the config):
   args: at most one local-d1 and one whole number ≥ 1, in either order; anything else → the usage, exit 1
   source: no name → production: refused (exit 1, wrangler never run) while wrangler.jsonc holds
             PUT-THE-DATABASE-ID-HERE; else wrangler d1 execute ttdat-telemetry --remote --env production --json

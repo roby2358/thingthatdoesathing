@@ -2,6 +2,9 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-21 — `just telemetry-local` (D-66)
+Before, the local telemetry report was `just telemetry-report local-d1 [days]`. Now it is its own recipe, `just telemetry-local [days]` (it passes the tool's `local-d1`), and `just telemetry-report [days]` reads production only: the recipe refuses a `local-d1` argument with a one-line pointer at telemetry-local and exits 1. `tools/telemetry_report.js`'s CLI is unchanged; its usage line, its WRANGLER-unset message and the placeholder refusal's hint name the new recipe. README, CLAUDE.md, ONTOLOGY's Telemetry report section, CRITERIA R-70 (and its Status note that the recipes are checked by hand) and RATIONALE D-66 / D-72 follow.
+
 ### 2026-11-21 — Telemetry report: Volume section (D-72)
 Before, the report said nothing about how close telemetry came to D1's free-plan limits. Now a new `tools/telemetry_report/volume.js` holds `D1_FREE_ROWS_WRITTEN_PER_DAY` (100000), `D1_FREE_DB_BYTES` (500 MB) and `WARN_SHARE` (0.5), the Volume section's figures and its `d1 info` call; `render.js` prints the section once, last: rows written per UTC day per table and in total (each row on its own time column's day), days at or over half the daily limit marked, the busiest day's line with a WARNING: prefix at or over half, a note that index writes and the Worker's requests aren't counted, and the database's size from a new `wrangler d1 info ttdat-telemetry --json` call (`--env production` for production) against the size limit, or "size: unknown (local)" for wrangler dev's database, which d1 info can't see. New `test/R-70/volume.js`; R-70's CLI test's fake wrangler answers `d1 info`. ONTOLOGY's Telemetry report section and Numbers, CRITERIA R-70, README and CLAUDE.md follow.
 

@@ -155,9 +155,9 @@ refusals, places and discards by card; bomb sizes; sessions and game lengths; br
 sizes and pixel ratios; crashes; signed-in players; and last, Volume: rows written per UTC day
 against D1's free-plan daily write limit and the database's size against its size limit, with a
 WARNING line once either reaches half. It reads production's database (and refuses
-while the placeholder id is still in `wrangler.jsonc`); `just telemetry-report local-d1` reads
+while the placeholder id is still in `wrangler.jsonc`); `just telemetry-local` reads
 the local one, and a number limits it to games started in that many days
-(`just telemetry-report local-d1 7`). It only reads.
+(`just telemetry-local 7`). It only reads.
 
 ### Sign-in
 

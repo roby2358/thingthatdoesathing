@@ -1,4 +1,5 @@
-// tools/telemetry_report.js — `just telemetry-report [local-d1] [days]`: prints the telemetry
+// tools/telemetry_report.js — `just telemetry-report [days]` (production) and `just telemetry-local [days]`
+// (wrangler dev's D1, which passes local-d1): prints the telemetry
 // report (ONTOLOGY "Telemetry report", D-66) as plain text, for tuning. It reads the ttdat-telemetry
 // D1 database (D-64) through wrangler, with four read-only SELECTs and a `d1 info` for its size
 // (the Volume section, D-72), and never writes: production's when no source is named (refused
@@ -20,7 +21,7 @@ const { D1_TARGETS, ReportRefusal, playFromD1 } = require('./telemetry_report/re
 const { sizeFromD1 } = require('./telemetry_report/volume');
 const { report } = require('./telemetry_report/render');
 
-const USAGE = 'usage: just telemetry-report [local-d1] [days]   (production when no source is named; every day when no number is given)';
+const USAGE = 'usage: just telemetry-report [days]   (production)   or   just telemetry-local [days]   (wrangler dev\'s local D1); every day when no number is given';
 
 /** The sources a name picks, and the one read when none is named. */
 const SOURCES = {
@@ -43,7 +44,7 @@ function chosen(args) {
 
 function runWrangler(args) {
     const wrangler = process.env.WRANGLER;
-    if (!wrangler) return Promise.reject(new ReportRefusal('WRANGLER is not set: run the report with just telemetry-report, which names yuwakisacloud\'s wrangler'));
+    if (!wrangler) return Promise.reject(new ReportRefusal('WRANGLER is not set: run the report with just telemetry-report or just telemetry-local, which name yuwakisacloud\'s wrangler'));
     return new Promise((resolve, reject) => {
         execFile(wrangler, args, { maxBuffer: WRANGLER_OUTPUT_LIMIT }, (error, stdout, stderr) => {
             if (error === null) { resolve(stdout); return; }

@@ -118,7 +118,7 @@ async function playFromD1(wrangler, target, config, since) {
     if (target === 'production' && config.text.includes(ID_PLACEHOLDER)) {
         throw new ReportRefusal(
             `the production telemetry database does not exist yet: ${config.path} still holds ${ID_PLACEHOLDER}.\n` +
-            'create it with: just d1-production (README, "Deploy"), or report on local play with: just telemetry-report local-d1');
+            'create it with: just d1-production (README, "Deploy"), or report on local play with: just telemetry-local');
     }
     const sql = queries(since);
     const rows = {};

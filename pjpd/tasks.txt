@@ -1,16 +1,3 @@
-Priority:   60
-Status: ToDo
-ID: rptlocal-nrwi
-Created: 2026-11-21T16:05:01Z
-Updated: 2026-11-21T16:05:01Z
-
-Give the local telemetry report its own just recipe, so nobody has to remember a source word: `just telemetry-local [days]` reads wrangler dev's local D1 (what `just telemetry-report local-d1 [days]` does today), and `just telemetry-report [days]` reads production only.
-Design (settled):
-- justfile: new recipe `telemetry-local *args` that runs `node tools/telemetry_report.js wrangler.jsonc local-d1 {{args}}` with the same WRANGLER as telemetry-report, and a comment like the others. `telemetry-report` stays as the production recipe; its comment no longer mentions local-d1.
-- `just telemetry-report local-d1` no longer works through just: telemetry-report passes its args through, so make the recipe refuse a local-d1 arg with a one-line message pointing at `just telemetry-local` (do it in the justfile recipe or by having the recipe pass a flag; keep tools/telemetry_report.js's own CLI, including its local-d1 word, unchanged so its tests keep working).
-- Update every current-state mention of `just telemetry-report local-d1` to `just telemetry-local`: README, CLAUDE.md, ONTOLOGY (Telemetry report invocations), CRITERIA (R-70 and any U-row), RATIONALE current-state text (D-66, D-72), SHIP.md, and the project-local thingfactory-tools skill if it mentions it. ARCHITECTURE_LOG's past entries stay as history; add a dated entry for this change. Usage text printed by the tool, if it names just recipes, should name both.
-Done when: `just telemetry-local` and `just telemetry-local 7` print the report from the local D1 (run `just d1-local` first); `just telemetry-report` still refuses on the placeholder database id; `just telemetry-report local-d1` prints the pointer to telemetry-local and exits non-zero; `grep -rn "telemetry-report local-d1"` finds only ARCHITECTURE_LOG history (and the refusal message/test if any); `just cc-test` passes.
-----
 Priority:   49
 Status: ToDo
 ID: run-stats-m6pe

@@ -36,11 +36,17 @@ dev-worker: ship _wrangler _worker-deps
 d1-local: _wrangler
     WRANGLER={{wrangler}} bash tools/telemetry_db.sh local wrangler.jsonc worker/telemetry_schema.sql
 
-# The telemetry report (D-66): plain-text tables of what players do, for tuning. Production's
-# database when no source is named (refused while wrangler.jsonc holds the placeholder id), wrangler
-# dev's local one with local-d1; a number limits it to games started in that many days. Reads only.
+# The telemetry report (D-66): plain-text tables of what players do, for tuning, from production's
+# database (refused while wrangler.jsonc holds the placeholder id); a number limits it to games
+# started in that many days. Reads only. `just telemetry-local` reads wrangler dev's database.
 telemetry-report *args: _wrangler
+    @for a in {{args}}; do [ "$a" != local-d1 ] || { echo "telemetry-report reads production only; for wrangler dev's local D1 run: just telemetry-local [days]" >&2; exit 1; }; done
     @WRANGLER={{wrangler}} node tools/telemetry_report.js wrangler.jsonc {{args}}
+
+# The same report from wrangler dev's local D1 (run `just d1-local` first); a number limits it
+# to games started in that many days. Reads only.
+telemetry-local *args: _wrangler
+    @WRANGLER={{wrangler}} node tools/telemetry_report.js wrangler.jsonc local-d1 {{args}}
 
 # Production's telemetry database: run once to create it and print the id to paste into
 # wrangler.jsonc's env.production, then again to give it its tables (needs a wrangler login)
