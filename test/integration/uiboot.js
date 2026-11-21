@@ -4,7 +4,7 @@
 // and requestAnimationFrame, then drives the UI through clicks and keys: pick a board size
 // from the intro, pick each card, turn the ghost, place, select and rotate, remove the selected Thing with D, wait, run tick animations to completion,
 // play to the first milestone (checking that no two pieces are ever drawn on one hex at a hop,
-// D-38), drive the color picker (D-32), the Mover's pick-up and carry (D-47), the Bomb's booms (D-48), the map-scale buttons (D-40), the About panel (D-59), and the sorry page a phone gets (D-41). Catches runtime errors in rendering and input wiring without a
+// D-38), drive the color picker (D-32), the Mover's pick-up and carry (D-47), the Bomb's booms (D-48), the map-scale buttons (D-40), the Help and About pagers (D-60, D-59), and the sorry page a phone gets (D-41). Catches runtime errors in rendering and input wiring without a
 // browser. It can't judge how anything looks; that stays manual (U-rows).
 'use strict';
 
@@ -184,10 +184,10 @@ run('before a size is picked, early events on the bare canvas do nothing and thr
     if (ui.overlay !== 'intro' || ui.state.hexes || ui.hoveredHex || ui.running)
         throw new Error('early events must leave the intro up with no board, hover or Go');
 });
-run('a size from the intro opens the keys legend; any key closes it', () => {
+run('a size from the intro opens Help on its Keys page; any key closes it', () => {
     key('1');
-    if (!ui.state.hexes || ui.overlay !== 'help' || els['help-panel'].classList.set.has('hidden'))
-        throw new Error('the first game must open on the keys legend');
+    if (!ui.state.hexes || ui.overlay !== 'help' || els['help-panel'].classList.set.has('hidden') || els['help-page-0'].classList.set.has('hidden'))
+        throw new Error('the first game must open Help on its Keys page');
     key('2');
     if (ui.overlay || ui.picked || !els['help-panel'].classList.set.has('hidden'))
         throw new Error('a key must close the legend and do nothing else');
@@ -515,6 +515,49 @@ run('Help shows the keys and holds Go; closing it lets Go pick up again', () => 
     advance(1000);
     if (s.turn === held || !ui.running) throw new Error('Go did not pick up after Help closed');
     els.go.fire('click'); settle();
+});
+run('Help is a pager (D-60): opens on Keys, → Things (one row per card, its hover text) and ← back, a button click stays, any other key closes, Go picks up again', () => {
+    els['new-game'].fire('click'); key('1');
+    const s = ui.state;
+    const shown = id => !els[id].classList.set.has('hidden');
+    const page = () => [0, 1].filter(i => shown('help-page-' + i)).join();
+    els.go.fire('click');
+    advance(1000);
+    els.help.fire('click');
+    if (ui.overlay !== 'help' || page() !== '0' || !els['help-prev'].disabled || els['help-next'].disabled) throw new Error('Help must open on Keys, got ' + page());
+    if (els['help-count'].textContent !== '1 / 2') throw new Error('page count: ' + els['help-count'].textContent);
+    settle(); advance(500);
+    const held = s.turn;
+    key('ArrowRight');
+    if (ui.overlay !== 'help' || page() !== '1' || els['help-prev'].disabled || !els['help-next'].disabled) throw new Error('→ must turn to Things');
+    if (els['help-count'].textContent !== '2 / 2') throw new Error('page count: ' + els['help-count'].textContent);
+    key('ArrowRight');
+    if (page() !== '1') throw new Error('→ on the last page must stay put');
+    const cards = vm.runInContext('GameArtifacts.CARDS', ctx);
+    const looks = vm.runInContext('GameDisplayArtifacts.THING_LOOK', ctx);
+    const rows = els['help-things'].children;
+    if (rows.length !== cards.length) throw new Error(`Things must have one row per card: ${rows.length} vs ${cards.length}`);
+    cards.forEach((kind, i) => {
+        const [pic, text] = rows[i].children;
+        const [name, does] = text.children;
+        if (pic.tagName !== 'canvas' || name.textContent !== looks[kind].name || !does.textContent.startsWith(looks[kind].does))
+            throw new Error(`row ${i} must be ${kind}'s tile, name and hover line`);
+    });
+    els['help-panel'].fire('click', { target: { closest: () => els['help-prev'] } });
+    if (ui.overlay !== 'help') throw new Error('a click on a page button must not close Help');
+    key('ArrowLeft');
+    if (ui.overlay !== 'help' || page() !== '0') throw new Error('← must turn back to Keys');
+    advance(2000);
+    if (s.turn !== held) throw new Error('ticked while Help was open');
+    key('q');
+    if (ui.overlay || shown('help-panel')) throw new Error('another key must close Help');
+    advance(1000);
+    if (s.turn === held || !ui.running) throw new Error('Go did not pick up after Help closed');
+    els.go.fire('click'); settle();
+    els.help.fire('click'); key('ArrowRight'); key('Escape');
+    els.help.fire('click');
+    if (page() !== '0') throw new Error('Help must reopen on Keys');
+    key('Escape');
 });
 run('About opens over the game and holds Go; < > and the arrow keys turn its pages; links, buttons and the version stay; another key or a click closes (D-59)', () => {
     els['new-game'].fire('click'); key('1');

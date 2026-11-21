@@ -255,6 +255,25 @@ Thing Factory: placing a card on a hex that already holds a Thing replaces that 
 ----
 Priority:   55
 Status: Done
+ID: helpthings-n2sw
+Created: 2026-11-21T03:10:32Z
+Updated: 2026-11-21T03:19:18Z
+
+Turn the Help panel into a pager with a Things page, and fix the card text so Help and the card hover agree.
+Thing Factory (plain <script> globals, read CLAUDE.md). Help (#help-panel in index.html, the 'help' overlay in gameui.js) is one page of keys. The About panel (D-59) already has a two-page pager: < > buttons, ← → keys clamped at the ends, any other key or a click outside links/buttons/.selectable closes it. Done looks like:
+1. Help becomes a pager with the same controls and behavior as About, by factoring the pager into one shared helper that About and Help both use (no copy-paste). Page order: Keys (today's legend; the page Help opens on, including the automatic first showing after the intro), Things, World. This task builds the World page slot only if the pager needs it; the World page content is separate work, so ship with two pages (Keys, Things) and make adding a third a one-line change. The page counter reads "1 / 2" etc. Help still holds Go while open.
+2. The Things page lists EVERY card in CARDS (all Things and both tools, Mover and Bomb), locked or not: players replay, so assume they've seen them. Each row: the card's tile drawn small with the same art as the hand cards (reuse the hand's drawing code, don't redraw by hand), the card's name, and its THING_LOOK.does line. The page's text is exactly the hover text, so the two can never disagree.
+3. Rewrite the THING_LOOK.does lines where needed (this changes the hand hover too, on purpose):
+   - Throwers say "N hexes, leaping over the hexes in between" in one consistent pattern, N from the rules data: Spring (3; say it leaps lakes and mountains), Cannon (lands on the 5th, leaping over the 4 in between whatever is on them), Rocket (up to 8, leaping lakes). Check each claim against gameengine.js and artifacts.js (e.g. the Spring's overMountains limit, the Cannon's clears) and keep it true.
+   - Gremlins appear ONLY in the Trap line (catching gremlins is the Trap's whole point). Remove gremlin mentions from every other line (the Rocket's "splats gremlins" goes; the Slide says nothing about gremlins).
+   - Keep lines short enough for the hover bar.
+4. Fix the Keys page's Bomb line: it says "click up to 3 filled hexes ... the 3rd ... ends it", but the Bomb's wipes is 5. Say 5 (or the count from the rules data if the Keys page is built in JS).
+5. A test that every number in every THING_LOOK.does line matches the rules data (GameArtifacts: Spring range 3, Rocket 8, Cannon clears 4 / lands on 5, Bomb wipes 5, Belt and Bridge 1, Puller 2, etc.), so the text can't drift. A real template system is out of scope (a separate string-table task covers it).
+6. uiboot.js: Help opens on Keys, → goes to Things and ← back, the Things page has one row per CARDS entry, any other key closes, Go resumes.
+Reconcile docs in the same change: a new RATIONALE D-entry, ARCHITECTURE_LOG (dated), CLAUDE.md (input architecture: the help overlay), ONTOLOGY.md if it lists overlay state, README UI section, SHIP.md ONB-4 (partial: Things page done, World page to come). Don't mention the unlisted P key anywhere. Done when `just cc-test` passes with the new tests.
+----
+Priority:   55
+Status: Done
 ID: grem-splat-263u
 Created: 2026-11-17T02:42:56Z
 Updated: 2026-11-17T19:18:06Z

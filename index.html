@@ -23,7 +23,7 @@
                 <button id="end-turn" class="btn primary" title="Let it run one tick (Space)">Wait</button>
                 <button id="new-game" class="btn">New Game</button>
                 <button id="sound" class="btn" title="Turn all sound on or off (M)">Sound: on</button>
-                <button id="help" class="btn" title="Show the keys; ticks hold while it's open">Help</button>
+                <button id="help" class="btn" title="The keys and every Thing; ticks hold while it's open">Help</button>
                 <button id="about" class="btn" title="Credits, version and privacy; ticks hold while it's open">About</button>
             </span>
         </div>
@@ -67,32 +67,47 @@
         <div class="sizes" id="intro-sizes"></div>
         <button id="intro-about" class="link" type="button">About</button>
     </div>
+    <!-- Help (D-60): a pager like About (D-59), opening on Keys; then Things, one row per card,
+    built from the hand's drawing and hover text. A click on a button keeps it open; any other
+    click or key closes it, ← → turn the pages. -->
     <div id="help-panel" class="hidden">
         <div class="panel help-card">
-            <h1>Keys</h1>
-            <dl class="keys">
-                <dt><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></dt><dd>pick a Thing from your hand</dd>
-                <dt><kbd>R</kbd> / <kbd>Wheel</kbd></dt><dd>turn it before you place it</dd>
-                <dt><kbd>Click</kbd></dt><dd>place it (yellow hexes); the world ticks</dd>
-                <dt><kbd>1</kbd>–<kbd>4</kbd> / click a swatch</dt><dd>a Pusher or Puller: pick the crate color it works on</dd>
-                <dt>Mover</dt><dd>click a Thing to pick it up, then place it like a card (one tick); Esc after the pick-up scraps it (ticks)</dd>
-                <dt>Bomb</dt><dd>click up to 3 filled hexes, each blows up at once; the 3rd, or Esc after one, ends it (one tick)</dd>
-                <dt><kbd>Esc</kbd> / right-click</dt><dd>put the card back (or close the color swatches)</dd>
-                <dt><kbd>X</kbd> / Discard</dt><dd>throw away the picked card (ticks)</dd>
-                <dt><kbd>Shift</kbd>+<kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> / a card's red ×</dt><dd>throw that card away at once, no pick (ticks)</dd>
-                <dt><kbd>Click</kbd> a hex</dt><dd>select it; holds Go while selected</dd>
-                <dt><kbd>Click</kbd> it again</dt><dd>turn its mover clockwise (free, no tick)</dd>
-                <dt><kbd>Click</kbd> elsewhere</dt><dd>let go of the selection</dd>
-                <dt><kbd>D</kbd></dt><dd>remove the Thing on the selected hex (ticks)</dd>
-                <dt><kbd>B</kbd></dt><dd>blow up the crate under the cursor; it counts as lost (ticks)</dd>
-                <dt><kbd>M</kbd> / Sound</dt><dd>sound on or off, any time (remembered)</dd>
-                <dt>Wait</dt><dd>wait one tick</dd>
-                <dt><kbd>Space</kbd></dt><dd>one tick, then stop; while Go runs, finish this tick and stop</dd>
-                <dt><kbd>Enter</kbd> / Go</dt><dd>keep ticking; again to finish this tick and stop</dd>
-                <dt>Drag</dt><dd>pan the board</dd>
-                <dt>Map 1 · 2 · ∞</dt><dd>buttons (no keys): the board at full or 1/2 size, or all of it above the hand</dd>
-                <dt>About</dt><dd>credits, version and privacy; <kbd>←</kbd> <kbd>→</kbd> turn its pages</dd>
-            </dl>
+            <div id="help-page-0">
+                <h1>Keys</h1>
+                <dl class="keys">
+                    <dt><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></dt><dd>pick a Thing from your hand</dd>
+                    <dt><kbd>R</kbd> / <kbd>Wheel</kbd></dt><dd>turn it before you place it</dd>
+                    <dt><kbd>Click</kbd></dt><dd>place it (yellow hexes); the world ticks</dd>
+                    <dt><kbd>1</kbd>–<kbd>4</kbd> / click a swatch</dt><dd>a Pusher or Puller: pick the crate color it works on</dd>
+                    <dt>Mover</dt><dd>click a Thing to pick it up, then place it like a card (one tick); Esc after the pick-up scraps it (ticks)</dd>
+                    <dt>Bomb</dt><dd>click up to <span id="bomb-wipes">5</span> filled hexes, each blows up at once; the last, or Esc after one, ends it (one tick)</dd>
+                    <dt><kbd>Esc</kbd> / right-click</dt><dd>put the card back (or close the color swatches)</dd>
+                    <dt><kbd>X</kbd> / Discard</dt><dd>throw away the picked card (ticks)</dd>
+                    <dt><kbd>Shift</kbd>+<kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> / a card's red ×</dt><dd>throw that card away at once, no pick (ticks)</dd>
+                    <dt><kbd>Click</kbd> a hex</dt><dd>select it; holds Go while selected</dd>
+                    <dt><kbd>Click</kbd> it again</dt><dd>turn its mover clockwise (free, no tick)</dd>
+                    <dt><kbd>Click</kbd> elsewhere</dt><dd>let go of the selection</dd>
+                    <dt><kbd>D</kbd></dt><dd>remove the Thing on the selected hex (ticks)</dd>
+                    <dt><kbd>B</kbd></dt><dd>blow up the crate under the cursor; it counts as lost (ticks)</dd>
+                    <dt><kbd>M</kbd> / Sound</dt><dd>sound on or off, any time (remembered)</dd>
+                    <dt>Wait</dt><dd>wait one tick</dd>
+                    <dt><kbd>Space</kbd></dt><dd>one tick, then stop; while Go runs, finish this tick and stop</dd>
+                    <dt><kbd>Enter</kbd> / Go</dt><dd>keep ticking; again to finish this tick and stop</dd>
+                    <dt>Drag</dt><dd>pan the board</dd>
+                    <dt>Map 1 · 2 · ∞</dt><dd>buttons (no keys): the board at full or 1/2 size, or all of it above the hand</dd>
+                    <dt>Help</dt><dd>this; <kbd>←</kbd> <kbd>→</kbd> turn its pages</dd>
+                    <dt>About</dt><dd>credits, version and privacy; <kbd>←</kbd> <kbd>→</kbd> turn its pages</dd>
+                </dl>
+            </div>
+            <div id="help-page-1" class="hidden">
+                <h1>Things</h1>
+                <div id="help-things" class="things"></div>
+            </div>
+            <div class="pager-nav">
+                <button id="help-prev" class="btn" type="button" title="Previous page (←)">&lt;</button>
+                <span id="help-count" class="pager-count">1 / 2</span>
+                <button id="help-next" class="btn" type="button" title="Next page (→)">&gt;</button>
+            </div>
             <p class="continue">Click or press any key to play</p>
         </div>
     </div>
@@ -125,9 +140,9 @@
                     IP addresses kept, no personal data.</p>
                 <p>Your browser keeps your settings (like mute). Map saves are planned.</p>
             </div>
-            <div class="about-nav">
+            <div class="pager-nav">
                 <button id="about-prev" class="btn" type="button" title="Previous page (←)">&lt;</button>
-                <span id="about-count">1 / 2</span>
+                <span id="about-count" class="pager-count">1 / 2</span>
                 <button id="about-next" class="btn" type="button" title="Next page (→)">&gt;</button>
             </div>
             <p class="continue">Click or press any key to close</p>

@@ -2,6 +2,21 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-21 — Help is a pager with a Things page (D-60)
+Help was one page of keys. It now pages like About (`<` `>`, ← →, "1 / 2"), through one
+`Pager` class that About uses too (About's own `showAboutPage`/`aboutKey`/`onAboutClick`
+and `aboutPage` are gone; `.about-nav` CSS became `.pager-nav`). Pages: Keys, where it
+opens, then Things, one row per card in `CARDS`, locked or not: the hand's tile, the name
+and the card's hover line. A World page is to come. The Keys page's Bomb line said 3 hexes; it
+now reads `TOOLS.BOMB.wipes` (5). `THING_LOOK.does` lines rewritten (this changes the hand
+hover and the news panel too): Spring "flings what is on it up to 3 hexes, leaping over lakes
+and mountains in between" (was "3 hexes, over lakes and mountains"), Rocket "up to 8 hexes,
+leaping over lakes in between" (was "…over lakes, skidding on ice; splats gremlins"), Cannon
+"lobs what is on it 5 hexes, leaping over the 4 in between, whatever is on them" (was "over 4
+hexes of anything, down on the 5th (slides on ice)"), Bomb "Things and pieces" (was "Things,
+crates and gremlins"). `test/integration/doesnumbers.js` ties each line's numbers to the rules
+data; `uiboot.js` drives the Help pager. U-24 updated; SHIP.md ONB-4 partial (Things done).
+
 ### 2026-11-21 — A network layer is no longer a non-goal
 ONTOLOGY's non-goals dropped "A network layer": the game is working toward telemetry
 (telemetry-v54s), whose planned collection the privacy page (D-59) already describes, and

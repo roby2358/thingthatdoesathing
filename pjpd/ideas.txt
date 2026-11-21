@@ -119,16 +119,6 @@ Open questions to settle before it becomes a task:
 - Look: a boat glyph; a line to its partner when hovered or while placing.
 ----
 Score:   50
-ID: rules-hi6e
-Created: 2026-11-17T18:38:42Z
-Updated: 2026-11-17T18:38:42Z
-
-TODO Mark this as an idea and let's talk about it.
-
-Add a rules page to Help: what each Thing and piece does, with the real numbers.
-Today Help lists keys only; the rules live in the README. Done looks like: the Help overlay gets a second page or section (toggle with a tab or Tab key) listing each card that's unlocked so far (and greyed-out ones still to come) with its picture, name and one-line rule with numbers taken from the artifacts at runtime (Spring throws 3, Rocket 8, Cannon clears 4 and lands on the 5th, Bomb clears up to 3, etc.), plus crates/big crates (worth 10), gremlins (wander, die on Traps and targets), ice and Slides (slide free, bumps move 2), water (sinks) and the milestone ladder. Numbers must come from GameArtifacts so they can't drift. SHIP.md item: ONB-4. Done when `just cc-test` passes, with a test that the rendered rule numbers match the artifacts.
-----
-Score:   50
 ID: color-67p7
 Created: 2026-11-17T18:38:42Z
 Updated: 2026-11-17T18:38:42Z
@@ -232,6 +222,16 @@ Jackpot events: rare, exciting moments where the game suddenly pays out big, a b
 - A gremlin jackpot: trapping several gremlins in one tick, or a streak of traps, pays out.
 - Slot-machine flavor: when a jackpot hits, a banner, fanfare and visual flourish play (GameSound already has a fanfare).
 Design calls to settle: what triggers it (pure chance per tick, a skill feat, or chance boosted by play); what it pays (deliveries toward milestones, cards, unlocks, score); how rare it is and how it scales with milestones or board size; whether it's seeded by the game's Rando (reproducible, which matters for the seed-words and leaderboard ideas); whether a jackpot can be missed (it appears, and you have to catch it); and how it relates to the goal-gen, level-goals and big-crate pacing ideas. Needs an interview before it becomes tasks.
+----
+Score:   50
+ID: rules-hi6e
+Created: 2026-11-17T18:38:42Z
+Updated: 2026-11-21T03:10:32Z
+
+(Done) TODO Mark this as an idea and let's talk about it.
+
+Add a rules page to Help: what each Thing and piece does, with the real numbers.
+Today Help lists keys only; the rules live in the README. Done looks like: the Help overlay gets a second page or section (toggle with a tab or Tab key) listing each card that's unlocked so far (and greyed-out ones still to come) with its picture, name and one-line rule with numbers taken from the artifacts at runtime (Spring throws 3, Rocket 8, Cannon clears 4 and lands on the 5th, Bomb clears up to 3, etc.), plus crates/big crates (worth 10), gremlins (wander, die on Traps and targets), ice and Slides (slide free, bumps move 2), water (sinks) and the milestone ladder. Numbers must come from GameArtifacts so they can't drift. SHIP.md item: ONB-4. Done when `just cc-test` passes, with a test that the rendered rule numbers match the artifacts.
 ----
 Score:   40
 ID: bomb-card-7z4j

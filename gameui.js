@@ -12,9 +12,9 @@ const GameUI = (function () {
         HEX_SIZE, COUNTER_SIZE, HOP_MS, RUN_GAP_MS, MILESTONE_MS, NOTICE_MS, REASONS, TERRAIN_COLORS, TERRAIN_NAMES, THING_LOOK,
         PIECE_LOOK, CRATE_SHADES, BIG_CRATE_SCALE, COLOR_INK, SPLAT_BLOTS, SOURCE_COLOR, PORT_NEUTRAL_MARK, PORT_OUTLINE,
         PORT_MARK_WIDTH, PORT_RING_RADII, PORT_PLUS_REACH, PORT_OUTLINE_WIDTH, BG_COLOR, UI_FONT, REACH_COLOR, MAP_SIZE_NOTES,
-        COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES, ABOUT
+        COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES, ABOUT, HELP_CARD_PX
     } = GameDisplayArtifacts;
-    const { TERRAIN, THINGS, WHITE, HAND_SIZE, MAP_SIZES, aims, cardOf, nextMilestone } = GameArtifacts;
+    const { TERRAIN, THINGS, WHITE, HAND_SIZE, MAP_SIZES, CARDS, aims, cardOf, nextMilestone } = GameArtifacts;
     const SIZE_KEYS = Object.keys(MAP_SIZES);
     // A splat burst's color, by piece kind: a gremlin's own color, a crate's side face.
     const SPLAT_COLOR = {
@@ -32,21 +32,24 @@ const GameUI = (function () {
     }
     const OVERLAY_PANELS = { intro: 'intro-panel', size: 'size-panel', news: 'news-panel', help: 'help-panel', color: 'color-panel', about: 'about-panel' };   // L5 overlay → its panel
     // L5: what a key does on each overlay. The size pickers take their number keys (and Esc
-    // when a game is behind); the news panel (new colors) and the keys legend close
-    // on any key; the color picker takes its swatch numbers and Esc; About turns its pages on
-    // ← → and closes on any other key (D-59).
+    // when a game is behind); the news panel (new colors) closes on any key; the color picker
+    // takes its swatch numbers and Esc; Help and About turn their pages on ← → and close on
+    // any other key (their Pager, D-59, D-60).
     const OVERLAY_KEYS = {
         intro: (ui, e) => ui.sizeKey(e),
         size: (ui, e) => ui.sizeKey(e),
         news: ui => ui.dismissOverlay(),
-        help: ui => ui.dismissOverlay(),
+        help: (ui, e) => ui.helpPager.key(e),
         color: (ui, e) => ui.colorKey(e),
-        about: (ui, e) => ui.aboutKey(e),
+        about: (ui, e) => ui.aboutPager.key(e),
     };
-    // About (D-59): its pages (#about-page-0…), and what a click on the panel may land on
-    // without closing it: a link, the < > buttons, the version and seed text.
+    // How many pages each paged overlay has (#help-page-0…, #about-page-0…). Help: Keys, Things
+    // (D-60; a World page joins as one more #help-page-n and a 3 here). About: credits, privacy (D-59).
+    const HELP_PAGES = 2;
     const ABOUT_PAGES = 2;
-    const ABOUT_STAYS = 'a, button, .selectable';
+    // What a click on a paged overlay may land on without closing it: a link, the < > buttons,
+    // selectable text (About's version and seed).
+    const PAGER_STAYS = 'a, button, .selectable';
     // The build's version, stamped on <html data-version> by tools/ship.js; "dev" unstamped.
     const gameVersion = () => document.documentElement.dataset.version || 'dev';
     // Every external link leaves the page (and a portal's frame) in a new tab.
@@ -353,6 +356,42 @@ const GameUI = (function () {
         return `${left} more boom${left === 1 ? '' : 's'}; Esc ends it`;
     };
 
+    // A paged overlay (D-59, D-60), shared by Help and About: its pages are #<id>-page-0…, its
+    // < > buttons #<id>-prev / #<id>-next and its counter #<id>-count ("1 / 2"), on #<id>-panel.
+    // ← → (or < >) turn the pages, clamped at the ends with the button there disabled; any other
+    // key closes it (`close`), and so does a click on the panel, unless it lands on PAGER_STAYS
+    // or ends a text selection (copying About's version).
+    class Pager {
+        constructor(id, pages, close) {
+            this.id = id;
+            this.pages = pages;
+            this.close = close;
+            this.page = 0;    // the page showing
+        }
+        el(part) { return document.getElementById(`${this.id}-${part}`); }
+        show(page) {
+            this.page = Math.max(0, Math.min(this.pages - 1, page));
+            for (let i = 0; i < this.pages; i++) this.el('page-' + i).classList.toggle('hidden', i !== this.page);
+            this.el('prev').disabled = this.page === 0;
+            this.el('next').disabled = this.page === this.pages - 1;
+            this.el('count').textContent = `${this.page + 1} / ${this.pages}`;
+        }
+        key(e) {
+            if (e.key === 'ArrowLeft') this.show(this.page - 1);
+            else if (e.key === 'ArrowRight') this.show(this.page + 1);
+            else this.close();
+        }
+        click(e) {
+            if (e.target.closest(PAGER_STAYS) || window.getSelection().toString()) return;
+            this.close();
+        }
+        wire() {
+            this.el('panel').addEventListener('click', e => this.click(e));
+            this.el('prev').addEventListener('click', () => this.show(this.page - 1));
+            this.el('next').addEventListener('click', () => this.show(this.page + 1));
+        }
+    }
+
     // D-49: commands that come in during a tick animation wait here and run when it ends. One
     // slot, the latest wins; a held command re-checks its own guards when it runs, so `flush`
     // just runs it. `busy()` says whether an animation is playing.
@@ -413,8 +452,9 @@ const GameUI = (function () {
             this.picked = null;      // L1.2 { slot, card, mode, legal: Set<key>, kind, color, from, booms } — the card in play (PICK_MODES; kind/color: what a ghost draws; from: a carried Thing's hex; booms: the hexes a Bomb has blown up, D-48)
             this.choosing = null;    // L5 { q, r, colors } — the color picker's hex and swatches, while it's open (D-32)
             this.facing = 0;         // ghost facing; remembered between placements
-            this.overlay = null;     // L5 'intro' | 'size' (board-size pickers) | 'news' (a color opened) | 'help' (the keys) | 'color' (the color picker, D-32) | 'about' (credits and privacy, D-59) | null
-            this.aboutPage = 0;      // the About page showing (D-59)
+            this.overlay = null;     // L5 'intro' | 'size' (board-size pickers) | 'news' (a color opened) | 'help' (keys, then Things, D-60) | 'color' (the color picker, D-32) | 'about' (credits and privacy, D-59) | null
+            this.helpPager = new Pager('help', HELP_PAGES, () => this.dismissOverlay());   // D-60
+            this.aboutPager = new Pager('about', ABOUT_PAGES, () => this.closeAbout());     // D-59
             this.aboutFrom = null;   // the overlay About opened over ('intro'), to go back to; null over the game
             this.hoveredHex = null;  // L1.3
             this.selected = null;    // {q, r} — a clicked hex: highlighted, holds Go; a second click turns its mover
@@ -461,7 +501,7 @@ const GameUI = (function () {
             this.showOverlay('size');
         }
 
-        // The first game, picked from the intro, opens on the keys legend.
+        // The first game, picked from the intro, opens Help on its Keys page.
         startGame(size) {
             const fromIntro = this.overlay === 'intro';
             this.engine.newGame(Math.floor(Math.random() * 0x100000000), size);
@@ -479,14 +519,46 @@ const GameUI = (function () {
             this.dismissOverlay();
             this.sound.fanfare();
             this.resize();
-            if (fromIntro) this.showOverlay('help');
+            if (fromIntro) this.openHelp();
         }
 
-        // Help: the keys legend over the game. Like every overlay it holds Go; Go picks up
-        // again when it closes.
+        // Help (D-60): a pager over the game, always opening on Keys; then Things. Like every
+        // overlay it holds Go; Go picks up again when it closes.
         showHelp() {
             if (this.overlay) return;
+            this.openHelp();
+        }
+
+        openHelp() {
+            this.helpPager.show(0);
             this.showOverlay('help');
+        }
+
+        // Help's Things page (D-60): every card, locked or not, as the hand draws it, with its
+        // name and the very line its card shows on hover (thingName / thingDoes, plain). The
+        // Keys page's Bomb line takes its count from the rules data.
+        buildHelp() {
+            const list = document.getElementById('help-things');
+            list.innerHTML = '';
+            for (const kind of CARDS) {
+                const row = document.createElement('div');
+                row.className = 'thing-row';
+                row.appendChild(cardPicture(kind, HELP_CARD_PX));
+                const text = document.createElement('div');
+                const name = document.createElement('span');
+                name.className = 'name';
+                name.textContent = thingName(kind, WHITE);
+                const does = document.createElement('span');
+                does.className = 'does';
+                does.textContent = thingDoes(kind, WHITE);
+                text.appendChild(name);
+                text.appendChild(does);
+                row.appendChild(text);
+                list.appendChild(row);
+            }
+            document.getElementById('bomb-wipes').textContent = String(cardOf('BOMB').wipes);
+            document.getElementById('help').addEventListener('click', () => this.showHelp());
+            this.helpPager.wire();
         }
 
         // About (D-59): credits, then privacy, flipped by < > or ← →. Over the game it holds Go
@@ -499,16 +571,8 @@ const GameUI = (function () {
             const board = !!this.state.hexes;
             document.getElementById('about-seed-part').classList.toggle('hidden', !board);
             if (board) document.getElementById('about-seed').textContent = String(this.state.seed);
-            this.showAboutPage(0);
+            this.aboutPager.show(0);
             this.showOverlay('about');
-        }
-
-        showAboutPage(page) {
-            this.aboutPage = Math.max(0, Math.min(ABOUT_PAGES - 1, page));
-            for (let i = 0; i < ABOUT_PAGES; i++) document.getElementById('about-page-' + i).classList.toggle('hidden', i !== this.aboutPage);
-            document.getElementById('about-prev').disabled = this.aboutPage === 0;
-            document.getElementById('about-next').disabled = this.aboutPage === ABOUT_PAGES - 1;
-            document.getElementById('about-count').textContent = `${this.aboutPage + 1} / ${ABOUT_PAGES}`;
         }
 
         closeAbout() {
@@ -516,19 +580,6 @@ const GameUI = (function () {
             this.aboutFrom = null;
             if (back) this.showOverlay(back);
             else this.dismissOverlay();
-        }
-
-        aboutKey(e) {
-            if (e.key === 'ArrowLeft') this.showAboutPage(this.aboutPage - 1);
-            else if (e.key === 'ArrowRight') this.showAboutPage(this.aboutPage + 1);
-            else this.closeAbout();
-        }
-
-        // A click on the About panel closes it, unless it landed on a link, a page button or
-        // the version/seed text, or it ended a text selection (copying the version).
-        onAboutClick(e) {
-            if (e.target.closest(ABOUT_STAYS) || window.getSelection().toString()) return;
-            this.closeAbout();
         }
 
         // The About panel's fixed parts: the author, the credits, the way back, and the feedback line only
@@ -544,9 +595,7 @@ const GameUI = (function () {
             if (ABOUT.feedbackUrl) externalLink(document.getElementById('about-feedback'), ABOUT.feedbackUrl);
             document.getElementById('about').addEventListener('click', () => this.showAbout());
             document.getElementById('intro-about').addEventListener('click', () => this.showAbout());
-            document.getElementById('about-panel').addEventListener('click', e => this.onAboutClick(e));
-            document.getElementById('about-prev').addEventListener('click', () => this.showAboutPage(this.aboutPage - 1));
-            document.getElementById('about-next').addEventListener('click', () => this.showAboutPage(this.aboutPage + 1));
+            this.aboutPager.wire();
         }
 
         resize() {
@@ -1710,10 +1759,9 @@ const GameUI = (function () {
             document.getElementById('discard').addEventListener('click', () => this.discardPicked());
             document.getElementById('size-cancel').addEventListener('click', () => this.dismissOverlay());
             document.getElementById('news-panel').addEventListener('click', () => this.dismissOverlay());
-            document.getElementById('help').addEventListener('click', () => this.showHelp());
             document.getElementById('sound').addEventListener('click', () => this.toggleMute());
             this.showMute();
-            document.getElementById('help-panel').addEventListener('click', () => this.dismissOverlay());
+            this.buildHelp();
             this.buildAbout();
             const colorPanel = document.getElementById('color-panel');
             colorPanel.addEventListener('click', () => this.closeColorPicker());

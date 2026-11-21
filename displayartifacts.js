@@ -56,6 +56,7 @@ const GameDisplayArtifacts = (function () {
         // the sorry page, with a way past it, instead of the intro.
         TOUCH_ONLY_QUERY: '(pointer: coarse) and (hover: none) and (not (any-pointer: fine))',
         SORRY_PICTURE_PX: 64,        // the Belt drawn on the sorry page
+        HELP_CARD_PX: 32,            // each card's tile on Help's Things page (D-60)
         // New Game menu note per GameArtifacts.MAP_SIZES key.
         MAP_SIZE_NOTES: {
             small:  'fits the screen',
@@ -75,23 +76,25 @@ const GameDisplayArtifacts = (function () {
             [T.MOUNTAIN]: 'Mountain — blocks',
             [T.ICE]: 'Ice — pieces slide across',
         },
-        // Per-Thing look: name, short verb line, base fill, accent, and how much of the hex
+        // Per-Thing look: name, short verb line (the card's hover text and Help's Things page,
+        // D-60; every number in it must match the rules data, test/integration/doesnumbers.js;
+        // gremlins only in the Trap's), base fill, accent, and how much of the hex
         // its tile covers. A colored kind (THINGS.colored) draws its accent in its Thing's color
         // instead (COLOR_INK); its card, not yet colored, uses COLOR_INK.white.
         THING_LOOK: {
             BELT:    { name: 'Belt',    does: 'moves what is on it 1 hex',                fill: '#3a3f47', ink: '#ffd633', inset: 0.84 },
-            SPRING:  { name: 'Spring',  does: 'flings what is on it 3 hexes, over lakes and mountains', fill: '#4a3a2a', ink: '#ff9a3c', inset: 0.84 },
-            ROCKET:  { name: 'Rocket',  does: 'blasts what is on it up to 8 hexes, over lakes, skidding on ice; splats gremlins', fill: '#4a2234', ink: '#ff5c8a', inset: 0.84 },
+            SPRING:  { name: 'Spring',  does: 'flings what is on it up to 3 hexes, leaping over lakes and mountains in between', fill: '#4a3a2a', ink: '#ff9a3c', inset: 0.84 },
+            ROCKET:  { name: 'Rocket',  does: 'blasts what is on it up to 8 hexes, leaping over lakes in between', fill: '#4a2234', ink: '#ff5c8a', inset: 0.84 },
             PUSHER:  { name: 'Pusher',  does: 'pushes what is in front of it 1 hex on',   fill: '#2c2f4a', ink: '#ffffff', inset: 0.84 },
             PULLER:  { name: 'Puller',  does: 'pulls what is 2 hexes ahead 1 hex closer', fill: '#1f4a4a', ink: '#ffffff', inset: 0.84 },
             WALL:    { name: 'Wall',    does: 'nothing gets in',                          fill: '#8a5a3c', ink: '#5c3a24', inset: 1 },
             TRAP:    { name: 'Trap',    does: 'a gremlin that comes onto it dies (crates are safe)', fill: '#3d3a33', ink: '#d9d4c7', inset: 0.84 },
             BRIDGE:  { name: 'Bridge',  does: 'carries what is on it 1 hex over water (build on water)', fill: '#a07a4a', ink: '#3d2812', inset: 0.84 },
             SLIDE:   { name: 'Slide',   does: 'what comes onto it slides on, like ice (build on plains or water)', fill: '#9fd3e6', ink: '#ffffff', inset: 0.84 },
-            CANNON:  { name: 'Cannon',  does: 'lobs what is on it over 4 hexes of anything, down on the 5th (slides on ice)', fill: '#33383f', ink: '#c9d1d9', inset: 0.84 },
+            CANNON:  { name: 'Cannon',  does: 'lobs what is on it 5 hexes, leaping over the 4 in between, whatever is on them', fill: '#33383f', ink: '#c9d1d9', inset: 0.84 },
             // A tool card (D-47): drawn in the hand only, never on the board.
             MOVER:   { name: 'Mover',   does: 'pick up a placed Thing and put it down somewhere else (Esc after the pick-up scraps it)', fill: '#3b4a2c', ink: '#c8f07a', inset: 0.84 },
-            BOMB:    { name: 'Bomb',    does: 'blow up to 5 hexes of Things, crates and gremlins, one click each (Esc after the first ends it)', fill: '#4a2620', ink: '#ff8a4c', inset: 0.84 },
+            BOMB:    { name: 'Bomb',    does: 'blow up to 5 hexes of Things and pieces, one click each (Esc after the first ends it)', fill: '#4a2620', ink: '#ff8a4c', inset: 0.84 },
         },
         // Accent per color for colored kinds: white (a card), or the crate color's lit face.
         COLOR_PICKER_PX: 84,   // the color picker's width and height (D-32), for placing it beside the hex

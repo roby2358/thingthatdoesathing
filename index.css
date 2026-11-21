@@ -184,7 +184,7 @@ html, body {
 #milestone-cards { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; font-size: 14px; }
 #milestone-cards .mcard { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
 
-/* News panel (new colors, with any cards unlocked alongside), the keys legend and About: dim the board and wait for a click or any key. */
+/* News panel (new colors, with any cards unlocked alongside), Help and About: dim the board and wait for a click or any key. */
 #news-panel, #help-panel, #about-panel {
     position: fixed;
     inset: 0;
@@ -213,6 +213,11 @@ html, body {
 }
 .help-card h1 { font-size: 22px; font-weight: 700; letter-spacing: 0.02em; margin-bottom: 12px; }
 .help-card .keys { margin-bottom: 14px; }
+/* Help's Things page (D-60): one row per card, its tile as the hand draws it, then its name and
+   the line its card shows on hover. */
+.things { display: grid; gap: 6px; text-align: left; font-size: 13px; color: var(--text-dim); margin: 0 auto 4px; }
+.thing-row { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
+.thing-row .name { color: var(--text); font-weight: 600; margin-right: 6px; }
 /* About (D-59): credits and privacy, two pages flipped by < >. Links, the buttons and the
    version/seed text don't close it; the version and seed can be selected for bug reports. */
 .about-card { width: min(480px, calc(100vw - 32px)); cursor: default; }
@@ -223,10 +228,11 @@ html, body {
 .about-card p.about-credit { color: var(--text); }
 .about-credit span { color: var(--text-dim); margin-right: 6px; }
 .selectable { user-select: text; cursor: text; font-variant-numeric: tabular-nums; color: var(--text); }
-.about-nav { display: flex; justify-content: center; align-items: center; gap: 12px; margin: 14px 0 10px; }
-.about-nav .btn { min-width: 36px; font-weight: 700; }
-.about-nav .btn:disabled { opacity: 0.35; cursor: default; }
-#about-count { color: var(--text-dim); font-size: 13px; font-variant-numeric: tabular-nums; }
+/* A paged overlay's < 1 / 2 > (Help and About, D-59, D-60). */
+.pager-nav { display: flex; justify-content: center; align-items: center; gap: 12px; margin: 14px 0 10px; }
+.pager-nav .btn { min-width: 36px; font-weight: 700; }
+.pager-nav .btn:disabled { opacity: 0.35; cursor: default; }
+.pager-count { color: var(--text-dim); font-size: 13px; font-variant-numeric: tabular-nums; }
 .about-card a { color: var(--accent); }
 .link { font: inherit; font-size: 13px; color: var(--accent); background: none; border: none; text-decoration: underline; cursor: pointer; margin-top: 10px; }
 #news-panel .continue, #help-panel .continue, #about-panel .continue { color: var(--text); font-size: 13px; opacity: 0.8; }
