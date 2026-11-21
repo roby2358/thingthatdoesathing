@@ -1,0 +1,97 @@
+// test/helpers/page.js — boot the real page (every script index.html loads, in order) in a vm
+// with a bare stub DOM, for R-rows about GameUI's boot and storage (D-67). No input driving and
+// no animation: timers and animation frames never fire. test/integration/uiboot.js has the full
+// stub that plays through the UI.
+//
+//   const page = bootPage({ storage, search: '?signin=1' });
+//   page.ui, page.state, page.engine, page.els, page.run('GameTelemetry.gameKey()')
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+const { ROOT } = require('./load');
+
+const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const scripts = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
+const pageSource = scripts.map(f => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n;\n');
+
+// A 2D context where every method is a no-op and every property is settable.
+function fakeCtx() {
+    return new Proxy({}, {
+        get: (t, k) => (k in t ? t[k] : () => ({ addColorStop() {} })),
+        set: (t, k, v) => { t[k] = v; return true; },
+    });
+}
+
+function fakeEl(tag) {
+    const el = {
+        tagName: tag, children: [], style: {}, dataset: {}, disabled: false, textContent: '', width: 0, height: 0,
+        classList: { set: new Set(), toggle(c, on) { on ? this.set.add(c) : this.set.delete(c); }, add(c) { this.set.add(c); }, remove(c) { this.set.delete(c); } },
+        addEventListener() {},
+        appendChild(c) { this.children.push(c); return c; },
+        closest: () => null,
+        getContext: () => fakeCtx(),
+        querySelector(sel) { this._q ||= {}; return (this._q[sel] ||= fakeEl(sel)); },
+    };
+    Object.defineProperty(el, 'innerHTML', { set() { el.children = []; el._q = {}; }, get: () => '' });
+    return el;
+}
+
+// A localStorage over a Map, logging every write and removal.
+function memoryStorage(entries = {}) {
+    const m = new Map(Object.entries(entries));
+    const log = [];
+    return {
+        map: m, log,
+        getItem: k => (m.has(k) ? m.get(k) : null),
+        setItem: (k, v) => { log.push(['set', k]); m.set(k, String(v)); },
+        removeItem: k => { log.push(['remove', k]); m.delete(k); },
+        clear: () => { throw new Error('nothing may clear localStorage'); },
+    };
+}
+
+class SilentAudio {
+    constructor() { this.currentTime = 0; this.state = 'running'; this.destination = {}; }
+    createPeriodicWave() { return {}; }
+    createOscillator() { return { setPeriodicWave() {}, frequency: { setValueAtTime() {} }, connect() {}, start() {}, stop() {} }; }
+    createGain() { return { gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }; }
+    resume() {}
+}
+
+// A page load. `storage` is window.localStorage (a memoryStorage, or a getter that throws when
+// `storage` is 'throws'); `search` the URL's query string. The page is a ship build on the live
+// site, so telemetry records (sending into a stub fetch).
+function bootPage({ storage = memoryStorage(), search = '' } = {}) {
+    const els = {};
+    const document = {
+        getElementById: id => (els[id] ||= fakeEl(id)),
+        createElement: tag => fakeEl(tag),
+        body: fakeEl('body'),
+        documentElement: fakeEl('html'),
+        visibilityState: 'visible',
+        addEventListener() {},
+    };
+    document.documentElement.dataset.version = 'page1234';
+    const href = 'https://ttdat.yuwakisa.com/' + search;
+    const location = { protocol: 'https:', hostname: 'ttdat.yuwakisa.com', origin: 'https://ttdat.yuwakisa.com', href, search };
+    const window = {
+        innerWidth: 1280, innerHeight: 720, devicePixelRatio: 1, location, AudioContext: SilentAudio,
+        getSelection: () => ({ toString: () => '' }), addEventListener() {},
+    };
+    if (storage === 'throws') Object.defineProperty(window, 'localStorage', { get() { throw new Error('denied'); } });
+    else window.localStorage = storage;
+    let uuids = 0;
+    const ctx = vm.createContext({
+        console, document, window, location, AudioContext: SilentAudio,
+        performance: { now: () => 0 }, requestAnimationFrame: () => {}, setTimeout: () => 0, clearTimeout: () => {},
+        navigator: { userAgent: 'Page/1.0', sendBeacon: () => true },
+        fetch: () => Promise.resolve({ status: 204 }),
+        crypto: { randomUUID: () => 'page-uuid-' + (++uuids) },
+    });
+    vm.runInContext(pageSource + '\n;globalThis.__page = { ui, state, engine };', ctx, { filename: 'page.js' });
+    const run = src => vm.runInContext(src, ctx);
+    return { ...ctx.__page, els, ctx, run, storage };
+}
+
+module.exports = { bootPage, memoryStorage };

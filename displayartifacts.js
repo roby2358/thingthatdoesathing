@@ -56,11 +56,17 @@ const GameDisplayArtifacts = (function () {
         // the sorry page, with a way past it, instead of the intro.
         TOUCH_ONLY_QUERY: '(pointer: coarse) and (hover: none) and (not (any-pointer: fine))',
         SORRY_PICTURE_PX: 64,        // the Belt drawn on the sorry page
-        // The localStorage key of this game's saved run (none is written yet; save-resume will
-        // use it). The crash screen's Start fresh removes only this key (D-63), never the mute
-        // setting ('thingfactory.muted', sound.js) or anything else; crash.js keeps a copy of the
-        // key for a crash before this file loads.
+        // The localStorage key of this game's saved run: written only just before the sign-in
+        // redirect and removed on the next boot (D-67). The crash screen's Start fresh removes
+        // only this key (D-63), never the mute setting ('thingfactory.muted', sound.js) or
+        // anything else; crash.js keeps a copy of the key for a crash before this file loads.
         SAVE_KEY: 'thingfactory.run',
+        SAVE_VERSION: 1,                 // the save's shape; a save with any other version is dropped (D-67)
+        SAVE_REDIRECT_MAX_AGE_S: 1800,   // a save older than this (seconds) is dropped, not restored (D-67)
+        // A page URL whose query string has this parameter is a return from the sign-in redirect,
+        // the only boot that restores a save (D-67). The sign-in work owns the real marker and
+        // may change how it's carried; nothing sets it yet.
+        SIGNIN_RETURN_PARAM: 'signin',
         HELP_CARD_PX: 32,            // each card's tile on Help's Things page (D-60)
         HELP_PIECE_SCALE: 1.4,       // a piece in a World picture, times its board size against the hex, so a gremlin's label still draws (D-61)
         HELP_LADDER_SHOWN: 7,        // milestones Help's World page lists before "and on" (D-61)

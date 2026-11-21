@@ -4,7 +4,7 @@
 // and requestAnimationFrame, then drives the UI through clicks and keys: pick a board size
 // from the intro, pick each card, turn the ghost, place, select and rotate, remove the selected Thing with D, wait, run tick animations to completion,
 // play to the first milestone (checking that no two pieces are ever drawn on one hex at a hop,
-// D-38), drive the color picker (D-32), the Mover's pick-up and carry (D-47), the Bomb's booms (D-48), the map-scale buttons (D-40), the Help and About pagers (D-60, D-61, D-59), the sorry page a phone gets (D-41), the crash screen (D-63), and telemetry (D-65: the page is
+// D-38), drive the color picker (D-32), the Mover's pick-up and carry (D-47), the Bomb's booms (D-48), the map-scale buttons (D-40), the Help and About pagers (D-60, D-61, D-59), the sorry page a phone gets (D-41), the crash screen (D-63), the save around the sign-in redirect (D-67: saved, then restored in a fresh page), and telemetry (D-65: the page is
 // stamped as a ship build, so its recorder sends; the intro sends nothing, the milestone game's
 // records are checked). Catches runtime errors in rendering and input wiring without a
 // browser. It can't judge how anything looks; that stays manual (U-rows).
@@ -1329,5 +1329,51 @@ run('the crash screen works with no GameUI: a boot that throws, a script that th
     n.listeners.error.forEach(fn => fn({ message: 'x', error: new Error('x') }));
     n.els['crash-fresh'].fire('click');
     if (!n.reloaded) throw new Error('Start fresh must still reload when storage throws');
+});
+// D-67: the save around the sign-in redirect. The main page plays some commands and saves; a
+// fresh page with the same localStorage and the sign-in return marker in its URL picks the game
+// up: same board, turn, tallies and hand, no intro or Help, and the save is gone.
+run('saveForRedirect, then a fresh page on the sign-in return: the same game goes on, the save is gone (D-67)', () => {
+    const stored = new Map();
+    const store = { getItem: k => (stored.has(k) ? stored.get(k) : null), setItem: (k, v) => stored.set(k, String(v)), removeItem: k => stored.delete(k),
+        clear: () => { throw new Error('nothing may clear localStorage'); } };
+    ctx.window.localStorage = store;
+    // Play: a placement, a discard, some waits, and the map at half size.
+    const slot = ui.state.hand.findIndex(c => vm.runInContext('GameArtifacts.THINGS', ctx)[c.kind]);
+    if (slot >= 0) {
+        key(String(slot + 1));
+        const legal = [...ui.picked.legal];
+        if (legal.length) { const [q, r] = legal[0].split(',').map(Number); clickHex(q, r); settle(); }
+        else key('Escape');
+    }
+    key('2'); key('x'); settle();
+    for (let i = 0; i < 4; i++) { key(' '); settle(); }
+    els['zoom-buttons'].children.find(b => b.dataset.zoom === '2').fire('click');
+    if (ui.state.turn < 5 || ui.overlay) throw new Error('expected a game some turns in, no overlay: turn ' + ui.state.turn + ', ' + ui.overlay);
+    if (!ui.saveForRedirect() || !stored.has(vm.runInContext('GameDisplayArtifacts.SAVE_KEY', ctx))) throw new Error('saveForRedirect must save a game in play');
+    const marker = vm.runInContext('GameDisplayArtifacts.SIGNIN_RETURN_PARAM', ctx);
+    const url = 'https://ttdat.yuwakisa.com/?' + marker + '=1';
+    const p = bootPointer(false, undefined, { win: { localStorage: store, innerWidth: 1280, innerHeight: 720, location: { href: url, search: '?' + marker + '=1' } } });
+    const s = p.boot.state, pui = p.boot.ui;
+    if (pui.overlay !== null || !p.els['intro-panel'].classList.set.has('hidden') || !p.els['help-panel'].classList.set.has('hidden'))
+        throw new Error('the restored page must skip the intro and the first-time Help: ' + pui.overlay);
+    const terrain = st => [...st.hexes.values()].map(h => h.q + ',' + h.r + '=' + h.terrain).join(';');
+    const pieces = st => JSON.stringify(st.pieces.map(x => [x.id, x.kind, x.q, x.r, x.color]));
+    if (s.seed !== ui.state.seed || s.size !== ui.state.size || terrain(s) !== terrain(ui.state)) throw new Error('the board differs');
+    if (JSON.stringify(s.things) !== JSON.stringify(ui.state.things) || pieces(s) !== pieces(ui.state)) throw new Error('the Things or pieces differ');
+    if (JSON.stringify(s.sources) !== JSON.stringify(ui.state.sources) || JSON.stringify(s.targets) !== JSON.stringify(ui.state.targets)) throw new Error('the ports differ');
+    for (const f of ['turn', 'delivered', 'lost', 'exGremlins', 'trapped'])
+        if (s[f] !== ui.state[f]) throw new Error(f + ' differs: ' + s[f] + ' vs ' + ui.state[f]);
+    if (JSON.stringify(s.hand) !== JSON.stringify(ui.state.hand)) throw new Error('the hand differs');
+    if (pui.zoom !== '2' || pui.scale !== ui.scale || pui.running) throw new Error('the zoom must come back and Go stay off');
+    if (stored.size !== 0) throw new Error('the save must be gone after the restore');
+    // The two pages tick on alike, the Rando stream included.
+    const a = ui.engine.wait(), b = p.boot.engine.wait();
+    if (JSON.stringify(a) !== JSON.stringify(b) || JSON.stringify(ui.engine.save()) !== JSON.stringify(p.boot.engine.save())) throw new Error('the restored game ticks differently');
+    if (pui.state.hand.length !== 3 || !p.listeners.keydown) throw new Error('the restored page must be playable');
+    // Reloaded again, with the marker still in the URL: no save, so the intro.
+    const again = bootPointer(false, undefined, { win: { localStorage: store, location: { href: url, search: '?' + marker + '=1' } } });
+    if (again.boot.ui.overlay !== 'intro' || again.boot.state.hexes) throw new Error('a second load finds no save and shows the intro');
+    delete ctx.window.localStorage;
 });
 done();

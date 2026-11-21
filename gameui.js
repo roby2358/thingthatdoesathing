@@ -12,7 +12,8 @@ const GameUI = (function () {
         HEX_SIZE, COUNTER_SIZE, HOP_MS, RUN_GAP_MS, MILESTONE_MS, NOTICE_MS, REASONS, TERRAIN_COLORS, TERRAIN_NAMES, THING_LOOK,
         PIECE_LOOK, CRATE_SHADES, BIG_CRATE_SCALE, COLOR_INK, SPLAT_BLOTS, SOURCE_COLOR, PORT_NEUTRAL_MARK, PORT_OUTLINE,
         PORT_MARK_WIDTH, PORT_RING_RADII, PORT_PLUS_REACH, PORT_OUTLINE_WIDTH, BG_COLOR, UI_FONT, REACH_COLOR, MAP_SIZE_NOTES,
-        COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES, ABOUT, HELP_CARD_PX, HELP_PIECE_SCALE, HELP_LADDER_SHOWN, WORLD_LOOK
+        COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES, ABOUT, HELP_CARD_PX, HELP_PIECE_SCALE, HELP_LADDER_SHOWN, WORLD_LOOK,
+        SAVE_KEY, SAVE_VERSION, SAVE_REDIRECT_MAX_AGE_S, SIGNIN_RETURN_PARAM
     } = GameDisplayArtifacts;
     const { TERRAIN, THINGS, WHITE, HAND_SIZE, MAP_SIZES, CARDS, PIECES, MAX_SLIDE, aims, cardOf, nextMilestone } = GameArtifacts;
     const SIZE_KEYS = Object.keys(MAP_SIZES);
@@ -442,6 +443,28 @@ const GameUI = (function () {
         }
     }
 
+    // ---- The save around the sign-in redirect (D-67): localStorage[SAVE_KEY], every touch in try/catch ----
+    // The saved run's JSON text, or null (none, or no storage).
+    function readSave() {
+        try { return window.localStorage.getItem(SAVE_KEY); } catch (e) { return null; }
+    }
+
+    function writeSave(text) {
+        try { window.localStorage.setItem(SAVE_KEY, text); return true; } catch (e) { return false; }
+    }
+
+    function dropSave() {
+        try { window.localStorage.removeItem(SAVE_KEY); } catch (e) { /* no storage: nothing to drop */ }
+    }
+
+    // Is this page load a return from the sign-in redirect? Its URL's query string carries
+    // SIGNIN_RETURN_PARAM.
+    function signInReturn() {
+        return new RegExp('[?&]' + SIGNIN_RETURN_PARAM + '(=|&|$)').test(window.location.search || '');
+    }
+
+    const unixSeconds = () => Math.floor(Date.now() / 1000);
+
     // The sorry page's "Copy link" (D-41): the share sheet where there is one, else the
     // clipboard, then onCopied. Either may be missing or refused; then nothing happens.
     function shareLink(onCopied) {
@@ -509,11 +532,65 @@ const GameUI = (function () {
                 () => shareLink(() => document.getElementById('sorry-copied').classList.remove('hidden')));
         }
 
-        // No board until a size is picked from the intro.
+        // No board until a size is picked from the intro, unless this is a return from the
+        // sign-in redirect with a good save: then that game goes on where it was (D-67).
         start() {
             this.attach();
+            if (this.restoreSaved()) return;
             this.showOverlay('intro');
             this.resize();
+        }
+
+        // D-67: save the game in play just before the sign-in redirect reloads the page: its
+        // whole state (engine.save(), the Rando stream included) and a little view context
+        // (zoom, pan, the telemetry game key, whether Go ran) under SAVE_KEY. Only the settled
+        // game is kept, never a picked card, a selection, an open overlay or a Mover/Bomb in
+        // hand; the caller backs those out first, as Esc would (a carried Thing or a Bomb's
+        // booms the engine hasn't heard of are simply not in the save). With no game in play
+        // (the intro, the New Game panel, About over the intro) it saves nothing. True if it saved.
+        saveForRedirect() {
+            const under = this.overlay === 'about' ? this.aboutFrom : this.overlay;
+            if (!this.state.hexes || under === 'intro' || under === 'size') return false;
+            const save = {
+                version: SAVE_VERSION, savedAt: unixSeconds(), state: this.engine.save(),
+                ui: { zoom: this.zoom, scale: this.scale, panX: this.panX, panY: this.panY,
+                    telemetryGameKey: GameTelemetry.gameKey(), running: this.running },
+            };
+            return writeSave(JSON.stringify(save));
+        }
+
+        // At boot (D-67): a save is read once and removed, whatever happens next. Only a
+        // sign-in return restores it, and only if it parses, has SAVE_VERSION, is younger than
+        // SAVE_REDIRECT_MAX_AGE_S and the engine takes its state; otherwise it's dropped with no
+        // message and the intro shows as usual. A restore skips the intro and first-time Help,
+        // keeps the telemetry game, puts the zoom and pan back, and leaves Go off. True if restored.
+        restoreSaved() {
+            const raw = readSave();
+            if (raw === null) return false;
+            dropSave();
+            if (!signInReturn()) return false;
+            let save;
+            try { save = JSON.parse(raw); } catch (e) { return false; }
+            if (!save || typeof save !== 'object' || save.version !== SAVE_VERSION || !Number.isFinite(save.savedAt)) return false;
+            const age = unixSeconds() - save.savedAt;
+            if (age < 0 || age >= SAVE_REDIRECT_MAX_AGE_S) return false;
+            if (!this.engine.restore(save.state).ok) return false;
+            const view = save.ui && typeof save.ui === 'object' ? save.ui : {};
+            GameTelemetry.resumeGame({ seed: this.state.seed, size: this.state.size, gameKey: view.telemetryGameKey });
+            this.setRunning(false);   // Go waits for the player, who may not remember it was on
+            this.canvas.width = window.innerWidth;
+            this.canvas.height = window.innerHeight;
+            const zoom = ZOOMS.find(z => z.label === view.zoom);
+            if (zoom && view.scale > 0 && view.scale <= 1 && Number.isFinite(view.panX) && Number.isFinite(view.panY)) {
+                this.zoom = zoom.label;
+                this.scale = view.scale;
+                this.panX = view.panX;
+                this.panY = view.panY;
+                this.clampPan();
+            } else this.centerMap();
+            this.markZoom();
+            this.dismissOverlay();   // every panel hidden (the intro's too), and the board drawn
+            return true;
         }
 
         // New Game: the size picker over the current game (Esc goes back to it).

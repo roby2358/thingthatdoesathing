@@ -142,6 +142,23 @@ const GameTelemetry = (function () {
             });
         },
 
+        // The current game's key, or null when nothing is being recorded: a save for the sign-in
+        // redirect keeps it (D-67).
+        gameKey() {
+            return game ? game.gameKey : null;
+        },
+
+        // A game restored after the sign-in redirect (D-67): recorded as startGame would, but
+        // under the key it had before the reload, so its records stay one game. The record goes
+        // again with the next batch; the Worker keeps the first it got for that key. A save
+        // with no key (nothing was recorded then) gets a fresh one, as a new game would.
+        resumeGame({ seed, size, gameKey }) {
+            guarded(() => {
+                this.startGame({ seed, size });
+                if (game && typeof gameKey === 'string' && gameKey) game.gameKey = gameKey;
+            });
+        },
+
         // Send what's queued under the current identity, then take a fresh random one (sign-in
         // adds the token side). The game and its key carry on.
         switchIdentity() {

@@ -7,18 +7,29 @@
 // GameState, and GameEngine re-seeds at the start of each new game.
 const Rando = (function () {
     let _rng = Math.random;
+    let _a = null;   // mulberry32's state while seeded; null while the source is Math.random
 
     class Rando {
         // Install a deterministic PRNG (mulberry32) driven by an integer seed.
         static seed(n) {
-            let a = n >>> 0;
+            _a = n >>> 0;
             _rng = function () {
-                a |= 0;
-                a = (a + 0x6D2B79F5) | 0;
-                let t = Math.imul(a ^ (a >>> 15), 1 | a);
+                _a = (_a + 0x6D2B79F5) | 0;
+                let t = Math.imul(_a ^ (_a >>> 15), 1 | _a);
                 t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
                 return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
             };
+        }
+
+        // The seeded stream's position, as a uint32 (null while unseeded): a saved game carries
+        // it so the restored world draws exactly what the original would have (D-67).
+        static state() {
+            return _a === null ? null : _a >>> 0;
+        }
+
+        // Put the seeded stream back at a position state() gave.
+        static setState(a) {
+            Rando.seed(a);
         }
 
         // A raw float in [0, 1) from the current source (seeded or Math.random).

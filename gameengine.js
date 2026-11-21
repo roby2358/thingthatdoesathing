@@ -194,6 +194,26 @@ const GameEngine = (function () {
             return { ok: true };
         }
 
+        // ---- Save and restore (D-67) ----
+        // The game as plain JSON data (GameState.toJSON: the whole state and the Rando stream's
+        // position), for the client to store. A query: nothing changes.
+        save() {
+            return this.state.toJSON();
+        }
+
+        // Put a saved game back: the state becomes `data`'s (the same GameState object, so
+        // whoever holds it sees the restored game), the board is rebuilt over its hexes and
+        // Rando goes back to where it stood, so it ticks on exactly as it would have. No tick,
+        // no events. Bad data → { ok: false } and nothing changed (Rando included).
+        restore(data) {
+            let restored;
+            try { restored = GameState.fromJSON(data); } catch (e) { return { ok: false }; }
+            Object.assign(this.state, restored);
+            this.board = new Board(this.state.hexes);
+            Rando.setState(data.rng);
+            return { ok: true, events: [] };
+        }
+
         // Seed Rando and build up to `attempts` maps, stopping at the first with a
         // source→target land path. Returns that {source, target} pair of hexes, or null.
         generateMap(seed, attempts) {

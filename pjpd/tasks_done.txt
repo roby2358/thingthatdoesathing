@@ -306,6 +306,31 @@ Settled design:
 
 Done when: crateCap gives 2/3/4/5 for small/medium/large/huge, the cap still grows by one per milestone, docs agree, `just cc-test` passes, and `just cc-sim 200 small` runs; report the new median turns to the first milestone (it is expected to move from 52; record the new number in the D-31 amendment, no retuning).
 ----
+Priority:   72
+Status: Done
+ID: savelogin-hf44
+Created: 2026-11-21T08:57:31Z
+Updated: 2026-11-21T10:07:28Z
+
+Save the game in the browser when the player signs in, and restore it when they come back, so signing in never costs the game in play. Sign-in (bskysignin-5sap) is a full-page redirect to auth/ and back, which reloads the page. This task is the save/restore core; save-resume-tbe3 later builds autosave and Continue on it. It comes before bskysignin-5sap, which calls it, so nothing here depends on the sign-in code: expose the two calls and test them with a simulated reload.
+
+Settled design:
+- GameState gets toJSON/fromJSON if it lacks them: the full state, including the Rando stream state and the seed, so the restored world ticks exactly as the original would have. The engine and state stay DOM-free; GameUI does the storage.
+- GameUI.saveForRedirect():
+  - Writes { version: SAVE_VERSION (1), savedAt: unix seconds, state, ui } to localStorage under GameDisplayArtifacts.SAVE_KEY ('thingfactory.run', which the crash screen's Start fresh already removes, D-63). try/catch throughout.
+  - ui is the small UI context worth keeping: map zoom and pan, the telemetry game key (so the restored game keeps its telemetry game record), and whether Go was running. Go is restored off.
+  - A picked card, selection, open overlay or held Mover/Bomb is not saved. The caller backs it out first (unpick/scrap rules as for Esc), so the save is a settled state.
+  - With no game in play (the intro, or the New Game panel), it saves nothing.
+- On boot: if the URL is a return from the sign-in redirect (bskysignin-5sap defines the marker; until then, the test can set one) and a save under SAVE_KEY exists, has the right version and is under 30 minutes old (SAVE_REDIRECT_MAX_AGE_S = 1800), restore it. That means: skip the intro and the first-time Help, rebuild GameState from it, put the UI context back, render, and remove the save. This works whether sign-in succeeded or was cancelled.
+  - A bad, old or wrong-version save is removed with no message, and boot goes on as normal.
+  - On any boot that isn't a sign-in return, remove a leftover save. save-resume-tbe3 will change that, since it keeps saves for good.
+- bskysignin-5sap's confirm ("Signing in reloads the page and ends this game") is dropped: that task now calls saveForRedirect() before redirecting. Its description says so.
+- Privacy page (About page 1): the browser-storage line becomes "Your browser keeps your settings (like mute), and your game while you sign in. It never leaves your computer." Update any test that checks it. (bskysignin-5sap and save-resume-tbe3 adjust this line further when they land.)
+- Docs: an ONTOLOGY note (the save's shape, the restore rule, SAVE_VERSION, SAVE_REDIRECT_MAX_AGE_S), a RATIONALE D-n (why save only around the redirect for now; why settled states only; why Go restores off; why the telemetry game key is kept), CRITERIA R-rows owning test/R-n/ (round trip: a mid-game state saved, rebuilt, and ticked N times matches an unsaved copy tick for tick; a bad or old save is dropped and boots normally; nothing is saved from the intro), ARCHITECTURE_LOG, CLAUDE.md, README (UI: the sign-in keeps your game).
+- uiboot.js: play some commands, call saveForRedirect(), boot a fresh stub DOM with the return marker and the same localStorage, and check the board, turn, tallies and hand match and the save is gone.
+
+Done when: just cc-test passes with the new rows and the uiboot test.
+----
 Priority:   70
 Status: Done
 ID: crash-screen-zruz

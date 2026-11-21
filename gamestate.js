@@ -1,8 +1,29 @@
 // gamestate.js — GameState
 //
 // The authoritative, serializable game data — nothing else. No DOM, no rules behavior, no
-// view/interaction state.
+// view/interaction state. toJSON / GameState.fromJSON round-trip the whole game as plain JSON,
+// the seeded Rando stream's position included (`rng`), so a saved game ticks on exactly as the
+// original would have (D-67). fromJSON only reads: it never touches Rando; the engine's
+// restore() puts the stream back once the state is known good.
 const GameState = (function () {
+    const { MAP_SIZES, TERRAIN, PIECES, CARDS, THINGS, CRATE_COLORS } = GameArtifacts;
+    const COUNTERS = ['unlocks', 'turn', 'delivered', 'lost', 'exGremlins', 'trapped', 'idleTicks', 'spawnSlot', 'nextId'];
+    const TERRAINS = new Set(Object.values(TERRAIN));
+    const KINDS = new Set(CARDS);
+
+    // A saved game that doesn't hold up throws this; the caller drops the save.
+    function need(ok, what) {
+        if (!ok) throw new Error('bad saved game: ' + what);
+    }
+    const isInt = v => Number.isInteger(v);
+    const isUint32 = v => isInt(v) && v >= 0 && v <= 0xFFFFFFFF;
+    const isList = v => Array.isArray(v);
+    const isRec = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+    const has = (table, k) => Object.prototype.hasOwnProperty.call(table, k);
+    const at = (v, what) => need(isRec(v) && isInt(v.q) && isInt(v.r), what);
+    // A deep copy through JSON, so the restored state shares nothing with the saved object.
+    const copy = v => JSON.parse(JSON.stringify(v));
+
     class GameState {
         constructor() {
             this.seed = 0;            // reproducibility anchor
@@ -24,6 +45,60 @@ const GameState = (function () {
             this.spawnSlot = 0;       // index into spawnCycle of the slot the next tick takes
             this.nextId = 1;
             this.phase = 'player';    // 'player' | 'tick'
+        }
+
+        // The whole game as plain JSON data: hexes as a list in Map order, pieces as plain
+        // records, and `rng`, the seeded Rando stream's position now (D-67).
+        toJSON() {
+            return copy({
+                seed: this.seed, size: this.size,
+                hexes: this.hexes ? [...this.hexes.values()] : null,
+                sources: this.sources, targets: this.targets,
+                pieces: this.pieces,
+                things: this.things, hand: this.hand,
+                unlocks: this.unlocks, turn: this.turn, delivered: this.delivered, lost: this.lost,
+                exGremlins: this.exGremlins, trapped: this.trapped, idleTicks: this.idleTicks,
+                spawnCycle: this.spawnCycle, spawnSlot: this.spawnSlot, nextId: this.nextId, phase: this.phase,
+                rng: Rando.state(),
+            });
+        }
+
+        // A GameState from toJSON's data, checked: anything missing, of the wrong type or naming
+        // an unknown size, terrain, piece or card throws, and nothing is built. Rando is left alone.
+        static fromJSON(data) {
+            need(isRec(data), 'not an object');
+            need(isUint32(data.seed), 'seed');
+            need(typeof data.size === 'string' && has(MAP_SIZES, data.size), 'size');
+            need(isUint32(data.rng), 'rng');
+            need(data.phase === 'player', 'phase');
+            for (const k of COUNTERS) need(isInt(data[k]) && data[k] >= 0, k);
+            need(isList(data.hexes) && data.hexes.length > 0, 'hexes');
+            data.hexes.forEach(h => { at(h, 'hex'); need(TERRAINS.has(h.terrain), 'terrain'); });
+            need(isList(data.sources) && data.sources.length > 0, 'sources');
+            data.sources.forEach(s => { at(s, 'source'); need(isList(s.colors), 'source colors'); });
+            need(isList(data.targets) && data.targets.length > 0, 'targets');
+            data.targets.forEach(t => { at(t, 'target'); need(CRATE_COLORS.includes(t.color) && isInt(t.delivered), 'target'); });
+            need(isList(data.pieces), 'pieces');
+            data.pieces.forEach(p => { at(p, 'piece'); need(isInt(p.id) && has(PIECES, p.kind), 'piece'); });
+            need(isList(data.things), 'things');
+            data.things.forEach(t => { at(t, 'thing'); need(has(THINGS, t.kind), 'thing'); });
+            need(isList(data.hand) && data.hand.every(c => isRec(c) && KINDS.has(c.kind)), 'hand');
+            need(isList(data.spawnCycle) && data.spawnCycle.length > 0 && data.spawnSlot < data.spawnCycle.length, 'spawnCycle');
+
+            const d = copy(data);
+            const s = new GameState();
+            s.seed = d.seed;
+            s.size = d.size;
+            s.hexes = new Map(d.hexes.map(h => [Hex.key(h.q, h.r), h]));
+            s.sources = d.sources;
+            s.targets = d.targets;
+            s.pieces = d.pieces.map(p => Object.assign(new Piece(p.q, p.r, p.color, p.label), p));
+            s.things = d.things;
+            s.hand = d.hand;
+            for (const k of COUNTERS) s[k] = d[k];
+            s.spawnCycle = d.spawnCycle;
+            s.phase = d.phase;
+            return s;
         }
     }
 

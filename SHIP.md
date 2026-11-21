@@ -54,7 +54,7 @@ it needs the author: it gets no pjpd task.
 | WEB-1 | HTTPS at a stable URL | T1 | partial | wrangler.jsonc claims ttdat.yuwakisa.com with a custom domain; not deployed yet | you |
 | PORT-1 | Portal upload zip | T1 | done | `just ship` writes dist/ttdat-<commit>.zip, index.html at the root (test/integration/ship.js) | |
 | WEB-2 | Only the game is deployed | T1 | done | dist/web/ holds only the files index.html loads | |
-| SAVE-1 | Progress survives a reload | T1 | missing | nothing stored anywhere; an endless run is lost on reload | save-resume-tbe3 |
+| SAVE-1 | Progress survives a reload | T1 | missing | only the sign-in redirect keeps the game (D-67); any other reload loses an endless run | save-resume-tbe3 |
 | MOB-3 | A way past the sorry screen | T1 | done | "Try it anyway" on the sorry card boots the game (D-41) | |
 | MOB-2 | Detect by capability | T1 | done | query includes `not (any-pointer: fine)` (D-41) | |
 | PORT-3 | Fits the declared frame | T1 | partial | layout fills the window; 1280x720 never checked | portal-frame-aqns |
@@ -67,9 +67,9 @@ it needs the author: it gets no pjpd task.
 | ERR-1 | Clean console on a normal run | T1 | unverified | uiboot.js plays clean on a stub DOM; needs a real-browser console check | you |
 | LOAD-1 | Works on the real host from a clean profile | T1 | unverified | host not up; all paths relative and lowercase | you, after the first deploy |
 | PLAY-1 | Played on the shipped build | T1 | unverified | endless: play a fresh run on each size past a few milestones | you |
-| MENU-5 | Continue vs New Game | T2 | missing | no save yet | save-resume-tbe3 |
-| SAVE-4 | Save format versioned | T2 | missing | no save yet | save-resume-tbe3 |
-| SAVE-8 | Seed saved with the run | T2 | missing | no save yet | save-resume-tbe3 |
+| MENU-5 | Continue vs New Game | T2 | missing | no lasting save yet (only the sign-in redirect save, D-67) | save-resume-tbe3 |
+| SAVE-4 | Save format versioned | T2 | missing | the sign-in redirect save carries `SAVE_VERSION` (D-67); no lasting save yet | save-resume-tbe3 |
+| SAVE-8 | Seed saved with the run | T2 | missing | the sign-in redirect save holds the seed and Rando position (D-67); no lasting save yet | save-resume-tbe3 |
 | ONB-4 | Rules reference on demand | T2 | done | Help is a pager: Keys, then Things (every card's picture, name and hover line, numbers checked against the rules data, D-60), then World (crates, big crates, gremlins, ice, open water, milestones, numbers from the rules data, D-61) | rules-ref-6h66 |
 | ONB-8 | A rejected action says why | T2 | partial | illegal clicks and keys are silent | reject-why-23qa |
 | INP-4 | Every action on screen | T2 | partial | D, B and R are keyboard-only | action-btns-pebc |
@@ -92,7 +92,7 @@ it needs the author: it gets no pjpd task.
 | LEGAL-5 | AI disclosure in game | T2 | done | the Decisions draft, on the About panel's first page (D-59) | |
 | OPS-2 | Version visible | T2 | done | About shows `<html data-version>` ("dev" unstamped) beside the seed, both selectable (D-59); uiboot check | |
 | OPS-1 | Feedback channel | T2 | missing | feedback link hidden until the GitHub Issues page exists (`ABOUT.feedbackUrl` is empty; the line shows once it is set) | you |
-| PRIV-3 | What is stored is stated | T2 | done | About's privacy page: what telemetry sends (moves, board size, seed, version, browser type, window size), the random per-load ID, no cookies, account, IP addresses or personal data, GPC turns it off, settings kept in the browser, map saves planned (D-59, D-65, U-33) | privacydocs-ntj5 |
+| PRIV-3 | What is stored is stated | T2 | done | About's privacy page: what telemetry sends (moves, board size, seed, version, browser type, window size), the random per-load ID, no cookies, account, IP addresses or personal data, GPC turns it off, settings and the game while you sign in kept in the browser, never leaving it (D-59, D-65, D-67, U-33) | privacydocs-ntj5 |
 | WEB-7 | A way back | T2 | done | About links yuwakisa.com, new tab (D-59) | |
 | MENU-6 | End payoff | T2 | partial | endless; milestone banners only; New Game drops the run unseen | run-stats-m6pe |
 | SAVE-7 | Player can wipe data | T2 | missing | nothing to wipe yet | wipe-data-mw24 |
@@ -144,10 +144,10 @@ are T1 as well.
 | Id | Item | Tier | Status | Evidence | Task |
 |---|---|---|---|---|---|
 | SAVE-1 | Survives reload | T1 | missing | see above | save-resume-tbe3 |
-| SAVE-2 | Storage failure survivable | T1 | n/a | nothing stored yet; save-resume and mute must meet it | save-resume-tbe3 |
-| SAVE-3 | Corrupt save doesn't brick | T1 | n/a | nothing stored yet | save-resume-tbe3 |
+| SAVE-2 | Storage failure survivable | T1 | n/a | mute and the sign-in redirect save (D-67, R-72, R-73) survive throwing storage; save-resume must meet it | save-resume-tbe3 |
+| SAVE-3 | Corrupt save doesn't brick | T1 | n/a | a bad sign-in redirect save is dropped and boots to the intro (D-67, R-72); save-resume must meet it | save-resume-tbe3 |
 | SAVE-4 | Versioned | T2 | missing | | save-resume-tbe3 |
-| SAVE-5 | Namespaced keys | T1 | n/a | nothing stored yet | save-resume-tbe3 |
+| SAVE-5 | Namespaced keys | T1 | n/a | `thingfactory.muted`, `thingfactory.run` (D-67) | save-resume-tbe3 |
 | SAVE-6 | Settings apart | T2 | missing | | settings-rrcw |
 | SAVE-7 | Wipe data | T2 | missing | | wipe-data-mw24 |
 | SAVE-8 | Seed saved | T2 | missing | | save-resume-tbe3 |

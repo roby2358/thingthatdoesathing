@@ -78,6 +78,11 @@ everything; G-2 beats G-1 (a funny interaction that can't be read is a bug, not 
 | `nextId` | int | Next piece id. |
 | `phase` | `'player' \| 'tick'` | `'tick'` only while a tick resolves inside a command. |
 
+`toJSON()` gives the whole struct as plain JSON data (`hexes` as a list in Map order, pieces as
+plain records) plus `rng`, the seeded `Rando` stream's position (`Rando.state()`, a uint32);
+`GameState.fromJSON(data)` checks that data and builds a GameState from it, or throws, and never
+touches `Rando`. The engine's `save()` / `restore(data)` wrap them (D-67).
+
 ### Hex — one map cell (plain object)
 | Field | Type | Notes |
 |---|---|---|
@@ -182,7 +187,7 @@ in one command (`bomb`, D-48).
 | `queue` | `TickQueue` — one held command (the latest wins) that came in during `anim`: X / Discard, a card's × or Shift+number, a board click with a card picked, `D`, `B`; it runs when the animation ends, re-checking its own guards; picking or putting back a card and a new game clear it (D-49, D-50). |
 | `running` | bool — Go/Pause. While true, the client calls `wait()` `RUN_GAP_MS` after each animation ends, and holds while a card is picked, a hex is selected or an overlay is open. [D] |
 | `sound` | `GameSound`, `Math.random` only; muted by the Sound button or `M`, remembered in `localStorage` (D-53). |
-| (crash screen) | Not GameUI state: `crash.js`, loaded before every other script, owns it, so it works if GameUI never booted or a script failed to load (D-63). Its window `error` / `unhandledrejection` handlers show `#crash-panel` once (`crashed`): the error, the version (`<html data-version>` or "dev") and, with a board, the seed, selectable; Go stops and keys stop reaching the game; Reload reloads; Start fresh removes only `localStorage[SAVE_KEY]` (`'thingfactory.run'`, the saved run's key, unused until save-resume) and reloads. |
+| (crash screen) | Not GameUI state: `crash.js`, loaded before every other script, owns it, so it works if GameUI never booted or a script failed to load (D-63). Its window `error` / `unhandledrejection` handlers show `#crash-panel` once (`crashed`): the error, the version (`<html data-version>` or "dev") and, with a board, the seed, selectable; Go stops and keys stop reaching the game; Reload reloads; Start fresh removes only `localStorage[SAVE_KEY]` (`'thingfactory.run'`, the saved run's key, written only around the sign-in redirect, D-67) and reloads. |
 
 ---
 
@@ -642,6 +647,7 @@ The code constant in `GameArtifacts` is the single source. A change to any rule,
 | `bomb(slot, hexes)` | `hand[slot]` is a Bomb; `hexes` 1 to `wipes` distinct board hexes, each holding a Thing or a piece | clear each: its Thing off, its piece destroyed (lost + a crate's value; a gremlin is an ex-gremlin), redraw slot, tick (D-48) | `{ok, events}` |
 | `discard(slot)` | `0 <= slot < HAND_SIZE` | redraw that slot, tick | `{ok, events}` |
 | `wait()` | always | tick | `{ok, events}` |
+| `restore(data)` | `GameState.fromJSON(data)` takes it (a known size, terrain, piece and card kinds, whole-number counters, `phase` `'player'`, `rng` a uint32) | the state becomes `data`'s (the same GameState object), the board is rebuilt over its hexes, `Rando` goes back to `rng`; no tick (D-67) | `{ok, events: []}` |
 
 Illegal → `{ ok:false }` and nothing changed (hand and `Rando` included).
 
@@ -654,6 +660,7 @@ Illegal → `{ ok:false }` and nothing changed (hand and `Rando` included).
 - `thingAt(q, r)`, `pieceAt(q, r)`, `targetAt(q, r)`, `sourceOf(color)`, `openColors()`, `isEndpoint(hex)`.
 - `unlockedKinds()`, `drawableKinds()` — the kinds open so far, and the deck the Draw rule uses.
 - `spawnKind()` — `'bigcrate'` or `'crate'` for the next spawn (Tick rule; one `Rando` roll per spawn, D-34, D-45).
+- `save()` → `state.toJSON()` — the whole game as JSON data, `rng` included; `restore` takes it back (D-67).
 - `board.*`.
 
 ### Events (each `move` with its start hop, each end with the hop it happened on)
@@ -676,6 +683,40 @@ A piece pushed into water gets a `move` whose path ends on the water hex, then `
 ### Client contract [D]
 The client reads state, calls commands and queries, never writes state, never calls
 `Rando`, and animates only from events.
+
+### Save around the sign-in redirect — GameUI [D-67]
+*Serves:* signing in (a full-page redirect and back) never costs the game in play. The sign-in
+work calls `saveForRedirect()` just before it redirects; autosave and Continue (save-resume)
+build on the same save later. The engine and state stay DOM-free; GameUI does the storage, every
+touch of `localStorage` in try/catch.
+```
+save (localStorage[SAVE_KEY], JSON):
+  { version: SAVE_VERSION, savedAt: unix seconds,
+    state: engine.save(),                              # the whole GameState, Rando's rng included
+    ui: { zoom, scale, panX, panY, telemetryGameKey, running } }
+
+saveForRedirect() → bool:
+  no board, or the intro / New Game panel / About over the intro is up: save nothing, false
+  write the save; storage refused or full: false        # never throws
+  # a picked card, selection, open overlay, carried Thing or Bomb booms are not in it: the caller
+  # backs them out first, as Esc would; what the engine hasn't heard of is simply not saved
+
+boot (GameUI.start, after the input is wired):
+  save ← localStorage[SAVE_KEY]; none: the intro, as always
+  remove it                                            # read once, whatever happens next
+  if the URL's query string has SIGNIN_RETURN_PARAM (a sign-in return)
+     and it parses, version = SAVE_VERSION, 0 ≤ now − savedAt < SAVE_REDIRECT_MAX_AGE_S
+     and engine.restore(save.state) is ok:
+    GameTelemetry.resumeGame(seed, size, telemetryGameKey)   # same game record, D-65
+    Go off; zoom and pan back (a bad view context: 1x, centered); no intro, no first-time Help
+  else: the intro, with no message                     # bad, old, wrong-version, or not a return
+```
+| Name | Value | Meaning |
+|---|---|---|
+| `SAVE_KEY` | `'thingfactory.run'` | the save's localStorage key (`GameDisplayArtifacts`; Start fresh removes it, D-63) |
+| `SAVE_VERSION` | 1 | the save's shape; any other version is dropped (D-67) |
+| `SAVE_REDIRECT_MAX_AGE_S` | 1800 | seconds a save stays good for a sign-in return (D-67) |
+| `SIGNIN_RETURN_PARAM` | `'signin'` | the query parameter that marks a sign-in return; the sign-in work owns it (D-67) |
 
 ---
 

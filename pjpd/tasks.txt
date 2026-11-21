@@ -1,33 +1,8 @@
-Priority:   72
-Status: ToDo
-ID: savelogin-hf44
-Created: 2026-11-21T08:57:31Z
-Updated: 2026-11-21T08:57:31Z
-
-Save the game in the browser when the player signs in, and restore it when they come back, so signing in never costs the game in play. Sign-in (bskysignin-5sap) is a full-page redirect to auth/ and back, which reloads the page. This task is the save/restore core; save-resume-tbe3 later builds autosave and Continue on it. It comes before bskysignin-5sap, which calls it, so nothing here depends on the sign-in code: expose the two calls and test them with a simulated reload.
-
-Settled design:
-- GameState gets toJSON/fromJSON if it lacks them: the full state, including the Rando stream state and the seed, so the restored world ticks exactly as the original would have. The engine and state stay DOM-free; GameUI does the storage.
-- GameUI.saveForRedirect():
-  - Writes { version: SAVE_VERSION (1), savedAt: unix seconds, state, ui } to localStorage under GameDisplayArtifacts.SAVE_KEY ('thingfactory.run', which the crash screen's Start fresh already removes, D-63). try/catch throughout.
-  - ui is the small UI context worth keeping: map zoom and pan, the telemetry game key (so the restored game keeps its telemetry game record), and whether Go was running. Go is restored off.
-  - A picked card, selection, open overlay or held Mover/Bomb is not saved. The caller backs it out first (unpick/scrap rules as for Esc), so the save is a settled state.
-  - With no game in play (the intro, or the New Game panel), it saves nothing.
-- On boot: if the URL is a return from the sign-in redirect (bskysignin-5sap defines the marker; until then, the test can set one) and a save under SAVE_KEY exists, has the right version and is under 30 minutes old (SAVE_REDIRECT_MAX_AGE_S = 1800), restore it. That means: skip the intro and the first-time Help, rebuild GameState from it, put the UI context back, render, and remove the save. This works whether sign-in succeeded or was cancelled.
-  - A bad, old or wrong-version save is removed with no message, and boot goes on as normal.
-  - On any boot that isn't a sign-in return, remove a leftover save. save-resume-tbe3 will change that, since it keeps saves for good.
-- bskysignin-5sap's confirm ("Signing in reloads the page and ends this game") is dropped: that task now calls saveForRedirect() before redirecting. Its description says so.
-- Privacy page (About page 1): the browser-storage line becomes "Your browser keeps your settings (like mute), and your game while you sign in. It never leaves your computer." Update any test that checks it. (bskysignin-5sap and save-resume-tbe3 adjust this line further when they land.)
-- Docs: an ONTOLOGY note (the save's shape, the restore rule, SAVE_VERSION, SAVE_REDIRECT_MAX_AGE_S), a RATIONALE D-n (why save only around the redirect for now; why settled states only; why Go restores off; why the telemetry game key is kept), CRITERIA R-rows owning test/R-n/ (round trip: a mid-game state saved, rebuilt, and ticked N times matches an unsaved copy tick for tick; a bad or old save is dropped and boots normally; nothing is saved from the intro), ARCHITECTURE_LOG, CLAUDE.md, README (UI: the sign-in keeps your game).
-- uiboot.js: play some commands, call saveForRedirect(), boot a fresh stub DOM with the return marker and the same localStorage, and check the board, turn, tallies and hand match and the save is gone.
-
-Done when: just cc-test passes with the new rows and the uiboot test.
-----
 Priority:   70
 Status: ToDo
 ID: bskysignin-5sap
 Created: 2026-11-21T08:15:47Z
-Updated: 2026-11-21T08:57:31Z
+Updated: 2026-11-21T10:03:18Z
 
 Optional "Sign in with Bluesky" for Thing Factory, through yuwakisacloud's auth/ (the bskyoidc "Sign in with Bluesky" flow starreach uses). Playing never needs it. For now, signing in only changes how telemetry counts the player. Signed out, telemetry carries a truly random ID: made fresh at every page load, kept only in memory, never stored. Signed in, it carries a salted hash of the auth/ `sub`. Later, saves and achievements build on it.
 
@@ -38,7 +13,7 @@ Settled design:
 - The client row lives in yuwakisacloud's auth/ D1, which is another repo. Write the seed SQL and steps into ttdat's README "Deploy" and leave them to the designer. Don't commit in yuwakisacloud.
 - The sign-in is offered only on the live site, when the page origin is https://ttdat.yuwakisa.com, or on localhost under wrangler dev. The portal builds (itch.io, Newgrounds iframes) and file:// show nothing: redirects break inside portal iframes.
 - UI: a "Sign in" button in the top-left bar beside Help, About and Sound, visible while playing. The same button also appears on the board-size panels (the intro and New Game), so a player can sign in before the first game. From those panels there's no confirm: on the intro no game is in play, and New Game is ending it anyway. Coming back from the redirect lands on the intro, signed in. Its title is "Sign in with Bluesky (optional)". Signed in, the button becomes a plain label showing the handle if the token's claims carry one (else "Signed in"). Signing out is task signout (a separate button), not this one. About page 1 repeats the state in one line. Sign-in is a full-page redirect and back. The button is ignored while an overlay is open, like Help.
-  - No confirm: before redirecting from the top-left bar, call GameUI.saveForRedirect() (savelogin-hf44, which comes first), and on return the game is restored and play goes on. Add the return marker to the redirect URI's state so savelogin-hf44's boot check sees a sign-in return.
+  - No confirm: before redirecting from the top-left bar, call GameUI.saveForRedirect() (savelogin-hf44, which comes first), and on return the game is restored and play goes on. Add the return marker to the redirect URI's state so savelogin-hf44's boot check sees a sign-in return. As built, the boot check (signInReturn() in gameui.js) looks for the query parameter GameDisplayArtifacts.SIGNIN_RETURN_PARAM ('signin') in the page URL; if the marker rides in the OAuth state instead, change that one function (and the constant) to match, and strip the marker/code from the URL after the restore.
 - Identity is orthogonal to play, per batch (telemetrydb-hgs4): a player can play under the random ID, sign in, keep playing under the hashed ID, sign out, and keep playing under a new random ID. On a successful sign-in, call GameTelemetry.switchIdentity(token). The game continues across the redirect (savelogin-hf44), and its next batches carry the signed-in identity.
 - Token storage: the access token goes in localStorage `thingfactory.auth` (try/catch). An expired or invalid token silently counts as signed out. No refresh tokens.
 - Telemetry: while signed in, each batch to `POST /t` carries the access token in the batch body's `token` field (reserved by telemetrydb-hgs4), not an Authorization header, so sendBeacon batches carry it too and no CORS preflight is needed. The Worker never logs or stores the token.

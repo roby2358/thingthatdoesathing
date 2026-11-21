@@ -85,6 +85,7 @@ that comes onto a target dies there, so they can't camp it.
 - About (top left, by Help; also a link on the intro): who made it, how it was made (with AI), the version and the board's seed (selectable, for bug reports), and a privacy page that lists what the game sends and says Global Privacy Control turns it off; `<` `>` or ← → turn the pages, any other key or a click closes it; ticks hold while it's open
 - If the game hits a bug, a card says so over everything, with the error and the version and seed (selectable, for a bug report), Reload, and Start fresh (drops any saved game, in case it's what broke, and reloads; the sound setting stays)
 - New Game: pick a board size (click or `1`–`4`); Esc keeps the current game
+- Signing in keeps your game: just before the sign-in page the game is saved in this browser, and when you come back (signed in or not) it picks up where it was, map zoom included, with Go off; a save more than 30 minutes old is dropped. Any other reload still starts at the intro (sign-in itself is still to come)
 
 ## Deploy
 
