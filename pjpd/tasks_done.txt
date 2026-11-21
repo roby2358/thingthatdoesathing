@@ -1,0 +1,468 @@
+Priority:   95
+Status: Done
+ID: mobile-lock-twxz
+Created: 2026-11-12T16:37:41Z
+Updated: 2026-11-13T18:03:20Z
+
+On a phone or tablet, show a friendly "sorry" page instead of the intro screen: the game needs a mouse and keyboard (hover, right-click, R/D/B/X keys, wheel), so touch devices can't play it yet.
+
+- Detect at boot, before the intro overlay: treat it as mobile when the primary pointer is coarse and there's no hover — `matchMedia('(pointer: coarse) and (hover: none)')` — rather than user-agent sniffing (decide and log if a UA fallback is needed). A touchscreen laptop with a mouse must still get the game.
+- The sorry page replaces the intro/size picker: no board generated, no engine started, no input handlers that matter. Styled like the existing panels (index.css tokens, centered card), readable at phone width (16px side gutters, no horizontal scroll). Content: the game's name, a short line on what it is, a kind "this one needs a mouse and keyboard — try it on a computer" message, and maybe a small static picture of a crate/Belt drawn with the existing art. Tone: gentle, not an error.
+- No way to bypass needed (decide and log whether a small "play anyway" link is worth it; default: no).
+- Plain <script> globals, runs from file:// like the rest; no new libraries.
+
+Docs: README (who can play), CLAUDE.md (L5 overlays / boot), RATIONALE new D-n, ARCHITECTURE_LOG, CRITERIA U-row (manual check on a phone or a mobile emulator). Test: extend test/integration/uiboot.js with a stub matchMedia that reports a coarse/no-hover pointer → the sorry page shows, the intro doesn't, and no game state is created; the default (fine pointer) boots as today. `just cc-test` green.
+----
+Priority:   90
+Status: Done
+ID: input-queue-pyi5
+Created: 2026-11-17T18:16:12Z
+Updated: 2026-11-17T18:43:43Z
+
+X (discard) and hex clicks with a card picked are dropped while a tick animation plays; queue them for when it ends.
+
+Problem: with Go running, a tick animation is playing almost all the time. Picking a card works mid-animation, but `discardPicked()` (gameui.js, `if (this.overlay || this.anim || !this.picked) return;`) and the picked branch of `handleClick` (`if (this.anim) return; // L1.1 a place (or a pick-up) waits for the tick`) silently drop the input, so X only registers in the short RUN_GAP_MS gap between ticks and the player has to press it several times. `removeSelected()` (D) and `blastHovered()` (B) drop input the same way.
+
+Settled design:
+- Add a one-slot queue on GameUI: `this.queued = null` (a function). When one of these commands arrives during `this.anim`, store a closure that re-runs it instead of dropping it; the latest input replaces any earlier queued one.
+- Commands that queue: X / the Discard spot (`discardPicked`), a board click while a card is picked (factor the picked branch of `handleClick` into a method taking the hex, captured at click time), `D` (`removeSelected`), `B` (`blastHovered`, capturing the hovered hex's q, r at keypress, not at run time).
+- The queued closure re-checks its own guards when it runs (overlay open, no card picked, a different card picked, etc.) and does nothing if they fail. Re-entering the original method is fine since the guards are at its top.
+- Clear `this.queued` in `pick()` (picking or switching a card), `unpick()` (Esc/right-click back-out), and wherever a new game resets `this.anim` (startGame).
+- `finishAnim()` takes `this.queued`, sets it to null, and runs it after its `render()` and before `scheduleRun()`. If the milestone/news overlay opened in that same finishAnim, the closure's overlay guard drops it.
+- The engine state is already post-tick during an animation (the animation is view-only), so `picked.legal` computed mid-animation is current; no recomputation needed.
+- No change to Go's holding rules (a picked card or selection still holds Go).
+- Document it in CLAUDE.md's Input architecture (the "input waits for the tick animation" dispatch note: these commands wait and fire, not drop), UI_CONTROLS.md if it states the drop, and an ARCHITECTURE_LOG.md entry; a short RATIONALE.md D-n (or amendment of the D-n covering input during animation, if one exists) as a user-reported fix.
+
+Done when: a new test in test/integration/uiboot.js turns Go on, catches a tick mid-animation (the existing pattern `for (let i = 0; i < 40 && !ui.anim; i++) advance(50);`), picks a card and presses X; the card is not discarded yet, then after `settle()` the discard has run (turn advanced by one, card slot redrawn). A second case: queue X, then press Esc before the animation ends; nothing is discarded. `just cc-test` passes.
+----
+Priority:   90
+Status: Done
+ID: port-look-jtj4
+Created: 2026-11-13T17:40:16Z
+Updated: 2026-11-13T18:12:54Z
+
+Redraw sources and targets (gameui.js drawSource / drawTarget / drawPort) so each one fills its whole hex with its color. The terrain underneath doesn't need to show: skip the terrain fill or paint over it.
+
+- Target: fill the hex with its crate color (CRATE_SHADES[t.color]). On top, draw 2 concentric circles (rings) in a lighter shade of that color, centered and sized to sit well inside the hex.
+- Source: fill the hex with its color. On top, draw a plus (+, crossed lines) that spans the hex, roughly vertex to vertex or edge to edge, whichever reads better, in a lighter shade of that color.
+- "Its color" for a source: a source makes one or more crate colors (`src.colors`). Single color: fill with that crate color. Several colors: decide and log a design call. Default: split the fill into equal wedges or stripes, one per color in `src.colors` order, with a neutral light plus over the top. If a source has no open color yet, fall back to SOURCE_COLOR (or a neutral fill).
+- Drop the old look: the glowing ring outline (drawPort), the "IN" and ★ labels, the black inner line on targets, and the color pips under sources (the fill now says which color it is). Keep a thin dark hex outline if pale colors (yellow, green) would otherwise blend into plains next to them. Check this against every crate color.
+- Lighter shade: derive it in one place, e.g. a CRATE_SHADES entry (`light`) or a helper that mixes toward white. No hand-picked hex values per color. Colors live in displayartifacts.js.
+- Draw order: sources and targets go under pieces (a crate standing on a source or target still shows). Hover and the selection outline still draw on top. Works at every map scale (D-40). These are shapes, not text, so the MIN_TEXT_PX gate doesn't apply, but keep line widths readable at 1/2.
+- The hover bar and help legend may describe sources and targets as "IN" and "★": update any wording that names the old marks.
+
+Docs: README (how sources and targets look), RATIONALE new D-n (why fill plus marks over rings plus labels; the multi-color source call), ARCHITECTURE_LOG line, CRITERIA U-row (manual look check), pjpd/decisions.md for any agent calls. `just cc-test` green (uiboot boots the renderer on a stub canvas).
+----
+Priority:   85
+Status: Done
+ID: spawn-cycle-jisb
+Created: 2026-11-13T17:44:19Z
+Updated: 2026-11-13T18:23:47Z
+
+Crate production cycles through the colors instead of rolling one random open color every SPAWN_INTERVAL (3) ticks.
+
+Designer's rule:
+- At the start of the game, shuffle CRATE_COLORS (all 4: red, green, blue, yellow) into a spawn sequence using the game's Rando, so the order is seeded and reproducible. Store it in GameState (e.g. `spawnCycle` plus a `spawnSlot` index replacing `spawnTimer`) so it survives toJSON/fromJSON.
+- Every tick, advance one slot. If that slot's color is open on this board, its source makes a crate of that color, as long as the board is under the crate cap (crateMax) and the source hex is clear; otherwise nothing comes that tick. If that color isn't open (yet), the tick is a wait.
+- So on a 1-color board (small) you get a crate, then 3 waits, then a crate, and so on (one every 4 ticks, against one every 3 today). On a 4-color board (huge) with all colors open, a crate comes every tick, one of each color per round. A color opened at a milestone (openColor) starts producing when its slot comes round. The shuffle is fixed for the whole game; it is not reshuffled at milestones.
+- The big-crate roll (bigCrateChance, D-34) stays per spawn as today.
+- A blocked source or a full board skips that slot's crate; it doesn't hold the cycle or retry. Decide and log if retrying looks better in the sim.
+- SPAWN_INTERVAL goes away (or becomes unused: remove it, no dead constant). The cycle length is CRATE_COLORS.length. Data-driven, no per-size special cases.
+
+Note: this changes pacing: slower on small boards, and much faster on big boards once several colors are open. Run `just cc-sim 200 small` and `just cc-sim-to 100 small 5` (plus a medium run) before and after, and record the numbers in RATIONALE. Flag it if the crate cap (crateCap) now binds constantly on big boards; don't retune the cap in this task, just report.
+
+Update: ONTOLOGY (the spawn rule and the new state fields), CRITERIA (rewrite the spawn rows: seeded shuffle, one slot per tick, closed slot = no crate, blocked/capped = skipped; tests in their test/R-n dirs), RATIONALE new D-n superseding the D-31 spawn timing (keep the cap), ARCHITECTURE_LOG, README and CLAUDE.md where they say "every SPAWN_INTERVAL ticks"/"a random open color", the thingfactory-tools skill if it mentions it, and test/sim.js if it reads spawnTimer. Agent calls go in pjpd/decisions.md. `just cc-test` green.
+----
+Priority:   80
+Status: Done
+ID: cannon-first-xkni
+Created: 2026-11-17T08:27:22Z
+Updated: 2026-11-17T18:54:19Z
+
+Swap the Cannon and the Rocket in the card-unlock order, so the Cannon unlocks first.
+
+Goal: the Cannon arrives one milestone before the Rocket. UNLOCKS in artifacts.js becomes: Belt/Bridge/Wall/Trap, Pusher/Puller, Slide, Spring, Mover, Cannon, Rocket, Bomb (the Bomb stays last).
+
+Settled design: only the order of those two steps changes; no other numbers or rules. Update every place that states the order: artifacts.js UNLOCKS and its comment, ONTOLOGY.md (UNLOCKS numbers row / any rule text naming the order), CRITERIA.md rows that name it, CLAUDE.md, README.md, and any tests that assert the order or which milestone unlocks the Rocket or Cannon (grep for ROCKET/CANNON near unlock). Record it as a user call (an amendment on the decision that set the order, or a new D-n) in RATIONALE.md and add an ARCHITECTURE_LOG.md entry.
+
+Done when: UNLOCKS lists CANNON before ROCKET, the docs agree, `just cc-test` passes, and `just cc-sim 200 small` still runs (median near 52).
+----
+Priority:   80
+Status: Done
+ID: card-discard-jen3
+Created: 2026-11-17T02:45:30Z
+Updated: 2026-11-17T18:50:07Z
+
+Discard a card in one action: a red X on each hand card, and Shift+1/2/3.
+Today discarding takes two steps (pick a card, then the Discard spot or X). Done looks like: each card in the hand shows a small red X button in its corner (visible on hover of the card, or always at low opacity); clicking the X discards that card at once through engine.discard(slot), exactly as pick-then-Discard does (one tick, same sound and animation), without picking it first. Shift+1, Shift+2, Shift+3 discard slot 1/2/3 in a single keypress: read the slot from e.code ('Digit1'..'Digit3', also 'Numpad1'..) with e.shiftKey, since e.key gives '!' '@' '#' on US layouts and other characters elsewhere. Both are ignored when the card can't be discarded right now: while an overlay is open, during the tick animation (like a place), while the Mover is carrying a Thing or a bomb has boomed. If a card is picked and its own X or Shift+number is used, that card is discarded; if a different card is picked, the picked one goes back first. Add both to the help legend in index.html, the README controls, CLAUDE.md's input section and the Discard spot's tooltip; record a D-n in RATIONALE and an ARCHITECTURE_LOG entry; add uiboot checks for the X click and Shift+2. Done when `just cc-test` passes.
+----
+Priority:   80
+Status: Done
+ID: port-clears-kh58
+Created: 2026-11-13T17:45:48Z
+Updated: 2026-11-13T18:40:50Z
+
+When a milestone opens a color and reveals a new source or target (openColor), the new endpoint takes its hex whatever is on it: Things, gremlins and crates are all cleared. Today, freeEndHexes skips any hex holding a Thing or a piece, so a built-up or gremlin-filled end slice can leave fewer spots, or none, and openColor returns null.
+
+Designer's rule (settled):
+- Candidate hexes for a new source (left slice) or target (right slice) no longer exclude hexes with a Thing or a piece. They still exclude existing sources and targets, still need terrain where an endpoint can stand, and the target still needs a land path from its source (board.hasPath, which already runs on terrain only). No preference for empty hexes: pick uniformly over every candidate.
+- On reveal, everything on that hex goes:
+  - A Thing is removed (no card back to the hand).
+  - A gremlin is destroyed and counts as an ex-gremlin (exGremlins, not trapped).
+  - A crate is destroyed and counts as lost, whatever its color and whether the hex becomes a source or a target. C'est la vie.
+- An enhanced source (a color added to an existing source) changes nothing on the board; only newly placed hexes clear.
+
+Events: emit what the animation needs, e.g. the existing splat/fade for the gremlin or crate plus a remove for the Thing, at the end of the tick next to the `open` event. The tally updates from state. Keep `open{color, source, target}` as is; no new overlay.
+
+Docs: ONTOLOGY (the openColor rule), CRITERIA (rewrite the R-38 placement row(s): reveal clears a Thing, kills a gremlin (+1 ex-gremlin), destroys a crate (+1 lost), and opens even when every end hex is occupied; tests in the test/R-n dirs), RATIONALE new D-n (designer-settled), ARCHITECTURE_LOG, README if it describes where colors open. Agent calls go in pjpd/decisions.md. `just cc-test` green; run `just cc-sim-to 100 medium 5` to confirm colors still open.
+----
+Priority:   80
+Status: Done
+ID: lockstep-ritf
+Created: 2026-11-12T07:59:56Z
+Updated: 2026-11-12T08:31:03Z
+
+Rewrite the tick's movement as a lockstep, hop-by-hop simulation so results don't depend on Thing placement order and the animation replays exactly what the engine did.
+
+WHY (bugs today): Things act one at a time in placement order, and a piece blocked by another piece just stops. (a) A Rocket crate lands on ice, skids, is blocked by a crate on a Belt that is carried away later in the same tick, and is left stuck on bare ice for good. (b) Two crates nose to tail on a Belt line built back-to-front (the natural build order): the back crate stalls a tick, so packed trains spread to every other hex. (c) A packed ring of Belts never moves. Also the UI can show two crates overlapping on one hex when a late-leaving bumped piece's hex is entered early by another mover.
+
+DESIGN (settled by the user):
+- Each tick, every piece that gets a motion (from its Thing, a wander, a bump) advances one hex per hop, all pieces together. Hop k in the engine = hop k in the animation.
+- Per hop: every moving piece proposes its next hex. A proposal succeeds if the hex is free, or its occupant succeeds in moving out this hop (resolve chains recursively). A chain whose front fails fails behind it. A cycle of proposals (3+ pieces, e.g. a packed ring) all succeed and rotate. A 2-piece head-on swap fails. Two pieces wanting the same hex: the piece moved by the earlier-placed Thing wins, the other is blocked.
+- A blocked piece STOPS for the rest of the tick (no stall/retry; may get fancier later).
+- Sinks, deliveries, Traps, splats happen at the hop they occur; the freed hex is open from the next hop.
+- Pushers/Pullers keep priority (D-24): when they and another Thing both claim a crate, they win; they act first and either succeed or fail.
+- Bumps (D-33) become motion that starts mid-tick: at the contact hop the line starts advancing BUMP_ADVANCE, the bumper follows from the next hop and ends right behind it. Each piece still gets at most one motion per tick (bumped pieces count).
+- Ice/Slide skids continue hop by hop. Every landing still slides (D-37) except after a gremlin splat.
+- Flights: a flight meets whatever is on a hex at that hop. A flight blocked by a stationary/ground piece behaves as today (Rocket splats gremlins; on slick ground it bumps; else it comes down). NEW: a mid-air collision blows up the item — two airborne pieces entering the same hex on the same hop (or swapping) are both destroyed (crates count as lost, value lost like today's losses; emit splat/explode events). Log the exact interpretation in decisions.md.
+- comeDown: mountains and targets don't move, so a flight's landing spot is trimmed at launch (D-35 back-up rule computed up front). The Cannon's cleared-hex landing check (groundTakes: Walls/pieces) needs a rule for lockstep — decide, log it.
+- Gremlins pick their wander direction at hop 1 from current occupancy.
+- Events: one move event per piece with its path plus a start hop (replacing by/byAt). The UI plays tracks by hop from the start hop; no track overlaps another at any hop.
+
+DONE WHEN: ONTOLOGY/CRITERIA/RATIONALE/ARCHITECTURE_LOG reconciled (new D-n for lockstep; D-24, D-33, D-35, D-36, D-37 updated); new CRITERIA rows + tests for: back-to-front Belt train moves together, Rocket skid past a crate carried off the same tick, packed ring rotates, swap fails, same-hex tie goes to placement order, mid-air collision destroys both, an invariant check that no two pieces share a hex at any hop (engine + uiboot); existing tests updated where seeded outcomes shift; `just cc-test` green; `just cc-sim 200 small` and `just cc-sim-to 100 small 5` run and compared to before in the log.
+----
+Priority:   75
+Status: Done
+ID: crate-start-gtz5
+Created: 2026-11-17T09:05:23Z
+Updated: 2026-11-17T18:59:12Z
+
+Start each board with a much smaller crate cap: small 2, medium 3, large 4, huge 5, still +1 per milestone.
+
+Goal: early play has only a few crates on the board, and the count climbs as milestones are reached. Today `crateCap(size)` in artifacts.js is 0.6 × √area (small 8, medium 12, large 18, huge 36), plus one per milestone reached (gameengine.js crate cap = crateCap(size) + milestonesReached(delivered)).
+
+Settled design:
+- Replace the √area formula with a per-size number: add `crates` to each MAP_SIZES row (small 2, medium 3, large 4, huge 5), and have `crateCap(size)` return `MAP_SIZES[size].crates`. Remove CRATE_CAP_PER_ROOT and its export.
+- Keep the +1 per milestone reached exactly as it is (D-31). Nothing else about spawning changes (the D-43 color cycle, big-crate chance, a clear source).
+- Docs: amend D-31 in RATIONALE.md as a user call (the √area cap is replaced by 2/3/4/5 per size; the +1 per milestone stands), update ONTOLOGY.md (the numbers row and any rule text naming the cap), CRITERIA.md (R-19 and any row that names the cap values), CLAUDE.md (the Tick bullet's "small 8 … huge 36"), DYNAMICS.md if it cites the cap, and add an ARCHITECTURE_LOG.md entry.
+- Tests: fix any test that asserts the old cap values (grep crateCap, CRATE_CAP, R-19) so it checks the new ones.
+
+Done when: crateCap gives 2/3/4/5 for small/medium/large/huge, the cap still grows by one per milestone, docs agree, `just cc-test` passes, and `just cc-sim 200 small` runs; report the new median turns to the first milestone (it is expected to move from 52; record the new number in the D-31 amendment, no retuning).
+----
+Priority:   70
+Status: Done
+ID: slide-trans-4pqk
+Created: 2026-11-17T19:31:37Z
+Updated: 2026-11-17T19:37:14Z
+
+Count the slide cap in slick-to-slick moves: at most 3, so a piece covers at most 4 slick hexes in a row.
+
+Today (D-52, MAX_SLIDE: 4 in artifacts.js; walkedInto / skidInto / slidInto in gameengine.js) every slick hex a ground motion enters without spending one of its steps counts, including the first one entered from non-slick ground, and the motion stops on the 4th counted hex. So a crate a Belt pushes onto ice stops on the 4th ice hex, but a piece that lands on ice (a skid) or already stands on ice goes 4 hexes past its start, 5 slick hexes in all.
+
+Settled design (user):
+- Count only moves from a slick hex to another slick hex (slick = isSlick: bare ice or a Slide). Entering the first slick hex from non-slick ground, or landing from the air, doesn't count.
+- At most 3 such moves per motion; on the 3rd the piece stops there, as if blocked, even with more slick ahead. So any run covers at most 4 slick hexes: a Belt push onto a long ice run still stops on the 4th ice hex (unchanged); a skid after landing on ice stops 3 hexes past the landing hex; a piece standing on ice moved onto more ice stops 3 hexes on.
+- MAX_SLIDE becomes 3 with its comment saying it counts slick-to-slick moves (keep the name).
+- Everything else in D-52 stands: per motion, reset each tick; flights don't count; the D-33 bump advance and the bumper's follow don't count; whatever entering a hex does (sink, deliver, Trap, bump, target block) still happens on the hexes reached; a capped piece has had its motion. The D-54 "sliding gremlin" test (last step slid free) is unaffected unless it reads MAX_SLIDE; check.
+- Docs: amend D-52 in RATIONALE.md as a user call (count slick-to-slick moves, 3, at most 4 slick hexes), update ONTOLOGY.md (Motion table, pseudocode, numbers table, slides entry), CRITERIA.md R-65 wording, CLAUDE.md and README.md if they state the cap, and add an ARCHITECTURE_LOG.md entry.
+- Tests: update test/R-65/slide_cap.js to the new counts (a Belt push onto 8 ice stops on the 4th ice hex; a long run of Slides the same; a skid after a Spring landing on ice stops 3 past the landing; a piece standing on ice stops 3 on; a run of 3 slick hexes unchanged), and re-check test/R-32/rocket_flight.js (the Rocket landing on a long ice run, now stopping at 11) and any other slide/skid test for the new stopping hex.
+
+Done when: the rule counts slick-to-slick moves with MAX_SLIDE 3, the docs agree, `just cc-test` passes, and `just cc-sim 200 small` runs (report the numbers).
+----
+Priority:   70
+Status: Done
+ID: slide-max-u2s8
+Created: 2026-11-17T03:30:43Z
+Updated: 2026-11-17T19:06:45Z
+
+Cap a slide at 4 hexes: a piece slides over at most 4 slick hexes in a row, then stops.
+Today slick ground (bare ice or a Slide, `isSlick`, D-29) is free in the Motion rules: a piece on the ground keeps going the same way for as long as the slick hexes last, both in a `ground` motion (slick doesn't use up its `n`) and in a `skid` after a landing (D-37). New rule: in one motion, a piece can travel at most 4 hexes by sliding (hexes entered on slick ground beyond its normal step count); when it enters its 4th free slick hex it stops there, as if blocked, even if more ice lies ahead. Settled details: the count is per motion and resets each tick; non-slick ground still costs a ground motion's `n` as now; a skid after a landing counts the same 4; airborne hexes (a flight) don't count; the D-33 bump advance (the line moves 2) is unchanged and doesn't count as sliding; everything that happens on entering a hex (sink, deliver, Trap, bump, target block) still happens on the hexes it does reach. Put the number in artifacts.js as a tunable (e.g. MAX_SLIDE = 4) and the D-n's rationale. Add a CRITERIA R-row with a test dir (a long ice run stops after 4; a skid after a Spring landing stops after 4; a run of 3 is unchanged), update any existing slide/skid tests that assumed unlimited slides, record a D-n in RATIONALE, and reconcile ONTOLOGY (the Motion table and pseudocode), CLAUDE.md and ARCHITECTURE_LOG. Run `just cc-sim 200 small` and `just cc-sim-to 100 small 5` and report the change in turns per milestone. Done when `just cc-test` passes.
+----
+Priority:   70
+Status: Done
+ID: tool-ghost-fewq
+Created: 2026-11-17T02:55:56Z
+Updated: 2026-11-17T03:06:15Z
+
+Show a picked tool card's ghost under the mouse in pick-up mode, like any other picked card.
+Today a picked Mover (or Bomb) draws no ghost on the board until its first click: PICK_MODES.pickup has ghost: false in gameui.js. The user wants: pick the Mover, and its green cross ghost appears and follows the mouse over every board hex (not only the legal ones, which are sparse, the hexes with Things); click a Thing, and that Thing is lifted from the map and follows the mouse the usual way (carry mode, unchanged). The Bomb's pick-up gets the same ghost (the bomb follows the mouse until the first boom). Done looks like: a pick mode can say its ghost follows the mouse over any board hex; pickup uses that; build and carry keep showing it on legal hexes only; the ghost hides no Thing (picking up replaces nothing). Note it in D-47 (RATIONALE), CLAUDE.md's pick-mode line and an ARCHITECTURE_LOG entry. Done when `just cc-test` passes.
+----
+Priority:   70
+Status: Done
+ID: nullhas-7q2s
+Created: 2026-11-12T03:28:16Z
+Updated: 2026-11-12T03:35:55Z
+
+Thing Factory: fix "Uncaught TypeError: Cannot read properties of null (reading 'has')" that the designer saw in the browser shortly after the page loads, before the map is displayed (reported 2026-11-12). Something calls .has() on a Set or Map that is still null at startup: likely candidates in gameui.js are the legal-placement set (from engine.legalPlacements), the selected/replace-target lookups, the moved set, or any render/hover/overlay path that runs before newGame() has built state (e.g. the intro size-picker overlay, a resize or mousemove event, or the first render). Find every `.has(` in gameui.js (and gameengine.js) and trace which can see null before the first game exists. It may also have been a mid-edit load while an agent was changing files, so first reproduce: extend test/integration/uiboot.js (stub DOM) to fire the startup sequence and early events (mousemove/hover, resize, keydown, wheel) before a size is picked, and confirm whether it throws. Fix the real cause (initialize to an empty Set, or don't run that path until a game exists) rather than adding scattered null guards; the project prefers fail-fast, so a guard only where "no game yet" is a legitimate state. Add the regression check to uiboot. Reconcile CRITERIA (a U-row or the uiboot row) and ARCHITECTURE_LOG. Run just cc-test.
+----
+Priority:   65
+Status: Done
+ID: bridge-belt-zguc
+Created: 2026-11-11T15:58:58Z
+Updated: 2026-11-11T20:39:28Z
+
+Thing Factory: give the Bridge a built-in belt so it pushes the piece on it in its facing direction, like a Belt over water. Right now a crate that reaches a bridge just stops there, which is annoying. That makes the Bridge a facing mover: it rotates on click, has a ghost facing, and is included in aims(kind). Check that the order of the tick and the "each piece moves at most once" rule still hold. Update THING_LOOK so the arrow shows on the bridge. Reconcile ONTOLOGY / CRITERIA (+ test/R-n for the bridge push) / RATIONALE / log, and the hover verb line.
+----
+Priority:   60
+Status: Done
+ID: mute-button-twa8
+Created: 2026-11-17T02:32:23Z
+Updated: 2026-11-17T19:09:09Z
+
+Add a mute button to Thing Factory. A "Sound" button sits in the top button row next to Help (index.html, the row with Wait / New Game / Help). It toggles all sound on and off: when muted, every GameSound cue is silent (add a muted flag to sound.js, e.g. GameSound.setMuted(bool) / isMuted(), checked at the single point where cues play; muting must not create the AudioContext). The button shows its state (label "Sound: on" / "Sound: off", or a speaker glyph with a struck-through version, plus a title tooltip) and the M key toggles it too (M isn't bound yet), working at any time, including mid-animation and with a card picked, but not while an overlay that eats keys is open (follow how OVERLAY_KEYS dispatch works). The choice is remembered per player in localStorage (key like "thingfactory.muted"), with every read and write wrapped in try/catch so the game still runs from file:// or with storage blocked (default: sound on). Sound and the mute flag stay client-only; the engine never sees them. Add M to the help legend in index.html and the README controls list, note it in CLAUDE.md's input section, add a short RATIONALE D-n (next free number) and an ARCHITECTURE_LOG entry; add a UI check to test/integration/uiboot.js that clicking the button and pressing M flip the muted flag (stub DOM, no real audio). SHIP.md item: AUD-2 (Tier 1). Done when `just cc-test` passes.
+----
+Priority:   60
+Status: Done
+ID: bomb-booms-mp74
+Created: 2026-11-17T02:27:24Z
+Updated: 2026-11-17T02:32:17Z
+
+Change how the Thing Factory Bomb card plays: each click blows up its hex right away instead of marking it with a ring. The flow becomes: pick the Bomb card, click a hex (boom), click another (boom), click a third (boom), and the bomb is done; or click (boom) then Esc/right-click/Discard, which ends the bomb and uses up the card. Esc or right-click before the first boom still puts the card back with no tick. Ticking is unchanged: the booms themselves don't tick, and the world ticks exactly once when the bomb ends (after the 3rd boom, or Esc/right-click/Discard after at least one). Settled implementation: keep the engine's atomic `bomb(slot, hexes)` command and its rules exactly as they are (D-48, R-64); this is a UI change only. In gameui.js's `bomb` pick mode, a legal click plays the hex's burst (and splat for any crate/gremlin, with the splat sound) immediately and from then on draws that hex as cleared (its Thing and piece hidden, and gone from the hover bar), replacing the red ring-and-cross mark drawing (remove the mark look and its color from displayartifacts.js if nothing else uses it). The card text updates to show how many booms are left. When the bomb ends, send the single `bomb` call as now; when its events animate, don't replay the bursts/splats for the hexes already shown blowing up (the rest of the tick animates normally). Update test/integration/uiboot.js's Bomb flow if it checks marks, and reconcile D-48 (RATIONALE), ONTOLOGY/CRITERIA/README/help legend/CLAUDE.md wording about marks, plus an ARCHITECTURE_LOG entry. Done when `just cc-test` passes.
+----
+Priority:   60
+Status: Done
+ID: mover-card-82t7
+Created: 2026-11-17T01:46:16Z
+Updated: 2026-11-17T02:13:42Z
+
+Add a Mover card to Thing Factory. Picking the Mover card from the hand puts the player in a "pick up" mode. If the player presses Esc or right-clicks before picking anything up, the card goes back and stays in the hand, and nothing ticks. Clicking a Thing on the map removes that Thing from the board; from that moment the card is spent, and it becomes that Thing (same kind, and keeping its color for a Pusher/Puller), ready to place like any other card (legal placements, facing with R/wheel, the color picker if it applies). If the player picks up a Thing and then backs out (Esc or right-click) instead of placing it, the Thing is destroyed, the card is gone, and the world ticks once. Decided: the pick-up click does not tick; only the final placement ticks, so the whole move is one tick (the engine should take it as one command, e.g. pick-up hex plus placement hex/facing/color, or the backed-out case as a destroy that ticks once). Clicking a hex with no Thing in pick-up mode does nothing. The sim bot in test/sim.js just discards Mover cards; it's mainly a cleanup card. Rarity: dealt rarely, through the same mechanism the Pusher and Puller use (D-32). Unlock order: the Mover's unlock step goes right after the Spring's step in UNLOCKS (artifacts.js), so the order becomes Belt/Bridge/Wall/Trap, Pusher/Puller, Slide, Spring, Mover, Rocket, Cannon (Rocket and Cannon each unlock one milestone later). A Bomb card with a similar pick-then-click UI is planned (last in UNLOCKS); build the Mover's pick-up mode so the Bomb can share it. Reconcile ONTOLOGY, CRITERIA (a new R-row with a test dir), RATIONALE (a new D-n), ARCHITECTURE_LOG, CLAUDE.md and the UI controls notes in the same change. Also add THING_LOOK/hand display for the card.
+----
+Priority:   60
+Status: Done
+ID: slide-weight-6ibn
+Created: 2026-11-12T02:39:06Z
+Updated: 2026-11-12T02:45:13Z
+
+Thing Factory: raise the Slide card's draw weight from 1 to 2 (designer, 2026-11-12), matching Wall and Spring, so Slides show up more often. Change THINGS.SLIDE.weight in artifacts.js; update the weight in the ONTOLOGY numbers table, the draw-weight row/test (CRITERIA R-27 and test/R-27 if it pins weights), RATIONALE (the Slide entry, D-29: note the designer's change and why — Slides felt rare because they unlock after the first milestone and had weight 1), and a dated ARCHITECTURE_LOG line (newest first). Run just cc-test and just cc-sim 200 small and just cc-sim 50 medium; report the sim before/after (expect little change to the first milestone, since the Slide unlocks at or after it).
+----
+Priority:   60
+Status: Done
+ID: replace-es7n
+Created: 2026-11-11T15:54:12Z
+Updated: 2026-11-11T20:45:50Z
+
+Thing Factory: placing a card on a hex that already holds a Thing replaces that Thing, so the player no longer has to press D (remove) and then place. Update legalPlacements so occupied Thing hexes are legal (targets and other illegal hexes stay illegal). place() removes the old Thing and puts the new one down as one command and one tick. Decide whether D/remove stays as its own command (probably yes, for clearing a hex). Reconcile ONTOLOGY (place rule), CRITERIA row + test/R-n, RATIONALE, ARCHITECTURE_LOG, and the UI ghost and highlight on occupied hexes.
+----
+Priority:   55
+Status: Done
+ID: grem-splat-263u
+Created: 2026-11-17T02:42:56Z
+Updated: 2026-11-17T19:18:06Z
+
+Thing Factory: a sliding gremlin that bumps into another piece goes splat. Today (D-33 bumping) when a moving piece runs into a piece standing on slick ground (bare ice or a Slide) with no motion of its own, the bumped piece's line advances 2 hexes and the bumper follows to right behind it. New rule, for a gremlin that is sliding (moving across slick ground, its skid/slide motion) when it makes such a bump: if the bumped piece is a crate (or big crate), the crate moves its 2 hexes as usual, but the gremlin doesn't follow; it splats where it is, at the hop of the bump. If the bumped piece is another gremlin, both gremlins splat at that hop and neither moves on. Splatted gremlins count as ex-gremlins and re-emerge per their template, like any other gremlin splat; emit the existing `splat` events (with `hop`) so the UI animates it with no UI change. Unchanged: a sliding crate bumping anything; a non-sliding gremlin bumping (a gremlin walking or pushed onto a piece, not on slick ground); a sliding gremlin that is simply blocked (Wall, mountain, a piece not on slick ground) stops as now. Make it data-driven if it fits (e.g. a field on the gremlin template in PIECES such as `splatsOnSlideBump`), not a kind check in the engine. Add a CRITERIA R-row with a test dir (crate case, gremlin-gremlin case, and a non-sliding gremlin bump staying as before), a RATIONALE D-n, and reconcile ONTOLOGY, CLAUDE.md and ARCHITECTURE_LOG. Done when `just cc-test` passes and `just cc-sim 200 small` runs clean.
+----
+Priority:   55
+Status: Done
+ID: bomb-card-w466
+Created: 2026-11-17T01:51:18Z
+Updated: 2026-11-17T02:24:27Z
+
+Add a Bomb card to Thing Factory, a cleanup card that wipes up to 3 hexes. Picking the Bomb card from the hand arms a bomb. If you press Esc or right-click before the first clear, the card goes back and stays in the hand, nothing happens and nothing ticks. Clicking a hex that holds anything (a Thing, a crate or a gremlin) clears the whole hex: the Thing is removed, a crate counts as lost (loseValue), a gremlin counts as an ex-gremlin. From that first clear on the card is spent, but the bomb stays armed for 2 more clears (3 in all). Clicking an empty hex does nothing and doesn't use a clear. Sources and targets themselves can't be bombed (a piece standing on one can be). The bomb ends after the 3rd clear, or when the player presses Esc or right-clicks after at least one clear; either way the world ticks exactly once when the bomb ends (the clears themselves don't tick). Engine: one command taking the list of 1 to 3 hexes, so the whole bomb is a single atomic command that returns { ok, events } and ticks once; it fails with ok:false and changes nothing if any hex is empty, off the board, a source/target hex, or listed twice. The UI collects the clicks (showing which hexes are marked for clearing) and sends the command when the bomb ends. Events: per cleared hex, a Thing removal plus the existing splat event for any piece, so the animation can play it as a burst. Rarity: dealt rarely, through the same mechanism the Pusher and Puller use (D-32). Unlock: last in UNLOCKS (artifacts.js), after the Cannon's step. The sim bot in test/sim.js discards Bomb cards. The pick-then-act UI is close to the Mover card's (pick, click on the board, Esc backs out), so if the Mover is built first, share its pick-up mode. Reconcile ONTOLOGY, CRITERIA (a new R-row with a test dir), RATIONALE (a new D-n), ARCHITECTURE_LOG, CLAUDE.md, README card list, help legend and UI controls notes in the same change. Add THING_LOOK/hand display for the card.
+----
+Priority:   55
+Status: Done
+ID: cannon-card-93j7
+Created: 2026-11-12T02:37:04Z
+Updated: 2026-11-12T03:01:20Z
+
+Thing Factory: add a Cannon Thing (card). It is a facing mover: like the Spring and Rocket, it launches the piece standing on it in its facing, here 5 hexes. Designer rule (2026-11-12): the shot ignores ALL terrain and items for the first 4 hexes (water, mountains, Walls, pieces, gremlins: it passes over them and does not splat gremlins the way a Rocket does), then moves into the 5th hex normally, as an ordinary ground step: it can be blocked, bump a line on ice or a Slide (D-33 rule: the line advances 2, the mover ends 1 past the hit hex), sink in open water, deliver on its own color's target, be stopped by another color's target, or trigger a Trap. Default when the 5th hex is blocked: the piece comes down on the 4th hex if that is a legal landing (not water without a Bridge/Slide, not a mountain, not a Wall, not holding a piece); otherwise it doesn't fire at all. Record that default in RATIONALE as unreviewed. Unlock: the Cannon is the last unlock step, after the Rocket (add it to UNLOCKS in artifacts.js). Draw weight: low like the Rocket's; pick it and note why. Make it data-driven: reuse the flight code with THINGS fields (e.g. a throw distance plus a "clears N hexes" value) rather than a kind check, so the Spring's mountain hop and the Cannon share one path. Add THING_LOOK (name, verb line, colors) and a glyph in gameui.js, and make sure the milestone banner and news panel show it when it unlocks. Reconcile ONTOLOGY / CRITERIA (new R-n row + test/R-n: clears water, mountains, a Wall and a piece over 4 hexes; 5th hex sinks, delivers, blocked → lands on 4th, blocked with an illegal 4th → no fire, bumps a line on ice; unlock order) / RATIONALE / ARCHITECTURE_LOG / DYNAMICS / README / CLAUDE.md. Run just cc-test and just cc-sim 200 small and just cc-sim 50 medium.
+----
+Priority:   55
+Status: Done
+ID: crate-cap-hybj
+Created: 2026-11-11T15:54:02Z
+Updated: 2026-11-11T21:18:02Z
+
+Thing Factory: switch crate spawning from a fixed SOURCE_INTERVAL timer to a population cap. There is a max number of crates on the board that scales with board area (like the gremlin count). Every third tick, if the crate count is below the max, spawn one at a random open color's source, as long as the source is clear. Each completion raises the max by one. "Completion" isn't settled yet: it means each milestone reached, or maybe each delivery, so ask the user before building. Add the max (or a bonus counter) to GameState and pick tunable base constants in artifacts.js. Retune with just cc-sim on every size, and reconcile ONTOLOGY / CRITERIA / RATIONALE / DYNAMICS / log plus the spawn tests.
+----
+Priority:   55
+Status: Done
+ID: card-unlock-aszw
+Created: 2026-11-11T15:58:55Z
+Updated: 2026-11-11T21:06:14Z
+
+Thing Factory: unlock cards gradually. A new game draws only Belt, Bridge and Wall. Each milestone unlocks the next card: first Pushers and Pullers, then Springs, and Rocket last. The user didn't place Trap (or the planned Slide card) in this order, so ask. Make the unlock order a data list in artifacts.js, and have the draw filter THINGS to what's unlocked before weighting. Add a field to GameState for unlocked kinds or the unlock index. The milestone should emit an event, and the UI should announce the new card, maybe on the same panel as a new color or one like it. Decide whether cards already in hand are kept as they are. Retune with cc-sim: the bot only uses Belts and Springs, so early games get Belts only. Reconcile ONTOLOGY / CRITERIA (R-27 draw weights, R-6 starting hand) / RATIONALE / DYNAMICS / log.
+----
+Priority:   54
+Status: Done
+ID: reject-why-23qa
+Created: 2026-11-17T02:45:07Z
+Updated: 2026-11-17T19:22:32Z
+
+When a click or key does nothing, say why in the hover bar.
+Today rejected actions are silent: clicking a hex that isn't a legal placement, a bare hex in Mover pick-up mode, D with nothing selected, B with no crate under the cursor, a card or Wait while carrying or mid-bomb. Done looks like: each of these shows a short reason in the hover bar for a couple of seconds ("Can't build on water", "Pick a Thing to move", "Select a Thing first, then D", "Put the Thing down or Esc first"); strings kept in one place in displayartifacts.js; no sound. SHIP.md item: ONB-8. Done when `just cc-test` passes.
+----
+Priority:   52
+Status: Done
+ID: key-mods-dsxi
+Created: 2026-11-17T02:44:27Z
+Updated: 2026-11-17T19:26:16Z
+
+Ignore game keys when Ctrl, Alt or Meta is held, so browser shortcuts work and don't act.
+Today gameui.js onKeyDown acts on letters with modifiers held: Ctrl+D (bookmark) also removes the selected Thing, Ctrl+R (reload) also turns the ghost, Ctrl/Cmd+number picks a card, and Space/Enter are preventDefault'ed even with modifiers. Done looks like: onKeyDown (and the overlay key path) returns early without preventDefault when e.ctrlKey, e.altKey or e.metaKey is set; Shift stays allowed (Shift+R turns the other way). Add a uiboot or unit check that Ctrl+D doesn't remove a Thing. SHIP.md item: INP-1. Done when `just cc-test` passes.
+----
+Priority:   52
+Status: Done
+ID: meta-tags-dagy
+Created: 2026-11-17T02:44:57Z
+Updated: 2026-11-17T19:24:07Z
+
+favicon is the rocket symbol.
+
+Add a meta description, favicon and link-preview tags to index.html.
+Today index.html has only the title. Done looks like: a meta description (the pitch's first sentence), an inline SVG favicon (data: URL, a crate or hex drawn in the game's colors), and og:title, og:description, og:url (https://ttdat.yuwakisa.com/), og:image (absolute URL to a 1200x630 preview image path; the user supplies the image from real play, so use a fixed filename like og.png and list it in SHIP.md as waiting on the user), and twitter:card summary_large_image. SHIP.md items: WEB-3, WEB-4. Done when the tags are in index.html and `just cc-test` passes.
+----
+Priority:   51
+Status: Done
+ID: sorry-past-zwbb
+Created: 2026-11-17T02:44:25Z
+Updated: 2026-11-17T19:30:59Z
+
+Let phone/tablet visitors past the sorry screen, detect touch better, and offer copy-link.
+Today the sorry page (D-41, index.js, TOUCH_ONLY_QUERY '(pointer: coarse) and (hover: none)') is a hard block, and a tablet with a mouse attached still gets it. Done looks like: the query also requires that no fine pointer is attached ('(any-pointer: fine)' false); the sorry card gets a "Try it anyway" button that boots the normal game (build state, engine and UI then, as index.js does on desktop); and a "Copy link" button (navigator.share when present, else clipboard copy of location.href with a "copied" note) so they can come back on a computer. Keep the existing copy and picture. Update D-41 in RATIONALE, the R-row that tests the boot check, and docs. SHIP.md items: MOB-2, MOB-3, MOB-5. Done when `just cc-test` passes.
+----
+Priority:   50
+Status: Done
+ID: bigcrate-odd-755q
+Created: 2026-11-13T18:07:27Z
+Updated: 2026-11-13T18:49:22Z
+
+Fix the big-crate spawn rate. Today bigCrateChance(m) = m / (m + BIG_CRATE_HALF) (artifacts.js; m = milestones reached; BIG_CRATE_HALF is 4, so 0% at the start, 20% after the first milestone, 56% by the 5th). That's far too generous early.
+
+Designer's curve:
+- 1% at the start (m = 0).
+- Rising to 5% by the 5th milestone (m = 5). Default: linear in between, 1% + 0.8%·m (1, 1.8, 2.6, 3.4, 4.2, 5%).
+- After that, easing up toward 100% asymptotically as milestones pass: never reaching it, growing gently. Default shape: chance(m) = 1 − 0.95·r^(m−5) for m > 5, continuous at m = 5 (5%). Pick r with the sim; a starting guess is r = 0.85 (m = 6 → 19%, m = 10 → 58%, m = 15 → 81%). If that ramps too fast, a slower r or a logistic is fine. Decide and log; the designer's constraints are the three points above (1% start, 5% at the 5th, asymptotic to 100%).
+- Keep it one function of m in artifacts.js with named tunables (e.g. BIG_CRATE_START 0.01, BIG_CRATE_AT_FIFTH 0.05, BIG_CRATE_EASE r); remove BIG_CRATE_HALF if it goes unused (no dead constants). The engine's per-spawn roll (D-34) is unchanged: only the chance changes. Big crates are still worth 10.
+
+Expect pacing to slow after the first few milestones, since big crates carried a lot of the advancement (bot, small, to the 5th milestone: about 44/67/90/127/183 turns now). Run `just cc-sim-to 100 small 5` and a medium run before and after; record turns per milestone and big crates spawned in RATIONALE. Report if milestone gaps now balloon (that may feed back into the separate idea about how big crates drive advancement); don't retune anything else.
+
+Docs: ONTOLOGY (the chance formula and numbers), CRITERIA (rewrite the big-crate chance row: 1% at m = 0, 5% at m = 5, strictly increasing, < 1 always; tests in its test/R-n dir), RATIONALE D-34 update or new D-n superseding its curve, ARCHITECTURE_LOG, README/CLAUDE.md where they quote the curve. Agent calls go in pjpd/decisions.md. `just cc-test` green.
+----
+Priority:   50
+Status: Done
+ID: map-zoom-8cwk
+Created: 2026-11-12T08:49:28Z
+Updated: 2026-11-12T16:28:47Z
+
+Add four map-scale buttons labelled "1", "2", "4" and "∞" (infinity) that zoom the board view: 1 = full size (today's HEX_SIZE), 2 = half size, 4 = quarter size, ∞ = fit the whole board to the canvas (largest scale, capped at 1x, at which every hex is visible). Today there is no zoom at all — everything draws at the fixed HEX_SIZE (displayartifacts.js) with screen-space pan (panX/panY in hexToScreen/screenToHex); big boards (30x30, 60x60) need lots of panning.
+
+- UI only (gameui.js, index.html, index.css, displayartifacts.js for the scale list); the engine never sees the scale.
+- One view scale factor applied everywhere geometry is drawn or hit-tested: hex paths, Things, crates/big crates, gremlin counters, ghost, selection outline, facing arrows, reach overlays, splat blots, port/source/target marks, and screenToHex. Keep the color picker overlay positioning right (it uses HEX_SIZE offsets).
+- Tiny text is hidden (user's call): any on-map text/label that would draw below a readable size (pick a min px constant in displayartifacts.js) is skipped. No other simplified renderings in this task — just scale the existing art; simplified level-of-detail drawing is a separate idea for later, after playtest. Keep the draw code easy to give a detail switch later, but don't build one.
+- Zooming keeps the point at the canvas center fixed (re-center pan) and clamps pan so the board can't be dragged entirely off-screen.
+- Fit (∞) computes the scale ONCE, at the moment the button is pressed, from the current canvas size. Window resizes are ignored entirely — no resize handling for any mode (user's call). After a fit, the result is just a scale like any other.
+- Every new game starts at 1x (user's call). The active button is highlighted.
+- Buttons only, no number-key shortcuts: keys 1–3 already pick cards. Mouse wheel already turns the ghost, so don't bind wheel to zoom.
+- Place the buttons with the other HUD controls; they must not overlap the hand, tally or Go/Wait buttons at small window sizes.
+- Animations (hop tracks) and the milestone banner keep working at every scale.
+
+Docs: README (controls), CLAUDE.md input section, UI_CONTROLS references if relevant, RATIONALE new D-n, ARCHITECTURE_LOG, CRITERIA U-row (manual check of look at each scale). Tests: extend test/integration/uiboot.js — clicking each scale button changes the scale and screenToHex(hexToScreen(h)) round-trips at every scale; a click on a hex at 1/4 scale still places/selects the right hex; ∞ on a 60x60 board makes the whole board fit the canvas; a new game resets to 1x. `just cc-test` green.
+----
+Priority:   50
+Status: Done
+ID: rocket-skid-v7ky
+Created: 2026-11-12T02:51:08Z
+Updated: 2026-11-12T03:12:29Z
+
+Thing Factory: pieces thrown by a Rocket or a Cannon should slide on when they land on ice, the way a Spring's landing skids today (designer, 2026-11-12). Make it data-driven: set the `skids` flag in THINGS (artifacts.js) to true for ROCKET and CANNON and check that the engine's skid path (isSlick: bare ice or a Slide Thing) handles an 8-hex Rocket flight and the Cannon shot with no kind check. Cannon specifics: its 5th hex is already an ordinary ground step, so check whether a step onto ice there already slides (as a Belt push onto ice does) and make sure the slide happens exactly once, not twice; its fallback landing on the 4th hex (when the 5th is blocked) should skid on too if the designer's rule allows, decide and record. The skid is a ground move after landing, so it follows the normal rules: it sinks in open water, delivers on its own color's target, stops at a Wall, a mountain or another color's target, triggers a Trap, and bumps a line on ice or a Slide per D-33 (the line advances 2, the mover ends 1 past the hit hex). Decide and record as unreviewed in RATIONALE: whether a Rocket landing that comes down short (blocked mid-flight) skids (the Spring's short landing doesn't, per D-35), and whether gremlins splatted in flight change anything. Update the Rocket's and Cannon's THING_LOOK verb lines if it fits. Reconcile ONTOLOGY (Thing fields, flight/skid pseudocode), CRITERIA (Rocket and Cannon rows + test/R-n: landing on ice skids, on a Slide skids, skid into water sinks, skid bumps a line, short landing per the decision, Cannon 5th-hex slide happens once), RATIONALE (the Rocket and Cannon entries; D-29 currently says a Rocket doesn't skid on a Slide, so update it), ARCHITECTURE_LOG (dated, newest first), DYNAMICS/README/CLAUDE.md one-liners. Run just cc-test, just cc-sim 200 small and just cc-sim 50 medium.
+----
+Priority:   50
+Status: Done
+ID: push-order-ptbd
+Created: 2026-11-11T15:59:05Z
+Updated: 2026-11-11T21:21:50Z
+
+Thing Factory: decide whether Pushers and Pullers act first in a tick (now) or last. Acting first means they take the crate before a Belt under it moves it, so a Pusher next to a belt line diverts crates. Acting last means they catch crates that belts just delivered in front of them, which may read more naturally ("the belt brings it, the pusher shoves it on"). Each piece still moves at most once a tick either way. Write a RATIONALE entry with both options and concrete examples, like a Pusher at a belt corner, a Puller reaching over a belt, and a Pusher feeding a Spring. Bring a recommendation to the user before changing anything. If it flips: change the order in tick(), update the R-n test for order, ONTOLOGY tick rule, D-entry, log, and run cc-sim.
+----
+Priority:   50
+Status: Done
+ID: slide-card-3um8
+Created: 2026-11-11T15:59:01Z
+Updated: 2026-11-11T20:54:22Z
+
+Thing Factory: add a Slide card, a placeable Thing that acts like ice. A piece that steps onto it keeps sliding in the same direction for free, the way it does on bare ice in step(). Ideally this is one THINGS flag (e.g. `slides: true`) that the ice check in step() also reads, so there's a single code path for terrain ice and Slide Things. A Slide can be placed on water, like a Bridge [D]: it makes the water hex crossable, and the piece slides over it. Use the Bridge's water-legal placement rule and its "not sunk" check, plus the slide behavior. Add a draw weight, a THING_LOOK, and a spot in the card-unlock order if that's built. Open question: does a Spring landing on a Slide skid on, the way it does on ice? Reconcile the docs, add an R-n test (including a slide across water), and run cc-sim.
+----
+Priority:   45
+Status: Done
+ID: delete-sel-rcax
+Created: 2026-11-12T08:09:36Z
+Updated: 2026-11-12T08:35:26Z
+
+Pressing D removes the Thing on the selected (highlighted) hex only, never the hex under the mouse. Today D calls engine.remove on the hovered Thing (gameui.js key handling; UI_CONTROLS/CLAUDE.md input notes). Change: D acts on `selected` (the hex chosen by a bare map click, outlined); with no selected hex, or no Thing on it, D does nothing. After a successful remove, clear the selection. Decide and log whether B (blast the hovered crate) should follow the same rule — default: leave B as is and note it in RATIONALE as a possible follow-up. Update CLAUDE.md input section, UI_CONTROLS references if any, README controls/help overlay text (keys legend), RATIONALE (new D-n), ARCHITECTURE_LOG; extend test/integration/uiboot.js: select a hex with a Thing, move the hover elsewhere, press D → the selected Thing is removed and the hovered one isn't; D with no selection removes nothing. `just cc-test` green.
+----
+Priority:   45
+Status: Done
+ID: color-picker-8h4x
+Created: 2026-11-11T15:54:06Z
+Updated: 2026-11-11T21:37:06Z
+
+Thing Factory: Pusher and Puller cards are drawn white and get their color when placed. Placing one pops up a small square color picker near the Thing, one swatch per open crate color. The pick sets the Thing's color for good: no recoloring later, and it moves only crates of that color (plus gremlins). This reverses the current rule where cardColor() draws an open color at draw time. Open questions: does a white Pusher or Puller act before it's picked? Does the picker block the tick or Go (probably an overlay like the color panel)? Is the pick part of the place command (place(kind, q, r, facing, color)) or a separate free command like rotate? With one color open, skip the picker and use that color. Reconcile the engine, the UI overlay, ONTOLOGY / CRITERIA (R-27 draw colors) / RATIONALE D-22 / log, and uiboot.
+----
+Priority:   40
+Status: Done
+ID: slide-no-ice-nrq5
+Created: 2026-11-12T08:05:10Z
+Updated: 2026-11-12T08:41:02Z
+
+A Slide can't be placed on bare ice — it would do nothing (ice is already slick). Today the Slide builds on plains, ice and water (not mountain). Remove ice from its legal terrain: legalPlacements('SLIDE') must exclude ice hexes, and place() must reject a Slide on ice (ok:false, nothing changes). Replace-on-place: a Slide also can't replace another Thing standing on ice (the replacement must be legal on the bare terrain, D-28). Update ONTOLOGY (Slide's `on`/legal terrain), the Slide CRITERIA row and its test (add: Slide on ice is illegal, absent from legalPlacements), RATIONALE D-29 (note why: no point), ARCHITECTURE_LOG. `just cc-test` green.
+----
+Priority:   40
+Status: Done
+ID: big-crate-jat8
+Created: 2026-11-11T15:54:09Z
+Updated: 2026-11-11T21:56:47Z
+
+Thing Factory: add a large crate worth 10 deliveries. Each spawn has some chance of being a big crate instead of a normal one, and that chance grows with each milestone reached, approaching 1.0 without ever hitting it. Candidate formula: p = 1 - (1 - BIG_CRATE_BASE)^milestones, or p = m / (m + BIG_CRATE_HALF). Both are tunable constants in artifacts.js. Model it as a new PIECES template, or a value field on crate pieces, worth 10 toward delivered and the target's delivered count, and draw it bigger. Decide how it behaves under Spring, Rocket, wreck and sink (probably the same as a crate, so losing one costs 10 to the lost tally). Milestones can jump past several thresholds at once, so check that milestone and open events still fire for each threshold crossed. Reconcile the docs, add an R-n test, and run cc-sim.
+----
+Priority:   40
+Status: Done
+ID: bump-6nee
+Created: 2026-11-11T16:00:22Z
+Updated: 2026-11-11T21:45:43Z
+
+Thing Factory: bumping. Right now a piece that moves into a hex holding another piece is blocked. Change it so that when the blocking crate is standing on ice (terrain ice, and Slide Things if that card is built), the mover stops and passes its motion on: the bumped crate slides off in the same direction, like a billiard ball, using the normal ice slide in step(). The bumper stays where it was, or takes the freed hex; pick one and write it down. Decide: does a bumped crate that slides into another crate on ice set off a chain? Probably yes, but cap it at the board, because each piece moves at most once a tick, so a piece already moved can't be bumped again. Do gremlins bump, and can they be bumped? Do airborne Spring or Rocket landings bump? What about a piece bumped into water, a mountain or a Wall (sinks, blocked)? Emit move events for the bumped crate so the animation shows it. Reconcile ONTOLOGY (step rule) / CRITERIA + test/R-n / RATIONALE / DYNAMICS / log, and run cc-sim.
+----
+Priority:   40
+Status: Done
+ID: colorthings-3nq7
+Created: 2026-11-10T23:26:44Z
+Updated: 2026-11-11T00:25:47Z
+
+Thing Factory (ideas/thingthatdoesathing): add colored pullers and pushers. These are color-keyed variants of the Puller and the pushers (Belt, and maybe Spring/Rocket) that act only on crates of their own color (red, green, blue, yellow), so a player can sort a mixed line toward each color's destination. Open questions to settle with the user first: which movers get colored variants; whether a colored mover ignores gremlins or still moves them; whether colored cards replace plain ones or are added to the deck with their own weight; and how the card and glyph show the color. Depends on the multi-color sources and destinations feature (each color has its own source and destination). Reconcile ONTOLOGY/CRITERIA/RATIONALE/ARCHITECTURE_LOG and add test/R-n/ for the new rule.
+----
+Priority:   35
+Status: Done
+ID: pjpd-review-sgyf
+Created: 2026-11-12T08:55:13Z
+Updated: 2026-11-12T19:10:00Z
+
+NOTE: this work belongs in the pjpd project itself (/work/pjpd, the pjpd MCP tool's own repo: SPEC.md, rust/, pjpd/tasks.txt), NOT in Thing Factory. It's parked here so it isn't forgotten — move it to /work/pjpd/pjpd/tasks.txt (or do it from a session in /work/pjpd) and mark this one done.
+
+Review pjpd and improve it. Principle: keep a paucity of commands — extend existing ones rather than adding new ones.
+1. Trim the tool responses. put_task/mark_task_done/etc. echo the whole task description back (often 2–3 KB per call), which costs tokens on every call. Return just id, status, priority and a short message by default; full text only on list/get or a verbose flag.
+2. Idea <-> task flow, with NO links between ideas and tasks (too much baggage):
+   - Idea → tasks: an idea goes through an interview process (the agent asks the user questions until the idea is concrete) that produces one or more fully fleshed-out tasks via the existing put_task; the idea is then closed with the existing mark-idea-done. No new command; the process lives in the SKILL.md (what a task needs before it's ready: goal, settled design calls, done-when).
+   - Task → idea: a task that isn't fleshed out enough moves, whole (full text), back to ideas — via the repurposed mark command below, not a new command.
+3. Repurpose and expand mark_task_done into one mark command: mark tasks (one or more ids) as `done`, `verified`, or `idea`. `done` = implemented by an agent; `verified` = the user has reviewed/played it (from done, or straight from todo); `idea` = demote: the task's full text becomes a new idea and the task is removed. All ids must exist or nothing changes (as today). Consider the rename (e.g. pjpd_mark_task) vs keeping the old name — decide, and keep the command count the same or lower.
+4. Split the done file (today tasks_done.txt) into done and verified files to match, and let list_tasks filter by status (todo/done/verified) via its existing show_done-style parameter (replace the boolean with a status filter rather than adding a command).
+5. Write a SKILL.md for pjpd: when to use tasks vs ideas vs epics, the interview process for turning ideas into tasks, when to mark a task back to `idea`, done vs verified, tag naming (describe the task, not the project; max 12 chars, alphanumerics and hyphens), priorities, the agent-loop workflow (one task per agent, decisions log, mark done after commit, the user marks verified).
+6. Keep the change in the pjpd repo's own docs (SPEC.md, README_API.md) and its own task list.
+----
+Priority:   30
+Status: Done
+ID: rationale-ok-cpnp
+Created: 2026-11-12T08:09:31Z
+Updated: 2026-11-12T08:44:58Z
+
+The user reviewed every loop decision (D-24 addendum and D-27 through D-37, plus the review-round updates to D-29/D-30/D-31/D-33) and accepted them all. In RATIONALE.md, remove the *unreviewed* tags from those entries (mark them accepted/reviewed 2026-11-12), and tidy any wording that still says "agent call, needs review" or offers an alternative the user has since settled (e.g. D-24 push order: keep Pushers/Pullers first — settled; D-31: sqrt cap is current, linear version is history). Don't touch entries added by the in-flight lockstep work (any new D-n for lockstep, and its edits to D-24/D-33/D-35/D-36/D-37) — do this task after that work lands, and leave those parts tagged *unreviewed*. Add an ARCHITECTURE_LOG line. Docs only, no code; `just cc-test` still green (coverage check).

@@ -1,0 +1,148 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+**Thing Factory** ("a thing that does a thing") is a place-then-tick contraption game on a
+small hex board, forked from the author's Hex & Counters base. Each command
+places, removes or discards a Thing from a random hand, or waits, and then the world ticks
+once (turning a placed mover is free and doesn't tick): every Thing does its one thing (most act on the piece standing on them; the Pusher
+shoves the hex in front, the Puller reaches two hexes ahead). Crates come out of a source; deliver
+them to the target, through endless milestones (10, 20, 50, 100, 200, 500, 1000, …). On
+bigger boards each milestone opens a new crate color with its own target (`MAP_SIZES.colors`),
+and every milestone unlocks the next step of cards (`UNLOCKS`; a new game deals only the first). There's
+no end, time limit or defeat; the score is the turn each milestone was reached.
+
+Design docs follow the ontology-spec format: **`ONTOLOGY.md`** is the implementation
+reference (purpose/goals `G-n`, entities, invariants, rules as pseudocode, numbers,
+commands/events); **`CRITERIA.md`** turns each rule into a row `R-n` that owns `test/R-n/`;
+**`RATIONALE.md`** holds the why (`D-n`) and open questions (`Q-n`);
+**`ARCHITECTURE_LOG.md`** is the dated history. `DYNAMICS.md` is why it's fun; `README.md`
+is intent + UI. Cite stable IDs (`R-12`, `D-6`), never section numbers, and reconcile
+ONTOLOGY + CRITERIA + RATIONALE + log in the same change as the code. This doc set has its
+own ID namespace; the base's R-/D-numbers don't apply.
+
+## Running / Developing
+
+No build or install step. Scripts load as plain globals, so you can **double-click
+`index.html` to run from `file://`**. Serving over HTTP also works if you prefer:
+```bash
+npx serve .
+# or
+python -m http.server 8000
+```
+
+## Architecture
+
+### What actually runs
+
+`index.html` + game modules + shared libs + `index.css`, as **plain `<script>` globals**
+(no ES modules) so it runs from `file://` on a double-click. The State/Engine half runs
+headless; `GameUI` is the only browser-coupled code.
+
+| Module | Global | Role |
+|---|---|---|
+| `artifacts.js` | `GameArtifacts` | Rules data: `MAP_SIZES`, `TERRAIN`, `THINGS` (the Thing templates: `push`, `pull`, `shove`, `splat`, `flies`, `overMountains`, `clears`, `blocks`, `traps`, `colored`, `slides`, `on`, `weight`), `TOOLS` (cards that aren't Things: the Mover and the Bomb, `picks`, `wipes`, `colored`, `weight`; D-47, D-48), `CARDS` (every card kind) and `cardOf(kind)`, `WHITE`, `UNLOCKS` (the card-unlock order, one step per milestone; the Mover's step right after the Spring's, then the Cannon's, the Rocket's, and the Bomb's last), `PIECES` (the piece templates `crate`, `bigcrate`, `gremlin`: `label`, `cargo`, `value`, `wanders`, `splats`, `wrecks`, `reemerges`, `splatsOnSlideBump`), `aims(kind)`, `MOVEMENT_COST`, and every tunable number. |
+| `displayartifacts.js` | `GameDisplayArtifacts` | Client-only: `HEX_SIZE`, `COUNTER_SIZE`, `HOP_MS`, `ZOOM_DIVISORS`, `MIN_TEXT_PX`, terrain colors/names, `THING_LOOK` (name, verb line, colors, inset), `PIECE_LOOK` (hover name), `BIG_CRATE_SCALE`, `CRATE_SHADES`, `COLOR_PICKER_PX`, `MAP_SIZE_NOTES` (size-picker notes), `TOUCH_ONLY_QUERY` and `SORRY_PICTURE_PX` (the phone sorry page, D-41), the source/target look (`PORT_*` and each `CRATE_SHADES` entry's derived `light`, D-42). |
+| `piece.js` | `Piece` | A positioned token. Crates and gremlins are `Piece`s with engine-set `id` and `kind`. |
+| `board.js` | `Board` | Query layer over the hex `Map` (passable = land). |
+| `gamestate.js` | `GameState` | Serializable data: `sources` (`{q, r, colors}`), `targets` (`{q, r, color, delivered}`), `pieces`, `things` (`{kind, color, q, r, facing}`), `hand` (`{kind}` cards; a kind is a `THINGS` or `TOOLS` key), `unlocks` (how many `UNLOCKS` steps are open), `turn`, `delivered`, `lost`, `exGremlins`, `trapped`, `idleTicks`, `spawnCycle` (the four colors, shuffled once), `spawnSlot`, `nextId`, `phase`, `size`. |
+| `gameengine.js` | `GameEngine` | Generation + rules. `newGame(seed, size)` takes the seed from the caller (the UI rolls it) and a `MAP_SIZES` key (the player picks it). Commands `place`/`remove`/`blast`/`discard`/`wait`/`move`/`scrap`/`bomb` each run one `tick()` (`place` takes the Thing's `color`, one of `colorChoices(kind)`; `move(slot, fq, fr, q, r, facing)` and `scrap(slot, fq, fr)` spend a Mover card on the Thing at (fq, fr), D-47; `bomb(slot, hexes)` spends a Bomb on 1–5 filled hexes at once, clearing each (`clear{kind, q, r, hop}` then `splat`, hop 0), D-48; `legalPicks(kind)` is where a tool's clicks may land) and return `{ ok, events }`; `rotate` doesn't tick (`events: []`, D-19); a tick that reaches a milestone emits `milestone{count}`, then `open{color, source, target}` if it opened a color (followed by `clear{kind, q, r, hop}` / `splat` for whatever stood on a new source or target, D-44, or `deliver` for a crate on its own color's new target, D-46), then `unlock{kinds}` if it unlocked cards (one each per milestone crossed, `reachMilestones`). Movement is a lockstep hop simulation (D-38): every Thing and wanderer claims its piece as the tick starts and gets a motion in a phase (`over`, `air`, `ground`, `skid`, `line`, `follow`, `drop`; `PHASES`/`ARRIVED`/`STOPPED`); `runHops()` advances every moving piece one hex per hop, together, resolving each hop's proposals at once (chains, 3+-cycles rotate, swaps fail, same-hex ties by rank, two flights meeting crash, bumps start lines mid-tick). Events: `move{id, path, hop, over}` (one hex per hop from `hop`), ends (`sink`/`deliver`/`splat`) carry `hop`; a Rocket's flight emits `splat` for gremlins it destroys. |
+| `gameui.js` | `GameUI` | Canvas, HUD (top left), tally (top right: delivered, ex-gremlins, trapped, lost), the hand, input, and the tick animation, which is driven only by the events the engine returns and plays hop by hop as the engine ran it. |
+
+Libs: `hex.js` (axial math, `NEIGHBOR_DIRS` = facing order E, NE, NW, W, SW, SE;
+`Hex.clockwise` is `(f+5)%6`, plus `Hex.counterClockwise`, `Hex.opposite`, `Hex.same`), `rando.js` (seeded RNG), `colortheory.js` (gremlin colors), `sound.js`
+(client-only cues; `Math.random`, never `Rando`).
+
+### Input architecture (see `UI_CONTROLS.md`)
+
+`UI_CONTROLS.md` is the layered controls spec for the hex-game family; `gameui.js` cites
+its layers (`L1.2`, `L2.1`, `L5`). Dispatch order: `overlay` → `anim` (commands wait for the
+tick animation: X / Discard, a board click with a card picked, `D` and `B` go into the
+one-slot `queue` (a `TickQueue`: `defer`, `clear`, `flush`; `whileSameCard` drops a held card command if the card changed), latest wins, and fire when `finishAnim()` flushes it, re-checking their guards;
+`pick`/`unpick`/`startGame` clear it, D-49) → `picked` card → bare map click.
+
+- **L1.2 pick-then-act:** picking a card (click or `1`–`3`) computes its legal set once
+  (`engine.legalPlacements(kind)`, or `legalPicks` for a tool card); clicking a hex is a lookup
+  into that set. What a click, Esc/right-click and Discard do comes from `PICK_MODES[picked.mode]`
+  (D-47): `build` (Thing cards), `pickup` (a tool's first click: its ghost follows the mouse over any hex, a bare hex does nothing, Esc
+  returns the card), `carry` (the Mover holding the Thing it lifted, its ghost under the cursor at once with the Thing's facing, view-only until sent: a
+  legal click sends `move`, Esc/right-click/Discard send `scrap`, the hand, Wait/Space and `B` are locked),
+  `bomb` (the Bomb after its first boom, D-48: its bomb ghost still follows the mouse; each legal click bursts its hex at once (`bursts`, splat sound) and
+  `picked.booms` draw as cleared, view-only until sent; the boom reaching `wipes`, or Esc/right-click/Discard, sends
+  `bomb(slot, booms)`, whose already-shown `clear`s/`splat`s the animation skips; locked like `carry`).
+  `AFTER_PICK[card]` says what a tool's pick leads to (`pick`) and its hover `hint`. `R`/wheel
+  turn the ghost's facing. With no card picked, a click selects a hex (`selected`: outline, white facing arrow over a mover, holds Go); a click on the selected hex calls `rotate`, which doesn't tick, so the UI just re-renders; a click elsewhere or Esc deselects. Selecting and turning work mid-animation.
+  `D` calls `remove` on the selected hex's Thing (never the hovered one; no selection does nothing; a remove clears the selection, D-39); `B` calls `blast` on the hovered crate. With a card picked, the Discard spot or `X` calls `discard`. A card's red × (`.x`) or Shift+1/2/3 (slot from `e.code`) calls `discardSlot(slot)`: `discard` on that slot without picking it, a different picked card going back first; ignored under an overlay or a locked hand, queued mid-animation like X (D-50).
+- **L2.1 primary action:** Wait button → `engine.wait()`. Enter toggles Go (`toggleRun()`), like the Go button. Space is `oneTick()`: a Wait when Go is off; when Go runs it turns Go off, and the tick in flight finishes.
+- **Mute (D-53):** the Sound button and `M` call `toggleMute()` (`GameSound.setMuted`, remembered in `localStorage` `thingfactory.muted`, try/catch); `phrase()` returns early when muted, so no AudioContext is made. Works mid-animation and with a card picked; overlays eat the key first.
+- **L2.2:** Esc and right-click put the card back.
+- **Boot (D-41):** `index.js` checks `matchMedia(TOUCH_ONLY_QUERY)` (coarse pointer, no
+  hover) before anything else; on a phone or tablet (no fine pointer attached) it builds no state, engine or UI and calls
+  `GameUI.showSorry(boot)` (a static: unhides `#sorry-panel`, body class `touch-only` hides the
+  rest; "Try it anyway" runs `boot()`, which builds them then; "Copy link" shares or copies the URL). No `matchMedia` counts as a desktop, so stub DOMs boot the game.
+- **L5:** the intro and New Game overlays are both board-size pickers (click or `1`–`4`); they
+  consume all other input, and Esc closes New Game only. A milestone that opens a color shows
+  the `news` overlay, which closes on a click or any key (`OVERLAY_KEYS` dispatches keys per
+  overlay). The `color` overlay is the Pusher/Puller color picker (D-32): a click on a legal hex whose card has more than one `colorChoices` opens swatches beside it; a swatch or `1`–`4` places, Esc / right-click / a click off backs out with the card still picked. The `help` overlay is the keys legend: shown once after the intro's size pick, and by
+  the Help button; it closes on a click or any key and holds Go while open. The milestone
+  banner (which also names the cards that milestone unlocked) is not an overlay; it never blocks input.
+- **Map scale (D-40):** the `1` `2` `∞` buttons (`#zoom`, built from `ZOOM_DIVISORS`) set `scale`; `render()` draws in world px under one `setTransform(scale, …, panX, panY)`, `hexToScreen`/`screenToHex` apply the same scale, and on-map text below `MIN_TEXT_PX` is skipped (`readable`). `1`/`2` keep the canvas center fixed; `∞` fits the board once (capped at 1x) between the window top and the hand's top, or across, whichever is tighter, and centers it there; `clampPan()` keeps the canvas center on the board. No keys or wheel; resizes don't change the scale; `startGame` resets to 1x.
+- **Go/Pause** (`running`): after each animation, `wait()` again `RUN_GAP_MS` later; holds
+  while a card is picked or a hex is selected (both work mid-animation).
+- Every command goes through `commit()`, which snapshots piece positions, calls the engine,
+  and animates from `res.events` by hop (`move` paths from their start `hop`, then `sink`/`deliver`/`splat` fades and `clear` bursts from their `hop`; `spawn` appears
+  at the end).
+
+### Coordinate system
+
+Axial `(q, r)`, pointy-top hexes, stored in a `Map<string, hex>` keyed by `"q,r"` via
+`hexKey()`. The grid is laid out as a rectangle of `cols × rows` (a `MAP_SIZES` row) with a per-row
+`qOffset = -floor(row/2)`, so each hex also carries its `col`/`row`. Player/target placement
+sorts by `col` for true left/right ends. Pan is a screen-space `(panX, panY)` offset applied
+in `hexToScreen` / `screenToHex`.
+
+### Hex object shape (as built in `gameengine.js`)
+
+```javascript
+{ q, r, col, row, elevation, isEdge, terrain }
+```
+`elevation` is generation-only. Forks add their own per-hex fields when a rule needs them.
+
+## Game Model (see ONTOLOGY.md / DYNAMICS.md)
+
+- **Map:** 16×10, 20×20, 30×30 or 60×60 (`MAP_SIZES`, picked at New Game), edges water; terrain water / plains / mountain by elevation, ice carved
+  from plains. Sources on the left slice, targets on the right, land path guaranteed
+  (fallback: the size's `knownGoodSeed`).
+- **Things:** Belt pushes the piece on its own hex; the Spring and Rocket throw it 3 and 8 hexes (airborne: over inland water; a Spring also clears up to 2 mountains (`overMountains`); every landing skids on if it comes down on ice, short ones too, except a Rocket's that splatted a gremlin, D-37), the Rocket splatting gremlins; the Cannon lobs it over the next 4 hexes, whatever is on them (`clears`), into the 5th as a ground step (blocked: down on the 4th if it can land there, else no fire); a Trap kills a gremlin that comes onto it; the Pusher pushes the piece on the hex in front on; the Puller pulls the piece
+  two hexes ahead back into the hex between (both are drawn plain and get a crate color the player picks at placement, `place(slot, q, r, facing, color)` checked against `colorChoices(kind)`; they move only that color's crates, and gremlins; they're rare draws, D-32); a gremlin coming onto a target dies; Wall blocks; Bridge is a Belt built on water (it carries the piece on it 1 hex); Slide is buildable ice, on plains or water, never bare ice (`slides`). The Mover (a `TOOLS` card, rare like the Pusher/Puller, D-47) picks up a placed Thing and puts it down elsewhere, same kind and color, or scraps it; one tick either way. The Bomb (a `TOOLS` card, rare, last in `UNLOCKS`, D-48) clears up to 5 hexes holding a Thing or a piece (a crate is lost, a gremlin an ex-gremlin; sources and targets stay), one tick for the lot. One Thing per hex (placing on one replaces it), none on a target; movers may be built
+  under a piece.
+- **Tick:** claims as the tick starts, Pushers and Pullers first, then the other Things, each in placement order (each piece gets one motion; that order is also the rank for same-hex ties), unclaimed gremlins
+  wander (direction picked at hop 1); then every motion runs in lockstep, one hex per hop (D-38); a blocked piece stops for the tick; every tick takes the next slot of `spawnCycle` (all four colors, shuffled once per game, D-43): if that color is open, the board holds fewer crates than `crateCap(size)` (`MAP_SIZES.crates`: small 2, medium 3, large 4, huge 5) plus one per milestone reached (D-31), and its source is clear, a crate spawns there; otherwise the slot is skipped, a big crate worth 10 with `bigCrateChance(milestones)` (1% at the start, 5% at the fifth milestone, then easing toward 1; D-34, D-45); each milestone may open a color (`openColor`) and unlocks the next card step (`unlock`).
+- **Step:** blocked by off-map / mountain / Wall / a piece that stays this hop (a piece with no motion standing on slick ground is bumped instead, by any mover or flight: from that hop the line
+  from it advances 2, the bumper follows from the next to right behind it, each piece once per tick, D-33; a sliding gremlin that bumps splats there instead of following, and a gremlin it bumps splats with it, `splatsOnSlideBump`, D-54); two airborne pieces entering one hex (or swapping) both crash; a gremlin on a Trap dies; open water sinks; slick ground (bare ice or a Slide, `isSlick`) slides
+  free, up to `MAX_SLIDE` (3) slick-to-slick moves per motion, a landing's skid included, then stops: at most 4 slick hexes in a row (D-52); a crate on its color's target is delivered (other colors' targets block it on the ground).
+- **Tuning harness:** `just cc-sim 200 small`, which runs `node test/sim.js 200 small` (greedy builder bot; lays belts and
+  springs, throws every other card away with `discard`; before the first milestone only Belts,
+  Bridges, Walls and Traps are dealt, D-30); `just cc-sim-to 100 small 5` plays on to the fifth
+  milestone and reports turns per milestone and big crates spawned (D-34, D-45).
+
+## Conventions
+
+- Pure client-side — plain `<script>` globals (no ES modules), no Node/npm, no build step,
+  no bundler. Most modules wrap their definition in an IIFE assigning one global to keep
+  top-level names from colliding across scripts; the single-class value libs (`Hex`,
+  `Piece`) declare the class at top level instead.
+- Tests: `just cc-test`, which runs `node test/run.js` (`-v` for every check). The recipes are
+  described in the project-local `thingfactory-tools` skill. DOM-free: `test/helpers/load.js` boots
+  the engine/state/board/piece stack in a vm (no canvas, no display artifacts). Each
+  `CRITERIA.md` R-row owns `test/R-n/` (one rule per test); `flatGame()` in the helpers gives
+  a controlled all-plains board for rule tests; `test/integration/smoke.js` plays random legal
+  commands checking invariants; `test/integration/uiboot.js` boots the real UI on a stub DOM
+  and plays to the first milestone by simulated clicks, then drives Go/Pause; `test/coverage.js` fails if CRITERIA and the `R-n` dirs disagree.
+- Every engine command returns `{ ok, ... }`; `ok:false` means illegal and nothing changed
+  (`Rando` included). `ok:true` carries the tick's `events`.
+- Color values are 0–1 floats except when converting to `#rrggbb` strings for canvas.
+- Terrain types come from `GameArtifacts.TERRAIN`; movement from `GameArtifacts.MOVEMENT_COST`.
+  Colors/labels/geometry come from `GameDisplayArtifacts` (client-only — the engine never reads it).

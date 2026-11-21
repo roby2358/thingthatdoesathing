@@ -1,0 +1,251 @@
+Score:   50
+ID: bigcrate-pac-e3h4
+Created: 2026-11-12T00:51:43Z
+Updated: 2026-11-12T00:51:43Z
+
+Thing Factory: reconsider how big crates (D-34) drive advancement. Right now the big-crate chance is m/(m+4) per spawn and a big crate is worth 10, so milestone gaps stay roughly flat (bot, small board, to the 5th milestone: turns 49/76/104/139/199 with big crates vs 49/82/180/342/662 without). That may flatten the endless milestone ladder (10, 20, 50, 100, 200, 500, 1000) too much, or turn late play into "wait for big crates". Options to weigh: a gentler curve or cap on the chance; scaling the value with the milestone instead of a fixed 10; making big crates heavier (e.g. Springs can't throw them, Belts move them every other tick) so they're worth more but cost more to route; tying them to the crate cap (count as more than 1). Playtest first, then pick with cc-sim-to numbers.
+----
+Score:   50
+ID: goal-gen-tz9e
+Created: 2026-11-12T16:39:23Z
+Updated: 2026-11-12T16:39:23Z
+
+A goal generator: alongside the endless delivery milestones, the game hands the player side goals to chase, drawn from a pool of goal kinds and scaled to how far along they are. Candidate goal kinds:
+- Milestones: deliver N crates (today's ladder 10, 20, 50, …), or N of one color, or N big crates.
+- Construction: build something specific — e.g. a line of 5 Belts, a water crossing of Bridges, a Spring hop over mountains, a Cannon shot that lands, a ring of Belts, N Things on the board at once.
+- Gremlin trapping: trap N gremlins (tally "trapped"), or N in one tick, or with a specific Thing.
+- Gremlin expiration: N ex-gremlins by any means (Rocket splats, targets, Traps — the tally's "ex-gremlins"), or by a particular one (splat N with Rockets, lure N onto targets).
+- Possibly: deliveries without losing a crate for K turns, deliver within T turns of the goal appearing, keep the board clear of gremlins for K turns.
+
+Open questions: what a goal pays out (a card unlock, a card draw/choice, score, cosmetic badge, or nothing but the banner); how many goals are live at once (one? three?); whether goals are seeded by the game's Rando (reproducible) and how they scale with milestones/board size; whether goals replace or sit beside the milestone ladder; how the HUD shows them without crowding (the tally top right?); goals as data (a GOALS table in artifacts.js: kind, params, check, reward) so new kinds are rows, not code. Needs an interview before it becomes tasks.
+----
+Score:   50
+ID: level-goals-6xmd
+Created: 2026-11-13T17:33:14Z
+Updated: 2026-11-13T17:33:14Z
+
+Levels built from goals: the game keeps ladders of rising goals along several scales, each level deals 3 of them, and once all 3 are met the player chooses to end the level or keep going. This pairs with goal-gen-tz9e, which is the pool of goal kinds; this idea is the structure that hands those goals out.
+
+1. Goal ladders: one list of rising targets per scale, kept like today's milestone ladder (10, 20, 50, 100, …). Candidate scales: crates delivered, one color delivered, big crates delivered, gremlins trapped, ex-gremlins, Things built or standing, construction feats (Belt run length, Bridge crossings, Spring/Cannon hops), turns without a lost crate. The player's place on each ladder carries from level to level, so every level asks for the next rung up.
+2. Level start: the level opens with 3 goals drawn from different scales, each at the player's next rung on that scale, shown somewhere persistent (the tally? a goals panel?).
+3. Completion: when all 3 are met, ask "End the level or continue?" Ending banks the result and starts a new level (new board? same board?). Continuing keeps the board running, maybe with fresh goals or a bonus ladder.
+
+Open questions:
+- Does this replace the endless milestone run or sit beside it as a mode?
+- What does ending a level bank: a score, the turn count, unlocks that carry over (cards, board sizes), a star rating?
+- Does continuing pay anything, and is there a reason to stop (risk, diminishing returns), or is it just more play?
+- Is the draw seeded by Rando so it's reproducible? Can a player reroll or swap a goal?
+- How do the card UNLOCKS map onto levels: per level, or by ladder rung?
+- Where does progress across levels live (localStorage; per-viewer only)?
+- Board size per level: does it grow or does the player pick it?
+
+Needs an interview before it becomes tasks. Probably settle it together with goal-gen-tz9e.
+----
+Score:   50
+ID: grem-hop-jdcs
+Created: 2026-11-17T09:10:30Z
+Updated: 2026-11-17T09:10:30Z
+
+Hopping gremlins: a wandering gremlin sometimes hops farther than one hex.
+
+Rough shape: when an unclaimed gremlin wanders, a 16% chance it hops 2 hexes and a 3% chance it hops 3 hexes (otherwise 1, as now).
+
+Open questions to settle before it becomes a task:
+- Is a hop airborne (passes over whatever is between, like a Spring/flies) or a ground walk of 2–3 steps (blocked by Walls, mountains, pieces along the way)?
+- Same direction for every hex of the hop, or re-picked each step?
+- What happens landing on water, ice (skid?), a Trap, a target, a Slide, or another piece (crash/splat like two flights, or blocked)?
+- Does a hopping gremlin dodge a Trap or target it passes over mid-hop?
+- Is the chance a flat number in artifacts.js, per gremlin per tick, rolled with Rando (seeded) at claim time, and does it scale with milestones?
+- Visual tell: a hop arc in the animation, and maybe a hover note.
+- Effect on the sim bot and turns-to-first-milestone (gremlins wander, so this mostly changes Trap and target-kill rates).
+----
+Score:   50
+ID: airlift-a858
+Created: 2026-11-17T09:12:48Z
+Updated: 2026-11-17T09:12:48Z
+
+Airlift: a colored Thing built near a target that periodically flies a crate straight to it.
+
+Rough shape: the Airlift must be placed within 2 hexes of a target (destination). Every 2–3 ticks it picks a random crate of its color within 6 hexes and lifts it directly onto that target, ignoring terrain and everything in between, delivering it. Colored like the Pusher/Puller (the player picks a crate color at placement; colorChoices).
+
+Open questions to settle before it becomes a task:
+- Which target: must it be within 2 of a target of its own color, and does it deliver only there?
+- "Within 6" measured from the Airlift or from the target?
+- Cadence: a fixed period (every 2 or every 3), or a seeded random 2–3 each time? Is the timer per Airlift, counted in ticks since placement, and does it need state on the Thing (cooldown field in GameState.things)?
+- Does a lift count as a motion in the lockstep hop sim (claim at tick start, a flight with `move{over}` events and a delivery at some hop), or happen outside it? Can it take a crate that another Thing has claimed this tick?
+- Gremlins: never lifted? Big crates: allowed?
+- Rarity and place in UNLOCKS (rare like the Pusher/Puller?), one per target or any number?
+- Look: drawing, the lift animation (an arc), and a range ring while placing.
+- Balance: it bypasses the contraption entirely, so it may trivialize delivery; consider a long cooldown, a small range, or late unlock. Check against the sim bot.
+----
+Score:   50
+ID: splitter-k497
+Created: 2026-11-17T09:56:29Z
+Updated: 2026-11-17T16:15:30Z
+
+Splitter: a Thing that takes crates in through one edge and sends them out the two far edges 60° either side of straight through, split 50/50.
+
+Rough shape: a facing Thing. A crate entering from its back edge leaves through one of the two edges flanking the straight-ahead edge (front-left or front-right, each 60° off the line of travel). The default split is 50/50. Possibly a placement panel (like the Pusher/Puller color picker) to pick the ratio: 10/90, 20/80, 33/66, 50/50, 66/33, 80/20, 90/10.
+
+Settled (user): deterministic, no Rando. Each Splitter keeps a counter that starts at 1 and goes up by one per crate it splits. With a ratio of 1 in n (50/50: n=2, 33/66: n=3, 20/80: n=5, 10/90: n=10), the crate goes to the minority side when counter % n == 0, else to the other side; the mirrored ratios (66/33, 80/20, 90/10) swap which side is the minority. So 50/50 sends crates right, left, right, left; 33/66 sends right, right, left. The counter is state on the placed Thing (a field in GameState.things, serialized).
+
+Open questions to settle before it becomes a task:
+- Does it act on the piece standing on it (like a Belt, pushing it 1 hex out the chosen edge) or redirect a piece arriving into it mid-motion?
+- What about a crate arriving from another edge, or a piece placed onto it: pass through, block, or treat like a Belt facing one way?
+- Blocked exit: does it try the other side, or stop the crate for the tick? Does a blocked push still advance the counter?
+- Gremlins: split too (and count), or ignored?
+- Colored like the Pusher/Puller (only one color's crates), or white for all?
+- The ratio panel: fixed at placement or changeable by clicking the placed Splitter; how it's shown on the map (a label, asymmetric arrows); does it replace or follow the color picker? Does a Mover keep the counter?
+- Rarity and place in UNLOCKS; the sim bot discards it?
+- Look: a Y-shaped arrow, the ratio readable at 1x.
+----
+Score:   50
+ID: ferry-krti
+Created: 2026-11-17T16:20:34Z
+Updated: 2026-11-17T16:20:34Z
+
+Ferry: a Thing built on water that sends a crate on it to the nearest other Ferry.
+
+Rough shape: placed only on water (like the Bridge). A crate on a Ferry is carried to the closest other Ferry on the board, crossing water (and maybe anything) in between.
+
+Open questions to settle before it becomes a task:
+- "Next closest": nearest by hex distance; ties broken how (placement order)? Can a Ferry's nearest be the one that just sent the crate, so two Ferries ping-pong a crate back and forth? Maybe one-way (a facing, or "nearest Ferry that isn't where the crate came from")?
+- Is it a flight (`flies`, over everything, like a Rocket) or a water-only trip along a path? Instant (one hop) or one hex per hop in the lockstep sim (D-38)?
+- What happens at the far Ferry: the crate lands on it and next tick is sent again (a chain), or it lands and stops; does the far Ferry need to push it ashore (a facing, like a Bridge)?
+- Only one Ferry on the board: does nothing? Far Ferry occupied by a piece: blocked, crash, swap?
+- Gremlins ride too?
+- Colored or white? Max range?
+- Rarity and place in UNLOCKS; only useful on boards with inland water, so maybe only dealt when there's water.
+- Look: a boat glyph; a line to its partner when hovered or while placing.
+----
+Score:   50
+ID: rules-hi6e
+Created: 2026-11-17T18:38:42Z
+Updated: 2026-11-17T18:38:42Z
+
+TODO Mark this as an idea and let's talk about it.
+
+Add a rules page to Help: what each Thing and piece does, with the real numbers.
+Today Help lists keys only; the rules live in the README. Done looks like: the Help overlay gets a second page or section (toggle with a tab or Tab key) listing each card that's unlocked so far (and greyed-out ones still to come) with its picture, name and one-line rule with numbers taken from the artifacts at runtime (Spring throws 3, Rocket 8, Cannon clears 4 and lands on the 5th, Bomb clears up to 3, etc.), plus crates/big crates (worth 10), gremlins (wander, die on Traps and targets), ice and Slides (slide free, bumps move 2), water (sinks) and the milestone ladder. Numbers must come from GameArtifacts so they can't drift. SHIP.md item: ONB-4. Done when `just cc-test` passes, with a test that the rendered rule numbers match the artifacts.
+----
+Score:   50
+ID: color-67p7
+Created: 2026-11-17T18:38:42Z
+Updated: 2026-11-17T18:38:42Z
+
+TODO move this to an idea and let's talk about it
+
+Give each crate color a shape mark so color isn't the only signal.
+The four crate colors (and their sources, targets and colored Pushers/Pullers) differ only by color, which colorblind players can't tell apart. Done looks like: each CRATE_COLORS entry gets a distinct small glyph in displayartifacts.js (e.g. circle, triangle, square, diamond) drawn on its crates, on its source's plus and target's rings, on Pusher/Puller Things and cards of that color, and in the color picker swatches and the tally's per-color rows; readable at 1x zoom, skipped below MIN_TEXT_PX like on-map text. Client-only. SHIP.md item: A11Y-2. Done when `just cc-test` passes.
+----
+Score:   40
+ID: zoom-lod-t65a
+Created: 2026-11-12T08:52:10Z
+Updated: 2026-11-12T08:52:10Z
+
+Simplified renderings at small map scales (after the 1/2/4/∞ zoom buttons land; play it by ear once the user has seen 1/4 and fit on big boards). Candidates: crates as plain filled squares in their crate color (big crates bigger squares), gremlins as plain dots, terrain as flat fills with no texture/detail, Things as simple glyphs (a line/arrow for movers, a block for Walls, a ring for Traps) instead of the full art, sources/targets as bold outlines. Switch by a level-of-detail threshold on the on-screen hex size, not by zoom button, so ∞ on a medium board can still draw full detail. Only build what playtest shows is unreadable or slow.
+----
+Score:   40
+ID: terrain-new-hamd
+Created: 2026-11-13T17:47:49Z
+Updated: 2026-11-13T17:47:49Z
+
+More terrain types beyond today's water, plains, mountain and ice, each changing how pieces move or what can be built, so board layout poses new routing puzzles. Candidates:
+- Sand / mud: sticky. A piece sliding or skidding onto it stops dead (the opposite of ice), and a bump doesn't carry across it. Maybe Belts can't be built on it.
+- River / current: water that flows one way. A crate dropped in drifts a hex per tick downstream instead of sinking, until it reaches a bank or the edge. A free conveyor the player can use or has to bridge.
+- Forest: blocks flights from landing (Springs and Rockets pass over it but can't come down on it), but ground movement is fine. Or the reverse: a low ceiling that stops Springs.
+- Lava / pit: destroys whatever enters it, gremlins included (a natural trap), and nothing can be built on it. Lost crates count as lost.
+- Rough / rubble: no building allowed, but pieces pass.
+- Wind or tunnel pairs are more exotic; probably later.
+
+Design notes: keep terrain data-driven in TERRAIN (artifacts.js), with flags like `slick`, `sticky`, `flow`, `noLand`, `kills`, plus the existing BUILDS_ON/`on` lists, so the movement rules read flags rather than kind checks. Generation (heightmap bands plus the ice carving) needs a placement rule for each new type, and the guaranteed land path from source to target still has to hold. Probably unlock the types by board size or milestone, so small boards stay readable. Each type needs a look (displayartifacts.js) and a hover name, and has to stay readable at zoom 1/2 (D-40), which ties into zoom-lod.
+
+Open: how many types, and which first (one or two that create the most interesting decisions, then playtest)? Do they appear from the start, or arrive at milestones like colors do? Interaction with Slide (buildable ice) and Bridge (a Belt on water): what can each Thing be built on?
+
+Needs an interview before it becomes tasks.
+----
+Score:   40
+ID: telemetry-v54s
+Created: 2026-11-17T02:31:46Z
+Updated: 2026-11-17T02:45:39Z
+
+Telemetry: learn how real players play Thing Factory, beyond what the sim bot shows. Direction from the user (ship audit, 2026-11-17): log basically every action, stored in Cloudflare D1 behind a small Worker at ttdat.yuwakisa.com (the data is cheap). Still to brainstorm and settle: the event schema (per command: kind, slot/card, hex, facing, color, turn, ok, plus milestone/unlock/open events; per session: size, seed, version, start/stop); batching (buffer N events or T seconds, flush with navigator.sendBeacon on pagehide) so it never slows a tick; an anonymous per-session random id, no cookies, no personal data, no free text, no IPs stored; a privacy note in the game and on the portals (SHIP.md PRIV-3/PRIV-4) and whether it's opt-in, opt-out or notice-only; CORS for the itch.io and Newgrounds game-hosting CDN origins (PORT-6) and silent failure when blocked or offline or on file://; retention and a way to delete; rate limiting on the Worker; and what questions the data must answer (where players stop, which cards get discarded, turns per milestone per size, Mover/Bomb use) so the schema serves them. The engine stays headless and never sends anything; the UI collects from the existing { ok, events } results. Ties to the leaderboard, bsky-login and productize ideas.
+----
+Score:   35
+ID: undo-preview-k9rq
+Created: 2026-11-17T02:45:34Z
+Updated: 2026-11-17T02:45:34Z
+
+Preview consequences before committing, or undo the last command (from the ship audit, SHIP.md ONB-7). Today the legal hexes and the ghost's facing are shown, but not where a placed Spring/Rocket/Cannon will send the piece on it, and remove, blast, discard and Bomb tick at once with no undo. Options: draw the throw/push path of the ghost (from the engine's motion rules, a dry-run tick on a cloned state), a one-step Undo (restore the previous state snapshot, including Rando; does it cost anything? does it break the "every command ticks" pressure?), or confirm only the destructive commands. This is a design call (undo changes the game's tension), so it needs a conversation before it becomes a task.
+----
+Score:   30
+ID: productize-pxhj
+Created: 2026-11-13T17:48:20Z
+Updated: 2026-11-13T17:48:20Z
+
+Turn Thing Factory from a playtest prototype into something a stranger can pick up, enjoy and come back to. A checklist to weigh, not a plan:
+
+- First five minutes: a guided tutorial or a set of handcrafted intro puzzles (deliver one crate with a Belt; cross water with a Bridge; throw with a Spring), so new players aren't dropped onto a random board with only a keys legend. Contextual hints the first time each card appears.
+- Saves and progress: autosave the run (localStorage, wrapped in try/catch) so a reload doesn't lose it; best turns per milestone per board size; maybe a seed share link ("play this board"). Note the no-save-migration rule while prototyping: decide when saves become durable.
+- Feel and polish: sound pass (sound.js cues for every event, volume/mute), juice on deliveries and milestones, a title screen with the name and art, consistent visual style (port-look, zoom-lod), a color-blind-safe crate palette or shape marks per color.
+- Settings: sound, animation speed (HOP_MS), Go speed (RUN_GAP_MS), remappable keys, maybe reduced motion.
+- Accessibility and reach: the mobile-lock page for now; later decide whether touch controls are worth it. Keyboard-only play. Readable text sizes.
+- Structure: whether the endless ladder is the product, or levels and goals (level-goals, goal-gen) make a better arc; daily seed challenge.
+- Packaging and distribution: hosting on yuwakisa.com, itch.io page (screenshots, GIF, description), maybe a desktop wrapper later. Cache-busting query strings on assets. Basic perf check on huge boards.
+- Name and identity: is "Thing Factory" the final name; logo, favicon, page title, social card.
+- Feedback loop: a way for players to report bugs or send a seed; optional, privacy-respecting play stats (or none).
+
+Open: what "product" means here (a free web game on itch/yuwakisa, or something bigger), what the minimum bar for "shippable" is, and which of these to do first. Needs an interview before it becomes tasks.
+----
+Score:   30
+ID: leaderboard-ndtw
+Created: 2026-11-13T17:48:38Z
+Updated: 2026-11-13T17:48:38Z
+
+A leaderboard: compare runs, your own or other players'. The score already exists: the turn each milestone was reached (fewer is better), per board size.
+
+Two very different sizes of this:
+- Local (cheap, fits today's pure-client game): a personal best table in localStorage (wrapped in try/catch; it can come back empty). Best turn for each milestone on each board size, top N runs with date and seed, shown on the intro/New Game picker or a Records button. No server.
+- Global (needs a backend; the game has none today): post runs to a server (yuwakisacloud? a Cloudflare Worker + D1/KV?) and show the top runs per board size and milestone. Real problems: cheating (the client is fully trusted; a mitigation is to submit the seed plus the full command log and replay it headless on the server, since the engine is deterministic and runs in Node — the State/Engine split already supports this); names and moderation; privacy (no emails, just a chosen handle).
+
+Fairness: random boards differ a lot, so a global board is fairest on shared seeds — a daily seed (everyone plays the same board that day) or a fixed weekly seed per size. Ties into productize and level-goals (if levels exist, rank per level instead).
+
+Open: local first, or straight to global? What's ranked (turns to milestone N, crates by turn T, ex-gremlins)? Daily seed or any seed? Needs an interview before it becomes tasks.
+----
+Score:   30
+ID: bsky-login-paqn
+Created: 2026-11-17T02:33:12Z
+Updated: 2026-11-17T02:33:12Z
+
+Bluesky login: let players sign in to Thing Factory with their Bluesky (AT Protocol) account, as an optional identity rather than a requirement. What it could unlock: a handle on the leaderboard instead of an anonymous name, posting a milestone or a finished board to Bluesky ("reached 500 on the medium board in 1,489 turns"), possibly sharing a build seed, and keeping progress or settings across devices. Design calls to settle: the auth flow (AT Protocol OAuth for browser apps with a client-metadata document, PKCE and DPoP, versus app passwords, which should be avoided); whether a pure client-side game can do it alone or needs a small backend on the author's site (the client metadata must be hosted at a stable https URL, so it can't work from file://, where the login button should hide); what data is stored, where, and for how long (privacy, the minimum scopes, logout and forgetting the token); whether posting is ever automatic (it shouldn't be: an explicit share button with a preview); and how it ties into the leaderboard, telemetry and productize ideas. The game must stay fully playable signed out.
+----
+Score:   30
+ID: jackpot-2xa3
+Created: 2026-11-17T02:34:23Z
+Updated: 2026-11-17T02:34:23Z
+
+Jackpot events: rare, exciting moments where the game suddenly pays out big, a burst of reward that breaks the steady rhythm of the milestone ladder. The user's seed is just the phrase "jackpot events"; what that means is open. Candidate shapes to explore:
+- A jackpot crate: a rare special crate (gold?) worth far more than a big crate (10), or one that multiplies the next N deliveries.
+- A crate rush: for K ticks the source spills crates every tick (the cap lifted), so a contraption that can keep up cashes in.
+- A combo jackpot: delivering several crates in one tick, or a run of deliveries with no losses, triggers a payout. This rewards throughput and clean builds.
+- A card jackpot: a free pick from a fan of rare cards (Rocket, Cannon, Mover, Bomb), or a full hand of one rare kind.
+- A gremlin jackpot: trapping several gremlins in one tick, or a streak of traps, pays out.
+- Slot-machine flavor: when a jackpot hits, a banner, fanfare and visual flourish play (GameSound already has a fanfare).
+Design calls to settle: what triggers it (pure chance per tick, a skill feat, or chance boosted by play); what it pays (deliveries toward milestones, cards, unlocks, score); how rare it is and how it scales with milestones or board size; whether it's seeded by the game's Rando (reproducible, which matters for the seed-words and leaderboard ideas); whether a jackpot can be missed (it appears, and you have to catch it); and how it relates to the goal-gen, level-goals and big-crate pacing ideas. Needs an interview before it becomes tasks.
+----
+Score:   40
+ID: bomb-card-7z4j
+Created: 2026-11-13T17:34:37Z
+Updated: 2026-11-17T01:51:24Z
+
+(Done) A Bomb card: a one-shot card that clears the Things from several hexes at once, rather than removing them one by one with D (one command, so one tick, per Thing). Useful for tearing out a failed contraption or clearing room for a rebuild.
+
+Design calls to settle:
+- Area: the target hex plus its 6 neighbors (radius 1)? A line of hexes along the ghost's facing (R turns it, like the movers)? A radius that grows with milestones?
+- What it clears: Things only, or pieces too? Crates (lost? counted in the tally?), gremlins (killed, counting as ex-gremlins?). Terrain stays; sources and targets are never touched.
+- Placement: any hex, or only hexes holding a Thing? Is the card used up after one shot (yes, it's a card)? It costs one tick like any command.
+- Rarity and unlock: where it sits in UNLOCKS and how often it's dealt (rare like the Pusher/Puller, D-32?). How it relates to B (blast on the hovered crate) and D (remove the selected Thing, D-39). Does Bomb make D less needed, or do they live side by side?
+- Engine: a new `bomb` command, or `place` with a card whose kind is an effect rather than a Thing (data-driven, e.g. a `blastRadius` field; not `clears`, which the Cannon already uses; and not a kind check). Events: one remove/fade per cleared hex, so the animation can play it as a burst.
+- UI: the ghost previews the blast area (outline every hex it will clear), so you can't misfire.
+
+Docs when built: ONTOLOGY (command and rule), CRITERIA row, RATIONALE D-n, README card list, help legend.

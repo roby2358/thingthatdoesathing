@@ -1,0 +1,143 @@
+# Decisions log (pjpd loop, for review)
+
+Calls made while working through the pjpd tasks unattended. Each line names the task, the
+decision, and where the full reasoning lives (a RATIONALE `D-n` tagged *unreviewed*).
+**[user]** = you settled it; **[agent]** = made during the loop, needs your review.
+
+
+## Lockstep (2026-11-12)
+
+- [user] lockstep-ritf: every moving piece advances one hex per hop, all together; engine hop k = animation hop k (D-38).
+- [user] lockstep-ritf: a blocked piece stops for the rest of the tick (no retry when the hex frees up) (D-38, R-59).
+- [user] lockstep-ritf: a 2-piece head-on swap fails; both stay (R-58).
+- [user] lockstep-ritf: a cycle of 3+ pieces all move and rotate (R-57).
+- [user] lockstep-ritf: two pieces after one hex on one hop: the piece moved by the earlier-placed Thing wins (R-59).
+- [user] lockstep-ritf: Pushers/Pullers keep priority: they claim first and win hex ties (D-24, R-59).
+- [user] lockstep-ritf: mid-air collision: only two AIRBORNE pieces entering the same hex on the same hop (or swapping, per the task text) are both destroyed (lost, a splat each naming the other); a flight meeting a piece on the ground is stopped (comes down) and the ground piece stays; a Rocket still splats gremlins; a still piece on slick ground is still bumped (D-33) (D-38, R-60).
+- [user] lockstep-ritf: a flight's landing spot is trimmed at launch for static terrain/targets (mountains, other colors' targets, Walls, the edge) (D-35).
+- [user] lockstep-ritf: bumps start mid-tick (line from the contact hop, bumper follows from the next); skids go hop by hop; every landing still slides except after a gremlin splat; gremlins pick their direction at hop 1 (D-33, D-37).
+- [agent] lockstep-ritf: claims are made from the board as the tick starts; a piece carried onto a Thing mid-tick waits for the next tick (as before). D-38 call 1.
+- [agent] lockstep-ritf: a Rocket splatting a gremlin, or a gremlin wrecking a crate, takes the victim's hex on the contact hop (victim fades that hop); other freed hexes (sink, delivery, Trap) open on the next hop. D-38 call 2.
+- [agent] lockstep-ritf: a flight stopped by a piece while over a mountain or another color's target drops back on the NEXT hop to the last landable hex it flew over (or its start); if that hex is taken by then, the piece crashes (lost). Old rule did it instantly. D-38 call 3, D-35.
+- [agent] lockstep-ritf: Cannon: its 4 cleared hexes are unseen (pieces move under it, no crash with flights); fire/no-fire still judged at launch incl. the 4th-hex groundTakes piece check (board as the tick starts); if the 5th is then piece-blocked and the 4th holds a piece when it comes down, the shot crashes (lost); open water on the 4th then sinks it. D-38 call 4, D-36.
+- [user, confirmed 2026-11-12] lockstep-ritf: swap clause: kept the task's "(or swapping)" for two airborne pieces even though the follow-up message said "only ... entering the same hex"; read "only" as airborne-vs-ground. A flight/ground swap is just blocked both ways. D-38 calls 5, 9.
+- [agent] lockstep-ritf: ranks: wanderers rank after every Thing (creation order); a bumped line takes its bumper's rank; ties within a rank go to the earlier motion. D-38 call 6.
+- [agent] lockstep-ritf: a gremlin with no wander direction has no motion, so a bump can push it (before, every wanderer counted as moved). D-38 call 7.
+- [agent] lockstep-ritf: a hop a motion sits out (bumper on its contact hop, a flight about to drop back) repeats its hex in the move path, so paths are one entry per hop; moves carry `over` (a shot's cleared hexes) so overlap checks skip them. D-38 call 8.
+- [agent] lockstep-ritf: R-52's "two big crates in one tick" test now feeds them a hop apart (one over ice), since one hex takes one piece per hop; several R-33/R-51/R-32 tests box gremlins with a lake so they can't wander off on hop 1.
+
+## delete-sel (2026-11-12)
+
+- [agent] delete-sel-rcax: B (blast) stays on the hovered crate; crates move, so a selected hex would often be empty by the time you press B. Noted as a follow-up in D-39.
+- [agent] delete-sel-rcax: D on a selected bare hex does nothing and keeps the selection; only a successful remove clears it (D-39 call 1).
+- [agent] delete-sel-rcax: no fallback to the hovered hex when nothing is selected (that would bring back the slip) (D-39).
+- [agent] delete-sel-rcax: hover-bar hint reworded: "click to select, then D to remove" over an unselected Thing, "D to remove" over the selected one, no D hint while a card is picked (picking clears the selection) (D-39 call 2).
+- [agent] delete-sel-rcax: U-12 (manual CRITERIA row) rewritten for select-then-D; `commit()` now returns true/false so the UI knows the remove succeeded.
+
+## slide-no-ice (2026-11-12)
+- [agent] Renamed `BUILDS_ON.both` to `unslick` (plains or water) instead of adding a fourth entry: the Slide was `both`'s only user, so no dead entry is left. Data-driven via `THINGS.SLIDE.on`, no kind check.
+- [agent] Dropped R-48's "a Slide on ice still slides" clause/check: a Slide can no longer stand on ice (no command changes terrain under a Thing), so it's unreachable; `isSlick` still lets the Thing decide. Replaced with the illegal-on-ice placement checks.
+- [agent] Updated the Slide's hover verb line (displayartifacts.js) and README from "land or water" to "plains or water" so the UI doesn't promise ice.
+
+## map-zoom (2026-11-12)
+- [agent] map-zoom-8cwk: one canvas transform (`setTransform(scale, 0, 0, scale, panX, panY)`) for all board drawing; draw helpers now take world px (`hexToWorld`). Line widths scale too (hairlines at 1/4), no minimum width held (D-40 call 1).
+- [agent] map-zoom-8cwk: `MIN_TEXT_PX` = 8: at 1/2 the source "IN" (11px) hides, the ★ (16px) and gremlin labels stay; at 1/4 all on-map text hides. `readable(px)` is the single gate a later detail switch can hang on (D-40 call 1).
+- [agent] map-zoom-8cwk: ∞ centers the board rather than keeping the old center, fits the whole canvas (not the area between HUD panels), and stays lit after (D-40 call 2).
+- [agent] map-zoom-8cwk: pan clamp = the canvas center stays inside the box of hex centers; applied during drags, after zooms and in centerMap (D-40 call 3).
+- [agent] map-zoom-8cwk: buttons are a third HUD-stack row "Map 1 2 4 ∞" under the Turn/Wait/New Game/Help line; narrow-screen (<1000px) Go moves 96→108px and the banner 150→162px to clear it. Not browser-measured (D-40 call 4).
+- [agent] map-zoom-8cwk: kept the existing window-resize handler (canvas size + re-center via centerMap, now at the current scale); "resizes ignored" read as "the scale never reacts to a resize" (D-40 call 5).
+- [agent] map-zoom-8cwk: UI_CONTROLS.md left unchanged (shared family spec, already says zoom is optional); gameui cites L1.3 at the view helpers (D-40 call 6).
+- [agent] map-zoom-8cwk: help legend gets a "Map 1 2 4 ∞ — buttons" line; README and CLAUDE.md input section updated; U-27 added.
+- [user] map-zoom after a look: buttons are 1, 2, ∞ (1/4 dropped, smaller than the fit); ∞ fits from the window top to the top of the hand, or across, whichever is tighter, centered in that space; the hand sits flush on the bottom edge.
+
+## mobile-lock (2026-11-13)
+- [agent] mobile-lock-twxz: no user-agent fallback; the pointer/hover media query alone decides, and a missing `matchMedia` counts as a desktop (D-41 call 1).
+- [agent] mobile-lock-twxz: no "play anyway" link; without touch controls it would only open a board that ignores taps (D-41 call 2).
+- [agent] mobile-lock-twxz: checked once at boot in `index.js` before state/engine/UI are built; no live re-check if a mouse is plugged in later (D-41 call 3).
+- [agent] mobile-lock-twxz: the page is a hidden `#sorry-panel` in index.html shown by a static `GameUI.showSorry()`; body class `touch-only` hides every other panel and the canvas (D-41 call 4).
+- [agent] mobile-lock-twxz: the picture is one Belt from the card art (`cardPicture`, `SORRY_PICTURE_PX` 64) (D-41 call 5).
+- [agent] mobile-lock-twxz: viewport meta was already `width=device-width, initial-scale=1.0`, left as is; the card scrolls inside a 16px gutter on a short landscape phone (D-41 call 6).
+- [agent] mobile-lock-twxz: `TOUCH_ONLY_QUERY` lives in displayartifacts.js (client-only); README says who can play, CLAUDE.md gets a Boot bullet, ONTOLOGY's overlay row a one-line note; U-28 added.
+
+## port-look (2026-11-13)
+- [agent] port-look-jtj4: light shade = the crate's mid (`left`) face mixed 60% toward white (`lighten`, `PORT_MARK_LIGHTEN` 0.6) as `CRATE_SHADES[c].light`; yellow's marks are the faintest (~1.4:1 on its fill), a look-check watch point (D-42 call 1).
+- [agent] port-look-jtj4: a dark outline (2px, 70% black) on every source and target, all colors: measured contrast against neighboring terrain is as low as 1.04:1 (green on plains), 1.07 (red on mountain), 1.15 (red on water), 1.34 (blue on water), 1.37 (yellow on ice) (D-42 call 2).
+- [agent] port-look-jtj4: plus = vertex to vertex vertically, edge to edge across, arms at 86% to the rim; rings at 68% and 34% of the inner radius; marks 4.5 world px (D-42 call 3).
+- [agent] port-look-jtj4: wedges start at the top and go clockwise; neutral plus #f2f2f2 (`PORT_NEUTRAL_MARK`); a source with no colors falls back to `SOURCE_COLOR` with the neutral plus (D-42 call 4).
+- [agent] port-look-jtj4: dropped the ★ from the intro's "★ target"; U-19 trimmed to the tally/hover parts and points at the new U-29; D-40 call 1's IN/★ example annotated as removed (D-42 call 5).
+
+## spawn-cycle (2026-11-13)
+- [agent] spawn-cycle-jisb: the starting color stays `Rando.choice(CRATE_COLORS)`, independent of the cycle; the shuffle draws right after it, so every seed's game past map generation differs from before (D-43 call 1).
+- [agent] spawn-cycle-jisb: `spawnSlot` is the slot the next tick takes, so the first tick takes slot 0 (D-43 call 2).
+- [agent] spawn-cycle-jisb: skip, not retry; a retry variant tied on small (fifth milestone 238 vs 236) and lost on medium (14 vs 17 of 50 reached the third, 18.5 vs 7.6 crates lost) since one jammed color stalls the rest (D-43 call 3).
+- [agent] spawn-cycle-jisb: checks run open color, cap, clear source; the big-crate roll only on an actual spawn, so a skipped slot doesn't touch `Rando` (D-43 call 4).
+- [agent] spawn-cycle-jisb: `flatGame()` holds spawns off with a one-slot `[null]` cycle instead of the old negative timer; spawn tests set their own cycle (D-43 call 5).
+- [agent] spawn-cycle-jisb: `test/sim.js` prints `at cap` (share of ticks at `crateMax()`) to answer whether the cap binds; the cap binds 54-63% of ticks on medium/large/huge past the first milestone (44-69% before), 0% before it, not retuned (D-43 call 6).
+- [agent] spawn-cycle-jisb: no number retuned; small's first milestone slows from median 45 to 53, left for the designer (D-43 call 7).
+
+## port-clears (2026-11-13)
+- [agent] port-clears-kh58: a cleared Thing emits a new `clear{kind, q, r}` (not `remove`, a command name); a cleared piece reuses `splat{by: null, trap: false}`, so the UI plays it with no client change (D-44 call 1).
+- [agent] port-clears-kh58: clear events follow their `open`, new source's hex before the target's, each hex's Thing before its piece (D-44 call 2).
+- [agent] port-clears-kh58: the clear's splat `hop` is the tick's last hop, so a piece that moved onto the hex this tick arrives, then fades (D-44 call 3).
+- [agent] port-clears-kh58: a cleared gremlin re-emerges like any splatted gremlin; the tick now runs milestones before its tally/emerge but still emits their events last (after the spawns), keeping R-31's order; an emerged gremlin can never be the one cleared (D-44 call 4).
+- [agent] port-clears-kh58: emerge's Rando draws now follow openColor's, so a game that opens a color diverges from that tick (D-44 call 5).
+- [user, changed 2026-11-13] port-clears-kh58: a crate on its own color's new target is delivered, not destroyed (D-46, superseding D-44 call 6).
+- [agent] port-clears-kh58: `freeEndHexes` → `openEndHexes`; `openColor(hop)` returns a list; `reachMilestones(before, after, hop)`; R-62 is a new row for the clears, R-38 keeps placement (D-44 call 7).
+- [agent] port-clears-kh58: `test/sim.js` with a milestone count prints colors opened and endpoint clears per game; medium to 5: colors opened 1.00/game, 0.19 clears/game, fewer games reach #2 (50 → 45), likely the bot's belts under a new wrong-color target (D-44 call 8).
+
+## bigcrate-odd (2026-11-13)
+- [agent] bigcrate-odd-755q: straight line between the designer's two early points, 1% + 0.8%·m (1, 1.8, 2.6, 3.4, 4.2, 5%), the task's default (D-45 call 1).
+- [agent] bigcrate-odd-755q: past the fifth, 1 − 0.95·r^(m−5) with r = 0.85; sim to the 8th milestone on small keeps the gaps after the 5th roughly flat (~800 turns each), 0.9 stretches them (no game reaches the 8th in 3200 turns), 0.8/0.75 shorten them a little (D-45 call 2).
+- [agent] bigcrate-odd-755q: added `BIG_CRATE_KNEE` = 5 beside `BIG_CRATE_START`, `BIG_CRATE_AT_FIFTH`, `BIG_CRATE_EASE`, so the formula has no bare 5; `BIG_CRATE_HALF` removed (D-45 call 3).
+- [agent] bigcrate-odd-755q: the chance is never 0 now, so `spawnKind()` drops the "no roll while p is 0" guard and rolls on every spawn; first-milestone baselines shift a little (small 53 → 52, medium 60 → 58) (D-45 call 4).
+- [agent] bigcrate-odd-755q: R-52 checks strict rise and < 1 over m = 0…30; the float reaches exactly 1 near m = 230, unreachable, so no clamp (D-45 call 5).
+- [agent] bigcrate-odd-755q: milestone gaps balloon as the task expected (small to the 5th: 236 → 649, near the old big-crates-off 662); not retuned, flagged for the separate big-crate-advancement idea.
+
+## mover-card (2026-11-17)
+- [agent, mover-card] mover-card-82t7: the Mover is a tool card, not a Thing: `TOOLS` beside `THINGS`, `CARDS` = both, `cardOf(kind)` for the deck's weight/colored (D-47 call 1).
+- [agent, mover-card] mover-card-82t7: "rare like the Pusher/Puller" = weight 0.5, not their two-color gate; the Mover is dealt on every board size (D-47 call 2).
+- [agent, mover-card] mover-card-82t7: two engine commands, `move(slot, fq, fr, q, r, facing)` and `scrap(slot, fq, fr)`, instead of one with an optional landing hex (D-47 call 3).
+- [agent, mover-card] mover-card-82t7: the moved Thing goes last in placement order and replaces a Thing on its landing hex; putting it back on its own hex is legal (a paid rotate) (D-47 call 4).
+- [agent, mover-card] mover-card-82t7: no color picker on a put-down; the color is kept (D-32 call 6) (D-47 call 5).
+- [agent, mover-card] mover-card-82t7: lifting a Bridge (or a water Slide) sinks the piece it held at hop 0, as `remove` does, unless the Thing goes back on that hex (D-47 call 6).
+- [agent, mover-card] mover-card-82t7: `move` and `scrap` count as a card used (idle redraw resets) (D-47 call 7).
+- [agent, mover-card] mover-card-82t7: shared pick-up UI is a `PICK_MODES` table (build / pickup / carry) plus `AFTER_PICK[card]`; the Bomb adds a mode and a row (D-47 call 8).
+- [agent, mover-card] mover-card-82t7: while carrying, an illegal click does nothing, the hand, Wait/Space and B are locked, and Discard/X scraps like Esc; the carried Thing is hidden from its hex and the hover bar, and its card shows that Thing (D-47 call 9).
+- [agent, mover-card] mover-card-82t7: the pick-up click waits for a running tick animation, like a place (D-47 call 10).
+- [agent, mover-card] mover-card-82t7: New Game while carrying drops the carry with nothing sent; Esc back to the game leaves the Thing in place and the Mover in hand; harmless, left as is (D-47 call 11).
+- [agent, mover-card] mover-card-82t7: the sim bot's existing "discard every non-Belt while building" covers the Mover; only its comment changed (D-47 call 12).
+- [agent, mover-card] mover-card-82t7: UI_CONTROLS.md left unchanged (it's the family-wide spec; the game's own notes live in CLAUDE.md's Input architecture and README).
+- [agent, bomb-card] bomb-card-w466: the Bomb's clear count is a new TOOLS field `wipes` (3; the Mover's 0), not `clears`, which THINGS uses for the Cannon; `bomb` checks `wipes`, not the card's name (D-48 call 1).
+- [agent, bomb-card] bomb-card-w466: `picks: 'filled'` = a hex holding a Thing or a piece; a Thing standing on a source can be bombed too (the source stays); a bare source or target is refused (D-48 call 2).
+- [agent, bomb-card] bomb-card-w466: `clear` events now carry `hop` (bomb's 0, D-44's the tick's last hop) and the UI bursts every cleared Thing, D-44's included (D-48 call 3).
+- [agent, bomb-card] bomb-card-w466: a crate bombed on its own color's target is destroyed and lost, not delivered (D-48 call 4).
+- [agent, bomb-card] bomb-card-w466: events hex by hex in marking order, clear before splat, all at hop 0 (D-48 call 5).
+- [agent, bomb-card] bomb-card-w466: a marked hex leaves the legal set, so clicking it again does nothing (D-48 call 6).
+- [agent, bomb-card] bomb-card-w466: Discard / X after a mark sets the bomb off like Esc; before a mark it discards the card (D-48 call 7).
+- [agent, bomb-card] bomb-card-w466: after the first mark the other cards, Wait/Space and B are locked, like the Mover's carry (D-48 call 8).
+- [agent, bomb-card] bomb-card-w466: AFTER_PICK rows became { pick, hint } so the pickup hover hint is per card ("click to clear" for the Bomb) (D-48 call 9).
+- [agent, bomb-card] bomb-card-w466: once marked, the card reads "N more hexes to clear; Esc sets it off"; the splat sound plays when it goes off (D-48 calls 10, 11).
+- [agent, bomb-card] bomb-card-w466: weight 0.5 like the Mover; last step unlocks at the 6th milestone on small, the 7th on bigger boards (D-48 call 12).
+- [agent, bomb-card] bomb-card-w466: UI_CONTROLS.md left unchanged, as for the Mover (D-48 call 14).
+- [agent, bomb-booms] bomb-booms-mp74: the splat sound plays on every boom, even on a hex with only a Thing (it's the bomb's bang); the closing command plays no cue, so each hex is heard once (D-48 call 11).
+- [agent, bomb-booms] bomb-booms-mp74: a boom's burst lives in a UI `bursts` list outside the tick animation, so it plays at once and keeps playing over the end tick when the 3rd boom ends the bomb (D-48 call 15).
+- [agent, bomb-booms] bomb-booms-mp74: the end's animation drops each boomed hex's hop-0 `clear` and the `splat` of every piece that stood on one (ids taken before the command), so neither the burst nor the end sound repeats (D-48 call 15).
+- [agent, bomb-booms] bomb-booms-mp74: a bombed piece fades and shrinks with its splat like a tick's splat, rather than vanishing outright (D-48 call 15).
+- [agent, bomb-booms] bomb-booms-mp74: the card reads "N more booms; Esc ends it" and the hover hint "click to blow up"; the Bomb's verb line now says each click blows a hex up (D-48 call 10).
+- [agent, input-queue] input-queue-pyi5: a queued discard or board click runs only if the same `picked` object is still in play, on top of the method's own guards (D-49 call 1).
+- [agent, input-queue] input-queue-pyi5: a queued `D` captures no hex; it acts on the selection when it runs (D-49 call 2).
+- [agent, input-queue] input-queue-pyi5: UI_CONTROLS.md keeps its family-wide L1.1 drop rule, with a short Thing Factory note naming the exception (D-49 call 3).
+- [agent, card-discard] card-discard-jen3: the X button and Shift+number queue during the tick animation like D-49's X (lead's override of the task text), re-checking overlay/locked guards when they fire (D-50).
+- [agent, card-discard] card-discard-jen3: a separate `discardSlot(slot)` sends `discard` directly instead of picking then discarding; a different picked card is unpicked first (D-50 call 1).
+- [agent, card-discard] card-discard-jen3: the × is a `span role="button"` in the card's bottom-right corner, always shown at low opacity, brighter on card hover (D-50 call 2).
+- [agent, card-discard] card-discard-jen3: a queued slot discard keeps only the slot number; `pick()` clears the queue so the slot still names the card seen (D-50 call 3).
+- [agent, cannon-first] cannon-first-xkni: the order swap is recorded as a new D-51 (amending D-30/D-47/D-48) rather than edits to D-30's body; old D-36/D-47/D-48 remarks left as history.
+- [agent, crate-start] crate-start-gtz5: `crates` lives on each MAP_SIZES row and CRATE_CAP_PER_ROOT is removed; R-19's test sets delivered = 10 for its three-crate sequence (cap 2 + 1) instead of changing the sequence (D-31 amendment).
+- [agent, slide-max] slide-max-u2s8: every free slick hex a ground motion enters counts toward MAX_SLIDE, the first one a Belt pushes onto included (a Belt onto 8 ice stops on the 4th); gremlin wanders share the cap; a Cannon shot's ground step and fallback skid share one count (D-52 calls 1-3).
+- [agent, mute-button] mute-button-twa8: the flag and its localStorage live in GameSound; toggling plays no cue; M has no modifier check (separate task) (D-53).
+- [agent, grem-splat] grem-splat-263u: "sliding" = a skid or a ground motion whose last arrival was free onto slick ground; both-splat keys off the bumped piece having splatsOnSlideBump too; a wandering gremlin's step into a crate still wrecks it first (D-54 calls 1-3).
+- [agent, reject-why] reject-why-23qa: a queued (D-49) command shows no reason, only an actual refusal does; a non-legal build click still puts the card back and also says why, the reason picked by terrain/endpoint in the UI; wording in REASONS, 2.5 s (D-55).
+- [agent, meta-tags] meta-tags-dagy: favicon is the Rocket glyph hand-copied as SVG (45 degrees); description is the README's first two sentences; og.png listed in SHIP.md as waiting on the user (D-56).
+- [agent, key-mods] key-mods-dsxi: one early return in onKeyDown for ctrl/alt/meta, before the overlay path, so a bare modifier no longer closes an any-key overlay; Shift and M covered as asked (D-57).
+- [agent, sorry-past] sorry-past-zwbb: one combined query with `not (any-pointer: fine)`; Try it anyway runs the desktop boot() on click; Copy link is share-else-clipboard with a "Link copied" note, no execCommand fallback (D-41 calls 7-9).
+- [agent, slide-trans] slide-trans-4pqk: a Cannon shot's ground step off its passed-over 4th hex counts as coming down from the air (no slide count); D-54's "sliding" kept exact via a separate `sliding` flag; R-32's Rocket stops at 10 by the rule, not the task's "11" (D-52 calls 5-6).

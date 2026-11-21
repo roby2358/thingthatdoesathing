@@ -1,0 +1,158 @@
+Priority:   49
+Status: ToDo
+ID: own-deploy-kfi7
+Created: 2026-11-17T02:44:22Z
+Updated: 2026-11-17T02:44:22Z
+
+Prepare the move to its own repo and a Cloudflare deploy at ttdat.yuwakisa.com.
+The game will leave yuwakisaweb for its own repo and be served over HTTPS at ttdat.yuwakisa.com on Cloudflare. The AI part: write the deploy config for serving dist/ (from the ship-bundle recipe) as Cloudflare static assets (a wrangler.jsonc with an assets directory; leave room for a Worker + D1 binding later for telemetry, but don't add one), a `just deploy` recipe that runs the ship build then `wrangler deploy`, a LICENSE file for the new repo (MIT, same holder as the yuwakisaweb LICENSE, unless told otherwise), a README "Deploy" section listing the steps the user must do by hand (create the repo, move the folder with history if wanted, create the Cloudflare project, add the ttdat.yuwakisa.com custom domain, wrangler login), and how a patch reaches each target (own site: just deploy; itch.io and Newgrounds: upload the new zip). Note in SHIP.md's Targets table how to deploy each target. Also note the old copy at yuwakisa.com/thingthatdoesathing/ should redirect or be removed after the move (the user decides when). Don't run wrangler or touch any account. SHIP.md items: WEB-1, LEGAL-7, OPS-3, OPS-4, X-2. Done when the config, recipe, LICENSE and README section exist and `just cc-test` passes.
+----
+Priority:   49
+Status: ToDo
+ID: credits-55gy
+Created: 2026-11-17T02:44:41Z
+Updated: 2026-11-17T02:44:41Z
+
+Add an About panel: credits, AI disclosure, version, feedback link, privacy note, way back.
+There's no credits or about screen. Done looks like: an "About" button in the top button row (and a link on the intro) opens an overlay (same pattern as Help, an OVERLAY_KEYS entry, closes on click or any key) with: the author (Rob Young / Yuwakisa) and a link to yuwakisa.com; the AI disclosure from SHIP.md Decisions, stated plainly and proudly; tools and libraries (none third-party; system fonts; the 🗑 emoji from the system font); the version (the commit hash the ship build stamps; fall back to "dev" when unstamped) next to the board's seed, both selectable for bug reports; a feedback link (the itch.io page comments, filled in once the page exists; a placeholder constant until then, not shown when empty); and a one-line privacy note that says what the browser keeps (the saved run and settings) and what leaves it (nothing, until telemetry is decided; update when it is). Every external link opens with target="_blank" rel="noopener". SHIP.md items: LEGAL-4, LEGAL-5, WEB-7, OPS-1, OPS-2, PRIV-3, PORT-5. Done when `just cc-test` passes, with a uiboot check that the panel opens and closes.
+----
+Priority:   49
+Status: ToDo
+ID: crash-screen-zruz
+Created: 2026-11-17T02:44:52Z
+Updated: 2026-11-17T02:44:52Z
+
+Show a "something broke" screen with Reload and Start fresh when an uncaught error happens.
+Today an uncaught error leaves a frozen canvas. Done looks like: window 'error' and 'unhandledrejection' handlers (installed first thing in index.js) show a plain overlay: one line saying the game hit a bug, the error message and the version/seed for a bug report (selectable text), a Reload button, and a Start fresh button that removes only this game's saved-run key (try/catch) and reloads, in case the save is the cause. Shown once; later errors don't stack overlays. SHIP.md item: ERR-3. Done when `just cc-test` passes, with a uiboot check that a thrown error shows the overlay.
+----
+Priority:   49
+Status: ToDo
+ID: run-stats-m6pe
+Created: 2026-11-17T02:45:14Z
+Updated: 2026-11-17T02:45:14Z
+
+Show a run summary: milestones and the turns they took, with the tally.
+The game is endless, so there's no end screen; the payoff is the milestone banner, and New Game discards the run without a look back. Done looks like: the New Game panel (and a "Run" line in the tally that opens the same view) shows this run's board size, seed, turn count, each milestone reached with its turn, and delivered / lost / ex-gremlins / trapped. Milestone turns are recorded in GameState (if not already) so they survive save/resume. SHIP.md item: MENU-6. Done when `just cc-test` passes.
+----
+Priority:   49
+Status: ToDo
+ID: string-table-c2cy
+Created: 2026-11-17T02:45:19Z
+Updated: 2026-11-17T02:45:19Z
+
+Move player-facing text into one keyed string table with whole-sentence templates.
+English only for now, but the text is scattered: index.html panels, THING_LOOK names and verb lines, gameui.js literals (banners, hover bar, card text, news), and some sentences are built by concatenation. Done looks like: a STRINGS table in displayartifacts.js keyed by id, with named-slot templates ("{n} more booms; Esc ends it") filled by one small format helper; gameui.js and the static panels read from it (static HTML text set at boot from the table); no player-facing sentence assembled with +. Behavior and wording unchanged. SHIP.md items: LOC-2, LOC-3. Done when `just cc-test` passes and a grep finds no player-facing string literals left in gameui.js outside the table.
+----
+Priority:   48
+Status: ToDo
+ID: settings-rrcw
+Created: 2026-11-17T02:44:46Z
+Updated: 2026-11-17T02:44:46Z
+
+Add a Settings panel: volume, animation speed, reduced motion, fullscreen, saved apart from the run.
+There's no settings screen. Done looks like: a "Settings" button in the top button row opens an overlay (OVERLAY_KEYS pattern) with: sound on/off (the same flag as the mute button) and a volume slider (GameSound gets setVolume); animation speed (normal / fast / instant, scaling HOP_MS and RUN_GAP_MS in the UI only); reduced motion (skips bursts and fades; defaults on when prefers-reduced-motion matches); a fullscreen toggle (requestFullscreen on the document, label follows fullscreenchange; hidden if the API is missing); and the "help seen" flag so the keys legend shows once per browser, not every load (still reachable from Help). Settings persist in localStorage under their own namespaced key (e.g. "ttdat.settings.v1"), separate from the saved run, with try/catch and defaults when storage fails; New Game never resets them. Client-only; the engine never sees settings. SHIP.md items: SET-1, SET-2, SET-3, SET-4, AUD-4, SAVE-6, ONB-9, PORT-4. Done when `just cc-test` passes, with a uiboot check that a setting survives a UI reboot on the stub DOM.
+----
+Priority:   46
+Status: ToDo
+ID: ship-bundle-wyxt
+Created: 2026-11-17T02:44:16Z
+Updated: 2026-11-17T02:44:16Z
+
+Build a ship bundle with only the game files, plus cache-busting and a portal zip.
+Today the whole folder (design docs, test/, pjpd/, justfile) is what gets served. Done looks like: a `just ship` recipe (plain shell/node, no npm deps) that copies only what the page needs (index.html, index.css, the game .js files) into dist/, stamps each script/stylesheet URL in dist/index.html with a version query (?v=<short commit hash>) so a returning player never runs new HTML against old JS, writes the commit hash where the game can show it (e.g. a tiny version.js global or a data attribute), and produces dist/ttdat-<hash>.zip with index.html at the zip root, every path relative, exact filename case. dist/ is git-ignored. Add a test that runs the recipe and checks the zip has index.html at root and contains no .md, test/ or pjpd/ files. Document it in CLAUDE.md and a short SHIP.md deploy note. SHIP.md items: WEB-2, PORT-1, LOAD-3. Done when `just ship` produces the zip and `just cc-test` passes.
+----
+Priority:   45
+Status: ToDo
+ID: save-resume-tbe3
+Created: 2026-11-17T02:44:11Z
+Updated: 2026-11-17T02:44:11Z
+
+Save the run so a reload or closed tab doesn't lose an endless game.
+Today nothing is stored (no localStorage anywhere), so an hours-long Thing Factory run is gone on reload. Done looks like: the UI autosaves the full GameState (including the Rando stream state and the seed, so resume is the same world) after every completed command/tick, to localStorage under a namespaced key (e.g. "ttdat.save.v1"); on boot, if a valid save exists, the intro offers Continue (resume) next to the board-size picker, and picking a size there asks before overwriting the saved run. Every storage touch (including the first access of window.localStorage) is in try/catch; if storage is unavailable the game plays normally and says saving is off in one quiet line. A save with bad JSON, an unexpected shape or a different version number is discarded with a short message and falls back to a new game, never a blank page. The save carries a `version` field; a version bump discards old saves with a message (no migration). Never call localStorage.clear(). State/engine stay DOM-free (GameState gets toJSON/fromJSON if missing; the UI does the storage). Tests: round-trip a mid-game state through JSON and check the next tick is identical to an unsaved copy; a corrupt save falls back cleanly. Record a D-n in RATIONALE and reconcile docs. SHIP.md items: SAVE-1, SAVE-2, SAVE-3, SAVE-4, SAVE-5, SAVE-8, MENU-5. Done when `just cc-test` passes.
+----
+Priority:   45
+Status: ToDo
+ID: screencap-wpsv
+Created: 2026-11-17T02:50:58Z
+Updated: 2026-11-17T02:50:58Z
+
+Add an in-game screencap key that saves the board as PNGs sized for the listings.
+The listings and link preview need images taken from real play (SHIP.md WEB-5, the og:image for WEB-4, itch.io capsule). Done looks like: pressing P (unbound today; ignored with Ctrl/Alt/Meta held and while an overlay is open) saves PNGs of what's on the board right now, drawn from the game canvas: (1) the full canvas at its current size, (2) a 1200x630 crop/scale centered on the board's view for og:image, (3) a 630x500 crop for the itch.io capsule, and (4) a 1280x720 one for screenshots. Each is rendered into an offscreen canvas at that size by re-running render() with a temporary size and transform (so it's sharp, not a scaled bitmap), without the hover highlight or ghost, then downloaded via a temporary <a download="ttdat-<seed>-<turn>-<size>.png"> with canvas.toBlob. A short "Saved 4 screenshots" note shows in the hover bar. The DOM HUD isn't included (OS screenshots cover full-UI shots). Works from file:// too. Client-only. Add P to the help legend and the README (as a capture key), a D-n in RATIONALE, an ARCHITECTURE_LOG entry, and list the outputs in SHIP.md under WEB-5. Add a uiboot check that P calls the download path on the stub DOM (stub toBlob). Done when `just cc-test` passes.
+----
+Priority:   45
+Status: ToDo
+ID: seed-words-fsee
+Created: 2026-11-13T17:50:15Z
+Updated: 2026-11-13T17:57:10Z
+
+Split the randomness into a build seed (makes the board) and a run seed (plays it), and name the build seed with three words taken from a static word list, so a board can be shared and rebuilt ("frost-lantern-otter").
+
+Today, newGame(seed, size) seeds the single global Rando once (generateMap calls Rando.seed), and the same stream goes on to place the first color, the starting crate and gremlins, the hand, and then every tick (spawns, wander, draws, openColor). So two players on the same seed get the same board only if they also play identically.
+
+Designer's rule:
+- Build seed: makes the starting board: the hex grid, terrain (heightmap and ice), the first source and target, and the first color. Decide and log whether the starting gremlins and the starting crate belong to build or run; default build, so the opening position is identical.
+- Run seed: everything after the board is built: the hand, spawns, gremlin wandering, big-crate rolls, openColor, redraws. Rolled separately and randomly for each game, so the same three words give the same board but a different run. Store both in GameState (e.g. `buildSeed` and `runSeed`, replacing `seed`). The engine reseeds Rando with the run seed right after generation. Rando stays one global with `seed(n)`; no second instance needed unless that turns out cleaner (log it).
+- Three words: a static list in artifacts.js (or its own words.js plain-script global, included in index.html and the test loader). Short, common, family-friendly, distinct-looking English words; no near-duplicates or homophones. Size it to a power of two, e.g. 1024 words (3 words = 30 bits) or 2048 (33 bits).
+  - Direction: the words are the identity. Build seed = a hash of the normalized words (lowercase, trimmed, joined with '-'; a small stable string hash like FNV-1a, written in the engine/artifacts, no library). Rolling a new game picks 3 random words (with Math.random in the UI, like the seed today) and hashes them.
+  - newGame takes the words (or the build seed) plus the size, and an optional run seed for tests and replays. All randomness stays reproducible from (words, size, runSeed). Validate: exactly three words, each on the list, or ok:false.
+- Generation fallback (designer's call): if the board from build seed h doesn't generate (no source→target land path), try h+1, then h+2, and so on until one does (expected to be extremely rare). Each try reseeds Rando with that seed, so it's deterministic: the same words always land on the same board, and the words shown always rebuild the board you see. This replaces both the GEN_MAX_ATTEMPTS in-stream retry and the knownGoodSeed fallback; remove MAP_SIZES.knownGoodSeed and GEN_MAX_ATTEMPTS if nothing else uses them (no dead constants). Store the seed that actually generated if that's useful for debugging, but the words stay the identity. Add a sanity cap (e.g. 1000 tries, then throw) so a broken generator fails loudly instead of hanging.
+- UI: show the three words for the current board somewhere unobtrusive (the HUD under Turn, or the help overlay) where they can be selected and copied. The New Game / intro size picker gets an optional "board words" field: blank = random; typed words = that board (an invalid entry shows a gentle inline message and doesn't start). The field mustn't swallow the picker's 1–4 hotkeys while focused; decide and log how keys behave in it.
+- test/sim.js and tests that call newGame(seed, size) with integers: keep an integer path, newGame accepting a build seed directly, or update the callers. Decide and log; don't break `just cc-sim` reproducibility.
+
+Docs: ONTOLOGY (state fields, newGame contract, which randomness belongs to which seed, the h+1 fallback), CRITERIA rows (same words + size = same board; different run seeds = same board, different spawns/hand; invalid words → ok:false; a seed that fails to generate falls through to h+1 deterministically, testable by stubbing or finding a failing seed; tests in the test/R-n dirs), RATIONALE new D-n, ARCHITECTURE_LOG, README (sharing a board), CLAUDE.md (GameState fields, the newGame signature, L5 overlay field, the knownGoodSeed mention). Agent calls go in pjpd/decisions.md. `just cc-test` green; cc-sim numbers unchanged in spirit (seeds shift, but the medians should be close).
+----
+Priority:   40
+Status: ToDo
+ID: portal-frame-aqns
+Created: 2026-11-17T02:44:31Z
+Updated: 2026-11-17T02:44:31Z
+
+Make the game behave in a portal iframe: fit a declared 1280x720 frame and regain key focus.
+On itch.io and Newgrounds the game runs in an iframe at a size we declare (use 1280x720) and gets no keys until clicked. Done looks like: the HUD, tally, hand, Go button and every overlay (intro, help, New Game, news, color picker, sorry) fit at 1280x720 and at a smaller 960x600 with nothing clipped or overlapping (adjust index.css with sizes that shrink, not hardcoded widths); a mousedown on the canvas or panels calls window.focus(); when the window loses focus mid-game (window blur) a small "Click to resume keys" note shows over the board until the next click. No scrollbars on the page at any size. SHIP.md items: PORT-2, PORT-3, MOB-7. Done when `just cc-test` passes (layout itself is checked by the user in a browser).
+----
+Priority:   40
+Status: ToDo
+ID: listing-r8fn
+Created: 2026-11-17T02:44:35Z
+Updated: 2026-11-17T02:44:35Z
+
+Draft the itch.io and Newgrounds listings, the pitch and the AI disclosure in SHIP-LISTING.md.
+Write SHIP-LISTING.md in the game folder with: a one-paragraph pitch (what it is, what you do, how long a session is) reused for the page, both portals and the link preview; a short tagline; genre and tags; input method (mouse and keyboard, desktop only: "mobile friendly" stays OFF on both portals); session length (endless, play in short sittings); content rating notes (cartoon splats, no gore); the declared frame size 1280x720 with fullscreen enabled; the AI disclosure statement (the one in SHIP.md Decisions: code, design, art and sound made with Claude via Claude Code; procedural art and synthesized sound, no generated images or samples) worded for each portal's AI field; and a checklist of the images the user must capture from real play (capsule 630x500 for itch.io, 3+ screenshots at 1280x720, Newgrounds icon sizes per their current upload page). Check each portal's current upload docs and cite the URLs. SHIP.md items: PORT-7, PORT-8, PORT-9, WEB-6. Done when SHIP-LISTING.md exists with every section filled.
+----
+Priority:   40
+Status: ToDo
+ID: hidden-pause-y9wi
+Created: 2026-11-17T02:44:49Z
+Updated: 2026-11-17T02:44:49Z
+
+Hm, talk about if we want to do this one, or if we want the game to idle-run when it's offscreen.
+
+Stop Go when the tab is hidden, so the game doesn't tick on while nobody watches.
+Today Go keeps ticking from setTimeout (gameui.js scheduleRun) while the tab is in the background. Done looks like: on document visibilitychange to hidden, the UI calls setRunning(false) (Go shows as stopped; the tick in flight finishes); nothing restarts on its own when the tab comes back. Burst/animation frames already stop with requestAnimationFrame. Add a uiboot check with a stubbed visibilitychange. SHIP.md items: MENU-7, LOAD-5. Done when `just cc-test` passes.
+----
+Priority:   40
+Status: ToDo
+ID: hidpi-678j
+Created: 2026-11-17T02:44:55Z
+Updated: 2026-11-17T02:44:55Z
+
+Scale the canvas backing store by devicePixelRatio so the board is crisp on HiDPI screens.
+Today resize() sets canvas.width/height to window.innerWidth/innerHeight (gameui.js), so the board is blurry on retina displays and at browser zoom. Done looks like: the backing store is innerWidth*dpr by innerHeight*dpr with CSS size at innerWidth/innerHeight; render() folds dpr into its one setTransform; hexToScreen/screenToHex and the color picker placement stay in CSS pixels so clicks land correctly; MIN_TEXT_PX readability is judged in CSS pixels; the hand card canvases get the same treatment. Re-check on a matchMedia resolution change or resize. SHIP.md item: MOB-8. Done when `just cc-test` passes.
+----
+Priority:   40
+Status: ToDo
+ID: action-btns-pebc
+Created: 2026-11-17T02:45:11Z
+Updated: 2026-11-17T02:45:11Z
+
+Put on-screen buttons for Remove, Blast and Turn, with their keys shown.
+Today D (remove the selected Thing), B (blast the hovered crate) and R (turn the ghost) are keyboard-only. Done looks like: a small action bar near the hover bar with "Remove (D)" (enabled when a hex with a Thing is selected), "Turn (R)" (enabled when a card that aims is picked, or a mover is selected, where it turns like clicking the selected hex), and "Blast (B)", which arms a one-shot "click a crate to blast it" mode since a button can't hover (Esc cancels). Each button shows its key. SHIP.md item: INP-4. Done when `just cc-test` passes, with uiboot clicks on each.
+----
+Priority:   40
+Status: ToDo
+ID: wipe-data-mw24
+Created: 2026-11-17T02:45:16Z
+Updated: 2026-11-17T02:45:16Z
+
+Add a "Forget my data" control that deletes only this game's saved run and settings.
+Done looks like: a button in Settings (or About, if Settings isn't built yet) that asks to confirm, then removes only this game's localStorage keys (the saved run and settings keys; never localStorage.clear()), in try/catch, and starts a fresh intro. SHIP.md item: SAVE-7. Done when `just cc-test` passes.

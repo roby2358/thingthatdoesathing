@@ -1,0 +1,672 @@
+# Thing Factory — Ontology
+
+The implementation reference for Thing Factory: what exists, what each thing carries, how
+things relate, the rules as short pseudocode, and the interface between the engine and any
+client. When the code and this doc disagree, that is a bug in one of them; raise it, don't
+silently pick a side. CRITERIA.md turns each rule here into testable rows.
+
+**Tags.** **[D]** decided by the designer · **[P]** proposed by Claude, pending review ·
+**[T]** tunable number · **[D, unbuilt]** decided but not yet in the code.
+**Serves:** names the goal (`G-n`), quality, or DYNAMICS driver an item exists for.
+IDs (`G-n`, `D-n`, `Q-n`, `R-n`/`U-n`/`X-n`) are stable and never reused; cite them, not
+section numbers.
+
+---
+
+## §0 Purpose
+
+Thing Factory is **a small hex board where you build a contraption one Thing at a time
+while it runs**. Each Thing does exactly one thing, every tick. Crates come
+out of a source; get enough of them to the target. Bigger boards open more colors as you
+pass milestones, each with its own target, and every milestone unlocks a new card. [D:
+place-then-tick, deliver N, no time limit, board size picked at New Game, colors opened by
+milestones, cards unlocked by milestones]
+
+**Qualities**
+- **Tinkerer's delight** — the fun is setting something up and watching it go. [P]
+- **One verb per Thing** — you can predict any Thing by looking at it. [P]
+- **Comedy** — gremlins ride your belts into the sea, a Puller yanks a wandering gremlin
+  into the drink, and a spring flings a crate onto ice so it skids home. Overlapping Things are allowed to do silly things. [P]
+- **Board-wargame feel** — flat hexes, chunky counters. [D]
+
+**Goals, in priority order**
+- **G-1 The contraption is the toy.** Placing a Thing should change what the machine does
+  on the very next tick, visibly. Concretely: every command but turning a mover ticks, and the tick is animated
+  from engine events. [P]
+- **G-2 Readable.** Every Thing does one thing, shown by its glyph and facing arrow; the
+  legal placement hexes highlight before you commit. [P]
+- **G-3 Keep the base platform's seams.** Server-portable State/Engine split, seeded
+  reproducibility, double-click to run. [D]
+
+**Priorities when goals conflict.** G-3's double-click and seam constraints beat
+everything; G-2 beats G-1 (a funny interaction that can't be read is a bug, not comedy). [P]
+
+**Non-goals (for now)** [D]
+- A defeat condition, a time limit, or an end. The factory runs forever; the score is the
+  turn each milestone was reached.
+- Combat, unit stats.
+- Levels or a campaign; every board is generated.
+- Undo, or getting a removed Thing's card back: removing costs the card and a tick (D-12); the
+  Mover lifts a Thing only by spending its own card (D-47).
+- A network layer.
+
+---
+
+## §1 Entities
+
+### GameState — the world struct
+*Serves:* G-3. Authoritative, serializable data only.
+
+| Field | Type | Notes |
+|---|---|---|
+| `seed` | uint32 | Reproducibility anchor. |
+| `size` | key of `MAP_SIZES` | The board size this game was generated at. |
+| `hexes` | `Map<"q,r", Hex>` | The map; `Board` wraps it. |
+| `sources` | `[{q, r, colors}]` | Where crates appear; each makes the crates of its `colors` (one or more). Things may sit on one, except a blocking one (Wall). [D] |
+| `targets` | `[{q, r, color, delivered}]` | One per open color, in the order they opened: it takes only `color` crates, and `delivered` sums their `value` (a big crate counts 10). Nothing may be built on one. [D] |
+| `pieces` | `Piece[]` | Every crate and gremlin, in creation order. |
+| `things` | `Thing[]` | Every placed Thing, in placement order (the order they act, Pushers and Pullers first: Tick rule). |
+| `hand` | `{kind}[]` | Cards, length `HAND_SIZE` (Draw rule). A card's `kind` is a `THINGS` kind or a `TOOLS` kind (the Mover, D-47; the Bomb, D-48). A card has no color; a `colored` kind gets its color when placed (D-32). |
+| `unlocks` | int ≥ 1 | How many `UNLOCKS` steps are open; their kinds are the deck (Unlock rule). A new game opens 1. [D: pjpd card-unlock] |
+| `turn` | int ≥ 1 | Goes up by 1 per tick. |
+| `delivered` | int | Crates delivered, all colors together, each counted at its `value` (a big crate is 10; milestones count this, D-34). |
+| `lost` | int | Crates that sank, were wrecked by a gremlin or were blasted, each counted at its `value` (D-34). |
+| `exGremlins` | int | Gremlins gone any way but a Trap: sunk, splatted, bombed, or killed on a target (Tick rule). Shown in the tally. [D] |
+| `trapped` | int | Gremlins a Trap caught (Tick rule). Shown in the tally. [D] |
+| `idleTicks` | int | Ticks in a row with no card used (`place`, `discard`, `move`, `scrap`, `bomb`); at `IDLE_REDRAW_TICKS` one card is redrawn (Tick rule). [D] |
+| `spawnCycle` | [`CRATE_COLORS` name] | Every `CRATE_COLORS` color once, shuffled with `Rando` at `newGame`; fixed for the whole game, never reshuffled (D-43). [D] |
+| `spawnSlot` | int, 0 ≤ n < `spawnCycle.length` | The slot of `spawnCycle` the next tick takes; advances one per tick, wrapping. The crate cap isn't stored: it's `crateCap(size)` plus `milestonesReached(delivered)` (D-31). [D] |
+| `nextId` | int | Next piece id. |
+| `phase` | `'player' \| 'tick'` | `'tick'` only while a tick resolves inside a command. |
+
+### Hex — one map cell (plain object)
+| Field | Type | Notes |
+|---|---|---|
+| `q`, `r` | int | Axial, pointy-top. Key `"q,r"`. |
+| `col`, `row` | int | Rectangle position; `q = col - floor(row/2)`. |
+| `elevation` | float 0…100 | Generation only. |
+| `isEdge` | bool | Outer ring. |
+| `terrain` | `TERRAIN` | `WATER`, `PLAINS`, `MOUNTAIN`, `ICE`. |
+
+### Piece — a crate or gremlin
+*Serves:* G-1 (the things the machine moves), comedy (gremlins).
+A `Piece` (position, color, label) with two fields set by the engine. Each kind is a row of `PIECES`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `q`, `r` | int | Position. |
+| `id` | int | Unique, from `nextId`; events refer to it. |
+| `kind` | `'crate' \| 'bigcrate' \| 'gremlin'` | Key into `PIECES`. |
+| `label` | string | `PIECES[kind].label`: `'📦'` or `'👹'`. |
+| `color` | `#rrggbb` \| `CRATE_COLORS` name | Gremlins get a seeded palette color; a crate gets the color of the spawn slot that made it. Only its color's target takes it (Motion rule); the client draws it as a shaded isometric box. [D] |
+
+`PIECES[kind]` is the template:
+
+| Field | crate | bigcrate | gremlin | Meaning |
+|---|---|---|---|---|
+| `label` | `'📦'` | `'📦'` | `'👹'` | The counter's glyph (the client draws crates as a box instead; a big crate's box is `BIG_CRATE_SCALE` bigger). |
+| `cargo` | yes | yes | no | Delivered on entering its color's target, blocked by other colors' targets; counted in `lost` when it sinks. |
+| `value` | 1 | 10 | 0 | What a delivery adds to `delivered` and its target's count, and what losing it (sunk, wrecked, blasted) adds to `lost`. Toward the crate cap every cargo piece counts one (D-34). [D: pjpd big-crate] |
+| `wanders` | no | no | yes | Takes a random step on a tick when no Thing claimed it, its direction picked from the board as the tick starts (D-38). |
+| `splats` | no | no | yes | A Rocket's flight destroys it: the piece the flier lands on, and the launched piece once it lands; so does coming onto a Trap (Motion rule). [D] |
+| `wrecks` | no | no | yes | Its own wandering step into a cargo piece's hex destroys that piece (counted in `lost`) and takes the hex; pushed, pulled or flung into one, it's just blocked (Motion rule). [D] |
+| `reemerges` | no | no | yes | When one sinks or splats, a new one climbs out on a shore hex (Emerge rule). |
+| `splatsOnSlideBump` | no | no | yes | Sliding into a bump (a skid, or a ground motion that came onto slick ground free), it splats where it is at that hop instead of following; the bumped line still advances, unless the bumped piece has `splatsOnSlideBump` too, and then both splat and nothing moves on (Bump, D-54). [D: pjpd grem-splat] |
+
+A big crate is a crate in every rule but `value`: Things, ice, bumps, Traps, targets and
+gremlins treat it the same (D-34).
+
+### Thing — a placed fixture (plain object)
+*Serves:* G-1, G-2. Templates over snowflakes: every kind is a row of `THINGS` (§6).
+
+| Field | Type | Notes |
+|---|---|---|
+| `kind` | `ThingKind` | `BELT`, `SPRING`, `ROCKET`, `PUSHER`, `PULLER`, `WALL`, `TRAP`, `BRIDGE`, `SLIDE`, `CANNON`. |
+| `color` | `WHITE` \| `CRATE_COLORS` name | Set by `place` and kept for good (D-32): a `colored` kind takes the open color the player picked, every other kind `WHITE`. A colored one acts only on crates of its color and on every gremlin; white acts on every piece. [D] |
+| `q`, `r` | int | Position. One Thing per hex; placing on an occupied hex replaces it (D-28). |
+| `facing` | 0…5 \| null | Index into `Hex` neighbor directions; null for fixtures. Facing order E, NE, NW, W, SW, SE; clockwise is `(f+5) mod 6`. |
+
+`THINGS[kind]` is the template:
+
+| Field | Meaning |
+|---|---|
+| `push` | Hexes it shoves (or flies) the piece standing on it, along `facing` (Belt, Bridge, Spring, Rocket, Cannon). [Bridge D] |
+| `splat` | Its push splats pieces that splat: the one it lands on and the one it launches (Rocket). [D] |
+| `flies` | Its push is airborne: it passes over inland open water (only the outer sea, an edge hex, takes the piece mid-flight), every hex counts (ice is no shortcut mid-air), and it sinks if it comes down on water (Spring, Rocket). Every landing skids: a flight (or a `clears` shot) that comes down on slick ground (bare ice or a Slide), at full range or short, slides on, on the ground (a skid, Motion rule); there is no per-Thing flag. The one exception is a flight that splatted a gremlin in its way (it stops on that hex); a gremlin riding a Rocket splats where it lands. [D; skid on landing D-17, D-29, D-37 (settled 2026-11-12)] |
+| `overMountains` | A flying push that passes over mountains too; it can't come down on one, so a flight that ends over a mountain lands on the last hex short of it that it flew over, or stays put if there's none (Spring: over two mountains, landing on the third). [D-35] |
+| `clears` | How many hexes at the start of its push pass over everything: water (the outer sea too), mountains, Walls, pieces (gremlins unsplatted), targets, Traps; the shot touches nothing on them, and the rest of the push goes through `step` from the last one, on the ground unless `flies` (Cannon: 4 of its 5). Stopped right after them, it comes down on the last cleared hex if the ground there would take it (no Wall, no other piece, not open water, not a mountain or another color's target; its color's target delivers it), else it doesn't fire; a path that leaves the map within them doesn't fire. 0 for every other kind. [D-36: the clearing and the 4th-hex landing D; off-map and the target cases P] |
+| `shove` | Hexes it pushes the piece on the **near hex** (the one it faces) on, along `facing` (Pusher). [D] |
+| `pull` | Hexes it pulls the piece on the **far hex** (two ahead along `facing`) back toward itself, into the **near hex** (one ahead) (Puller). |
+| `blocks` | Pieces can't enter (Wall). |
+| `traps` | A piece that splats dies when it comes onto this hex: walked, pushed, slid, or coming down from a flight; a flight passing over doesn't count (Trap). Every target does the same, with no Thing (Motion rule). [D] |
+| `colored` | Placed in an open crate color the player picks, never white (`colorChoices`, D-32); its card is drawn plain, and only once two or more colors are open (Pusher, Puller). [D] |
+| `slides` | Slick ground: a piece that comes onto it on the ground keeps going the same way, free, exactly like bare ice (Slide), up to `MAX_SLIDE` slick-to-slick moves per motion, so at most 4 slick hexes in a row (D-52). The one slick test, `isSlick`, reads it: a Thing on a hex decides by `slides`; with no Thing, the hex is slick if it's ICE. [D-29] |
+| `on` | `'land'` (plains/ice), `'water'`, or `'unslick'` (plains or water: not bare ice, which already slides) — where it may be built. [unslick D-29] |
+| `weight` | Relative draw chance for the hand, among the kinds in the deck (Draw rule). |
+
+### Tool — a card that isn't a Thing [D-47]
+*Serves:* G-1 (cleanup without a Wait-and-hope). A tool card is dealt like any card but never
+built: it's played on the board in its own command. `TOOLS[kind]` is the template:
+
+| Field | Meaning |
+|---|---|
+| `picks` | What its clicks on the board take (`canPick`): `'thing'`, a hex holding a placed Thing (Mover); `'filled'`, a hex holding a Thing or a piece (Bomb; a source or target counts only for what stands on it, D-48). |
+| `wipes` | How many hexes it clears in one command: 0 (Mover), 5 (Bomb, D-48). Not `THINGS.clears` (a Cannon's passed-over hexes). |
+| `colored` | Always false: a tool is dealt on any board. |
+| `weight` | Relative draw chance, as `THINGS.weight` (Draw rule). |
+
+`CARDS` is every card kind (`THINGS` keys, then `TOOLS` keys); `cardOf(kind)` is its template.
+The tools are the **Mover**: pick up a placed Thing and put it down elsewhere (`move`), or back
+out and scrap it (`scrap`); and the **Bomb**: clear 1 to `wipes` hexes of their Thing and piece
+in one command (`bomb`, D-48).
+
+### Board — query layer over `hexes`
+`get`, `has`, `moveCost`, `isPassable`, `passableHexes` (non-edge only), `neighbors`,
+`hasPath`. Passable means land (plains or ice). Transient, rebuilt with the map.
+
+### GameUI view state (client only)
+| Field | Notes |
+|---|---|
+| `picked` | `{ slot, card, mode, legal: Set<key>, kind, color, from, booms }` \| null — the hand card in play. `mode` (`PICK_MODES`, D-47): `'build'` (a Thing card: `legal` is `legalPlacements`; a legal click sends `place`, or opens the color picker, an illegal one puts the card back), `'pickup'` (a tool card: `legal` is `legalPicks`; a click on a legal hex leads where `AFTER_PICK[card]` says, a bare hex does nothing, Esc or right-click puts the card back), `'carry'` (the Mover holding the Thing it picked up from `from`: the card is spent and the hand, Wait/Space and `B` locked, the Thing is hidden from its hex, `kind`/`color` are that Thing's and draw the ghost and the card; a legal click sends `move`, an illegal one does nothing, Esc, right-click or Discard sends `scrap`), `'bomb'` (the Bomb after its first boom, D-48: `booms` are the hexes blown up so far; each bursts (its Thing in its colors, its piece splatting, the splat sound) the moment it's clicked and is drawn cleared from then on (Thing and piece hidden, gone from the hover bar), though the engine hears of them only when the bomb ends; the card is spent and the hand, Wait/Space and `B` locked; `legal` is `legalPicks` less the booms; a legal click booms, any other does nothing; the boom that reaches `wipes`, Esc, right-click or Discard sends `bomb` with every boom, and that tick's animation leaves out the booms' `clear`s and `splat`s, already shown). A click that does nothing, here or in `build`, says why in the hover bar (`notice`, D-55). |
+| `facing` | 0…5 — the ghost's facing, remembered between placements. |
+| `overlay` | `'intro'` \| `'size'` \| `'news'` \| `'help'` \| `'color'` \| null. `'intro'` and `'size'` are size pickers; picking a size starts a game, and `'size'` (New Game) also closes on Esc, back to the game. `'news'` shows the colors `open` events named and the cards `unlock` events named, on one panel, and closes on a click or any key (D-30). `'help'` is the keys legend: it opens after the intro's size pick and from the Help button, and closes on a click or any key. A phone or tablet starts on the sorry page instead, with no UI built; its "Try it anyway" boots the game as on a desktop (D-41). `'color'` is the color picker (D-32): a click on a legal hex with a card whose `colorChoices` has more than one color opens it beside that hex, one swatch per choice; a swatch click or its number key sends `place` in that color; Esc, right-click or a click off the swatches closes it with the card still picked. [D] |
+| `choosing` | `{ q, r, colors }` \| null — the hex and swatches of the open color picker; the ghost stands there while it's open. [D-32] |
+| `hoveredHex`, `panX/Y`, drag fields | The hex under the cursor, the screen-space pan offset, and left-drag tracking (`DRAG_THRESHOLD`). |
+| `scale`, `zoom` | The view scale (screen px per world px) and the map-scale button last pressed (`1`, `2`, `∞`); a new game starts at 1x (D-40). |
+| `selected` | `{q, r}` \| null — a clicked hex: outlined, holds Go; clicking it again calls `rotate`; `D` removes its Thing (D-39). |
+| `bursts` | `[{q, r, thing, piece, t0}]` — Bomb booms bursting now, outside any tick (D-48). |
+| `notice` | string \| null — why the last refused click or key did nothing, from `REASONS`; it takes the hover bar for `NOTICE_MS` (D-55). |
+| `anim` | `{ t0, dur, tracks, before, hidden, milestone, opened, unlocked, redrawn, ends }` \| null — tick animation, played hop by hop as the engine ran it (each track `{pts, hop, over, end}`, `pts[k]` its hex after hop k, D-38). Commands that arrive while it runs go into `queue`; picking a card, selecting, turning and muting work at once. |
+| `queue` | `TickQueue` — one held command (the latest wins) that came in during `anim`: X / Discard, a card's × or Shift+number, a board click with a card picked, `D`, `B`; it runs when the animation ends, re-checking its own guards; picking or putting back a card and a new game clear it (D-49, D-50). |
+| `running` | bool — Go/Pause. While true, the client calls `wait()` `RUN_GAP_MS` after each animation ends, and holds while a card is picked, a hex is selected or an overlay is open. [D] |
+| `sound` | `GameSound`, `Math.random` only; muted by the Sound button or `M`, remembered in `localStorage` (D-53). |
+
+---
+
+## §2 Relations and invariants
+
+- `hexes.size === cols × rows` of `MAP_SIZES[size]`; every edge hex is `WATER`. [D]
+- Sources and targets are on passable non-edge hexes, sources in the leftmost placement
+  slice, targets in the rightmost, each target with a land path from its color's source. No
+  two share a hex. A newly opened one holds no Thing and no piece (D-44). [P; colors D]
+- Each open color has exactly one target and comes out of exactly one source;
+  `targets.length <= MAP_SIZES[size].colors`, and the targets' colors are distinct `CRATE_COLORS`. [D]
+- At most one Thing per hex. No Thing on a target. Bridges only on water; Slides on plains or
+  water (never bare ice); every other kind only on land. [P; Slide D-29]
+- At most one piece per hex, between commands and after every hop of a tick (a Cannon's shot passing over doesn't count, D-36, D-38). No piece on a Wall, on mountain, or on open water (water with no Thing over it), between commands (a Spring's flight passes over a mountain mid-tick, D-35; a Cannon's shot over anything, D-36). [P; every hop D-38]
+- `hand.length === HAND_SIZE` whenever a command returns. [P]
+- `1 <= unlocks <= UNLOCKS.length`, and every card kind (`CARDS`: `THINGS` and `TOOLS`) is in exactly one `UNLOCKS` step. [D]
+- Every command that returns `ok:true` ran exactly one tick and raised `turn` by 1, except `rotate`, which ran none and left everything but that facing alone. [P; rotate D]
+- There is no won state: every command stays legal however many crates are delivered. [D]
+- **Engine-side modules never read the DOM, canvas, or `GameDisplayArtifacts`.** [D]
+- **Determinism:** same seed + same commands ⇒ same state and same events. [D]
+
+---
+
+## §3 Map and terrain
+
+| Terrain | Pieces | Things | Placed by |
+|---|---|---|---|
+| `WATER` | sink on entry, unless a Thing covers it (Bridge, Slide); a flying push crosses inland water and sinks only if it comes down on it | Bridge, Slide | lowest band; all edges |
+| `PLAINS` | enter normally | any land Thing | middle band |
+| `ICE` | slide on through, unless a Thing that doesn't slide covers it | any land Thing | scattered onto plains |
+| `MOUNTAIN` | can't enter; a Spring's flight passes over it but can't come down on it (D-35) | none | highest band |
+
+*Serves:* terrain as language — water is the hazard, ice is the windfall, mountains are
+walls you didn't have to spend a card on. [P]
+
+---
+
+## §4 Rules
+
+### Generate — `newGame(seed, size)` [P; size D]
+*Serves:* G-3, a fresh puzzle every board. The caller supplies the seed: the client rolls
+one with `Math.random`, and tests and replays pass theirs. The engine never rolls one.
+The player picks the size (D-3).
+```
+legal: seed is a non-negative integer; size is a key of MAP_SIZES
+state.seed = seed; state.size = size
+ends = generateMap(seed, GEN_MAX_ATTEMPTS) or (seed = knownGoodSeed; generateMap(seed, 1))
+    # generateMap: Rando.seed; build cols×rows grid sampling a heightmap-side
+    #   diamond-square grid; assignTerrain; placeSourceAndTarget; hasPath? → {source, target}
+color = Rando.choice(CRATE_COLORS)
+spawnCycle = Rando.shuffle(copy of CRATE_COLORS); spawnSlot = 0     # D-43
+sources = [{ends.source, colors: [color]}]; targets = [{ends.target, color, delivered: 0}]
+things = []; pieces = []; a spawnKind() of color on the source; spawnGremlins()   # 1% big (D-45)
+unlocks = 1; hand = HAND_SIZE draws (from UNLOCKS[0]); turn = 1; delivered = lost = exGremlins = trapped = idleTicks = 0
+```
+
+### Assign terrain [P]
+```
+edges -> WATER; inner sorted by elevation, by percentile p:
+    p < WATER_PCT -> WATER; p < MOUNTAIN_PCT -> PLAINS; else MOUNTAIN
+shuffle plains: first round(ICE_FRAC * inner) -> ICE
+```
+
+### Place source and target [P]
+```
+passable = board.passableHexes() sorted by col
+slice = max(PLACE_SLICE_MIN, floor(PLACE_SLICE_FRAC * len))
+source = Rando.choice(first slice); target = Rando.choice(last slice)
+```
+
+### Open a color — `openColor()` [D; placement P]
+*Serves:* escalating commitment (each milestone asks for a second line), comedy (crossing
+lines of different colors). Runs once per milestone reached, from the Tick rule.
+```
+if targets.length >= MAP_SIZES[size].colors: nothing
+color = Rando.choice(CRATE_COLORS not yet open)
+if Rando.random() < ENHANCE_CHANCE: src = Rando.choice(sources)        # it adds this color
+else: src = Rando.choice(open hexes in the left slice)                  # a new source
+tgt = Rando.choice(open hexes in the right slice with a land path from src)
+if no src or no tgt: nothing                                            # the next milestone tries again
+add color to src (or add {src, colors: [color]}); add {tgt, color, delivered: 0}
+emit open{color, source, target}
+for h in the newly placed hexes (tgt, and src unless it was enhanced):  # clearHex (D-44)
+    if a Thing on h: remove it (no card back); emit clear{kind, q, r, hop: the tick's last hop}
+    if a crate on h is h's target color: deliver it; emit deliver{id, hop: the tick's last hop}  # D-46
+    elif a piece on h: remove it; lost += its value; emit splat{id, by: null, trap: false, hop: the tick's last hop}
+```
+An open hex is any slice hex that isn't already a source or target: a Thing or a piece on it
+doesn't rule it out, and the pick is uniform (D-44). The slices are the Place source and
+target rule's. A cleared gremlin counts in `exGremlins` and re-emerges like any splat (the
+Tick rule runs milestones before its tally); a cleared crate or big crate counts as lost,
+unless it stands on its own color's new target, where it's delivered (D-46). An enhanced source's hex is left as it is.
+
+### Spawn gremlins [P; scales with area D]
+*Serves:* comedy; moving obstacles.
+```
+dice = gremlinDice(size) = max(1, round(cols * rows / GREMLIN_HEXES_PER_DIE))
+count = sum of dice rolls of d GREMLIN_DICE_SIDES
+on shuffled passable hexes other than the source and target (the first crate stands on the source)
+```
+
+### Emerge — `emerge(goneKinds)` [D]
+*Serves:* comedy, routes going stale (the board never goes quiet).
+```
+shoreHexes = passable hexes with an edge-hex neighbor, canEnter, not a source or target
+for each sunk or splatted kind with PIECES[kind].reemerges (in event order):
+    if shoreHexes is empty: stop                 # a walled-off shore keeps it drowned
+    h = Rando.choice(shoreHexes); color = Rando.choice(a random palette)
+    add a new piece of that kind on h; emit spawn{id, q, r}
+```
+Runs once at the end of every tick, for that tick's sinks and splats (a piece a newly opened
+source or target cleared included, D-44) and for a piece `remove`, `move` or `scrap` sank just before the tick
+(its kind comes first, as its `sink` does).
+
+### Draw — `draw()` [P]
+*Serves:* scarcity of agency (you build with what you're dealt).
+```
+deck = the unlocked kinds (UNLOCKS[0 … unlocks-1]), minus the colored ones while fewer than 2 colors are open
+kind = chosen by Rando from deck with probability cardOf(kind).weight / deck's total weight   # Things and tools (D-47)
+return {kind}                                # no color: a colored kind's is picked at place (D-32)
+```
+
+### Unlock — `unlock()` [D; skipping and kept hand D-30]
+*Serves:* G-1 and escalating commitment: each milestone hands you one new toy to learn, so the
+first board is a short list (Belt, Bridge, Wall, Trap) and the deck grows as the factory does.
+Runs once per milestone reached, after Open a color, from the Tick rule.
+```
+everDealt(kind) = not cardOf(kind).colored or MAP_SIZES[size].colors > 1
+step = the first UNLOCKS step after the open ones with some kind everDealt   # an all-colored step is passed over on a one-color board
+if no such step: nothing                                                   # past the last step
+unlocks = that step's index + 1
+emit unlock{kinds: that step}
+```
+The cards already in hand stay as they are; new kinds arrive through later draws (D-30).
+
+### Placement legality — `canPlace(kind, hex)` [P]
+*Serves:* G-2 (the highlight *is* the rule). `place` calls it; `legalPlacements(kind)` is
+the set of hexes where it holds.
+```
+hex exists, not a target                      # a Thing already there doesn't count: place replaces it (D-28)
+terrain fits THINGS[kind].on:  'land' → PLAINS or ICE;  'water' → WATER;  'unslick' → PLAINS or WATER
+THINGS[kind].blocks ⇒ no piece on hex, and not a source   # the crates must flow
+```
+
+### Motion — the lockstep hop simulation [D-38; splat, flies, wrecks, bump D; overMountains D-35; clears D-36; every landing skids D-37; slide cap D-52; slide-bump splat D-54]
+*Serves:* G-1; one code path for every way a piece moves (movers, springs, rockets, cannons,
+ice, Slides, bumps, gremlins); the animation replays exactly what happened.
+
+Every piece that gets a motion this tick (from its Thing, a wander, or a bump) advances one
+hex per **hop**, all together. Hop k in the engine is hop k in the animation. A motion is
+always in one **phase**, which says how it travels (`lift`) and what arriving and being
+stopped do:
+
+| Phase | Lift | Bumps | Arriving on a hex | Stopped |
+|---|---|---|---|---|
+| `over` | over | no | passes over, touching nothing; after `clears` hexes → `ground` (still aloft) | — |
+| `air` | air | yes | its color's target delivers, the outer sea sinks; at its planned length it **lands** | comes down where it is |
+| `ground` | ground | yes | ground arrival; non-slick ground uses up one of its `n` hexes (slick is free; a move from slick onto slick counts toward `MAX_SLIDE`: it stops on the 3rd, at most 4 slick hexes in a row) | stops (aloft: comes down where it is) |
+| `skid` | ground | yes | ground arrival; non-slick ground stops it, and so does its `MAX_SLIDE`-th (3rd) slick-to-slick move (the landing hex is where it starts) | stops |
+| `line` | ground | no | ground arrival; stops after `BUMP_ADVANCE` hexes | stops |
+| `follow` | ground | no | ground arrival; follows as far as its line's first piece went | stops (a flier that followed 0: comes down where it is) |
+| `drop` | ground | no | lands | crashes |
+
+```
+ground arrival on hex: its color's target delivers; a Trap or a target kills a piece that splats
+                       (splat, trap says which); open water sinks (lost += value)
+groundOpen(hex) = on the map, not MOUNTAIN, no blocking Thing, not another color's target
+land:   the landing checks on its hex (its color's target delivers; open water sinks; a Trap kills
+        a piece that splats); then a gremlin on a Rocket (doomed) splats; else on slick ground it
+        skids (phase skid), unless it splatted a gremlin to land there; else it stops
+comeDownHere: a flight over a MOUNTAIN or another color's target drops back (phase drop, next hop)
+        to the last hex it flew over that it may land on, or its start (D-35); a shot over a hex
+        that's a MOUNTAIN, another color's target, a Wall or another piece crashes; else land
+crash:  remove it; lost += its value; emit splat{id, by: what it hit or null, trap: false}
+stop:   the motion is over; a doomed piece splats (splat{id, by: null})
+slide cap (D-52): a ground or skid arrival that survives the ground checks on slick ground is a
+        free slide; if it came from a slick hex (not coming down from the air), slid += 1 (per
+        motion, from 0 each tick); at slid = MAX_SLIDE it stops there, as if blocked. Entering
+        the first slick hex from other ground, or landing, doesn't count, so a run covers at most
+        MAX_SLIDE + 1 slick hexes. Hexes flown or passed over, line and follow steps never count.
+```
+
+**Launch** (each claim as the tick starts):
+```
+shot (clears > 0):  hexes 1..clears must be on the map, and either hex clears+1 is groundOpen or
+                    hex clears could take it (not MOUNTAIN, not another color's target, no Wall, no
+                    piece, not open water), as the board stands now; else no fire (still claimed)
+                    → phase over for clears hexes, then ground for n - clears
+flight (flies):     its length is fixed now: up to n hexes, stopping before the map's edge, a Wall or a
+                    MOUNTAIN (unless overMountains), and on its color's target or the outer sea; then
+                    trimmed back off any MOUNTAIN or other color's target it would end over (D-35)
+                    → phase air for that many hops (0: it stays, and lands where it stands)
+otherwise:          phase ground for n hexes (a wander: n = 1, wrecks)
+```
+
+**Each hop:**
+```
+every motion proposes its next hex (a drop: its drop hex; a follow: the next hex while it's behind
+    its leader, nothing on the hop it bumped); terrain and Things alone may block it: an over always
+    goes, an air motion while it has hexes left, a ground step if groundOpen
+claims on one hex (over aside, unseen): two or more air → each crashes (collide), the ground
+    claimants are blocked; else the lowest rank wins, the rest are blocked
+each claim resolves along its chain of occupants (pieces on the hexes as the hop starts, a shot
+    passing over not counted): free → go; occupant leaves this hop (go, collide, wreck, splat)
+    → go; a cycle of 3+ → all go (they rotate); a 2-cycle (swap) → both blocked, both crash if
+    both air; occupant stays → meet:
+        an air motion with splat (a Rocket) meeting a piece that splats → splat it, take its hex,
+            and land there (no skid)
+        a wander (wrecks) meeting cargo → wreck it (lost += value, splat{by: the gremlin}), take its hex
+        a phase that bumps meeting a piece that has had no motion this tick, on slick ground → bump
+        anything else → blocked
+a bump (lowest rank first) starts the line (that piece and the pieces right behind it in dir with no
+    motion this tick) as line motions of BUMP_ADVANCE hexes from this hop, ranked as the bumper;
+    the bumper becomes a follow that waits this hop; then the hop is resolved again
+    — except a bumper with splatsOnSlideBump that is sliding (a skid, or a ground motion
+    whose last arrival was free onto slick ground, `sliding`) (D-54): if the bumped piece has splatsOnSlideBump too it
+    is destroyed (splat{by: the bumper}) and no line starts, else the line starts as above; the
+    bumper is destroyed where it stands (splat{by: the bumped piece}), both at this hop
+apply: victims go; every mover moves (all at once); each arrives by its phase; each blocked one stops
+    by its phase. A hex freed by a sink, delivery, Trap or splat is open from the next hop (the
+    splatter or wrecker takes its victim's hex at once).
+```
+A **blocked piece stops for the rest of the tick**: no retry when the hex frees up later.
+**Rank** is the claiming Thing's place in the tick's order (Pushers and Pullers first, then
+placement order, D-24); wanderers rank after every Thing; a bumped line takes its bumper's rank.
+
+**Bump (D-33).** A piece stopped by a piece standing on slick ground (bare ice or a Slide)
+that has had no motion this tick — on the ground or in the air, carried by any Thing,
+sliding, or a gremlin — bumps it: from that hop the line of pieces from the bumped one on (it
+and the motionless pieces right behind it; only the bumped hex needs to be slick) advances
+`BUMP_ADVANCE` (2) hexes together, and from the next hop the bumper follows as far as the
+bumped piece went, ending right behind it, so the bumped hex is left empty. Each line step is a
+ground step: a piece in the line can sink, deliver, die on a Trap or a target, or stop against a
+blocker or the piece ahead (the line compresses). There is no slide after the advance, and the
+bump ends the bumper's motion, a flight included. A bumper whose line can't move at all stays
+where it was stopped (a flight comes down there). A gremlin's own step into cargo still
+wrecks it, and a Rocket still splats a gremlin in its path, before any bump. **A sliding
+gremlin that bumps goes splat (D-54):** a bumper whose template has `splatsOnSlideBump` (the
+gremlin) and that is sliding (skidding after a landing, or a ground motion that came onto
+slick ground free) splats where it is at the bump's hop instead of following; the line it
+bumped still advances 2, unless the bumped piece is another gremlin, and then both splat and
+neither moves on. Each counts as an ex-gremlin and re-emerges. A gremlin that bumps without
+sliding (pushed off plains, flying, or its first wander step off ice) follows as before.
+
+**Flights.** A flight meets whatever is on a hex at the hop it gets there. A Rocket's flight
+(`flies`, range `THINGS.ROCKET.push`) crosses movers, Bridges, ice, inland water and other
+colors' targets, delivers on its color's target, and sinks in the outer sea, or in inland
+water if it comes down there. A Spring's throw (`flies`, `overMountains`) does the same over
+its 3 hexes and passes over mountains too, so it can clear two and land on the third; a throw
+that would end over a mountain is trimmed at launch to the last hex short of it, or doesn't
+leave the Spring if all three are mountain (D-35). Walls stop a flight (planned at launch);
+a piece that stays in its way stops it mid-flight and it comes down where it is, dropping back
+the next hop if that's over a mountain. **Two airborne pieces entering one hex on the same
+hop, or swapping hexes, both crash** (D-38); a flight never blows up a piece on the ground. Every
+landing skids on bare ice or a Slide (D-29, D-37): the skid is a ground motion, so it sinks in
+open water, delivers on its color's target, stops at a Wall, a mountain or another color's
+target, kills a gremlin on a Trap and bumps a line on slick ground, and like any slide it stops
+on its `MAX_SLIDE`-th (3rd) slick-to-slick move, 3 hexes past the landing (D-52). The one exception: a flight
+that splatted a gremlin stops on that hex. A gremlin the Rocket carries splats where it lands.
+A Cannon's shot (`clears` 4, range 5) passes over anything for its first 4 hexes, unseen
+(it splats no gremlin, delivers on no target, springs no Trap, crashes into no flight, and
+pieces may move under it), then moves into the 5th as an ordinary ground step: it can sink,
+deliver, be blocked, bump a line on slick ground, kill a gremlin on a Trap, and slide on over
+ice (once: the ground slide is the skid, D-37). Blocked there, it comes down on the 4th hex (a
+Bridge, bare ice or a Slide takes it; its color's target delivers it; on ice or a Slide it
+skids on, into what stopped it); if what blocks the 5th is terrain or a Thing and the 4th
+couldn't take it as the tick starts, it doesn't fire, and if the 4th holds a piece by the time
+it comes down it crashes (D-38). A shot whose cleared hexes run off the map doesn't fire (D-36).
+A Slide moves nothing standing on it; it only keeps a piece that comes onto it going, and over
+water it keeps that piece from sinking. Splatted pieces aren't `lost`; crashed and wrecked ones
+are. A gremlin dies on a Trap however it comes onto it (a wander, a push, a slide, a landing),
+but not when a flight carries it over one, and not when a Trap is built under it. A slide or a
+flight always ends: a straight line reaches the water edge.
+
+### Tick — `tick()` [P; lockstep D-38]
+*Serves:* G-1. Runs once per command.
+```
+phase = 'tick'; deliveredBefore = delivered; claimed = {}
+for thing in things with shove or pull, then the rest (each in placement order), rank = its index:   # D-24
+    mover:  p = piece on thing's hex;  dir = facing;            n = push
+    Pusher: p = piece on hex 1 ahead;  dir = facing;            n = shove
+    Puller: p = piece on hex 2 ahead;  dir = opposite(facing);  n = pull
+    skip p if thing.color != WHITE and p is cargo of another color   # affects(thing, p)
+    if p and p.id not in claimed: claimed += p; launch(p, dir, {n, splat, flies, overMountains, clears of THINGS[kind], wrecks: false}, rank)
+for piece with PIECES[kind].wanders (creation order), not claimed, ranked after every Thing:
+    dirs = directions whose neighbor is land or covered water (Bridge, Slide), no blocking Thing,
+           and empty or holding cargo it wrecks, as the tick starts
+    if dirs: claimed += piece; launch(piece, Rando.choice(dirs), {n: 1, splat: false, flies: false, overMountains: false, clears: 0, wrecks: PIECES[kind].wrecks}, rank)
+run hops 1, 2, … until every motion has stopped                     # Motion rule
+emit one move per piece that moved, then every end (sink/deliver/splat) in the order they happened
+color = spawnCycle[spawnSlot]; spawnSlot = (spawnSlot + 1) % length(spawnCycle)   # one slot a tick (D-43)
+if color is open and crates on the board < crateCap(size) + milestonesReached(delivered):   # crateCap = MAP_SIZES[size].crates: 2/3/4/5 (D-31)
+    src = the source that makes color
+    if no piece on src:                                             # else the slot is skipped, not retried
+        p = bigCrateChance(milestonesReached(delivered))              # D-34, D-45
+        kind = 'bigcrate' if Rando.random() < p else 'crate'          # one roll per spawn, from the start
+        a kind of color on src; emit spawn{id, q, r}
+idleTicks = 0 if the command used a card (place, discard, move, scrap, bomb) else idleTicks + 1   # D-26; remove, blast, wait don't
+if idleTicks >= IDLE_REDRAW_TICKS: slot = Rando.int(0, HAND_SIZE-1); hand[slot] = draw(); idleTicks = 0; emit redraw{slot}
+for each milestone m with deliveredBefore < m <= delivered (read live: a reveal's delivery counts, D-46): milestone{count: m}; openColor(); unlock()   # reachMilestones; events held back
+gone = kinds of the command's own sink (remove) and this tick's sunk, splatted (cleared included) and crashed pieces
+trapped += count of gremlins whose splat has trap
+exGremlins += count of 'gremlin' in gone, less those trapped
+emerge(gone)
+emit the held-back milestone, open, clear, splat and unlock events            # last, after the spawns
+turn += 1; phase = 'player'
+```
+Each piece gets at most one motion per tick, a bumped line included (D-33); a piece a Thing
+claimed but couldn't move (a Cannon that didn't fire) has had its motion. A gremlin with
+nowhere to wander has none, so a bump can still move it. Gremlins never step into water on
+purpose, but a gremlin that wanders onto ice, or is pulled into water, goes in. A Puller
+ignores pieces on its own hex and on the near hex; a pulled piece that lands on bare ice slides
+on toward the Puller and stops on it (a Thing covers its hex). A Pusher ignores a piece on its
+own hex. A gremlin that comes onto a target dies there, the same way as on a Trap.
+
+### Milestones — `nextMilestone(delivered)` [D]
+*Serves:* accumulation (a factory that keeps paying off), G-1.
+```
+milestones = FIRST_MILESTONE × (1, 2, 5) × 10^k for k = 0, 1, 2, …   # 10, 20, 50, 100, 200, 500, 1000, …
+nextMilestone(n) = the smallest milestone > n                        # there is no last one
+```
+Reaching a milestone ends nothing: it may open a color (Open a color rule) and unlock cards
+(Unlock rule), the client shows a banner naming the cards it unlocked, and play goes on. An
+opened color also gets the news panel, which waits for a click or any key.
+
+### Commands
+```
+place(slot, q, r, facing, color):
+    legal: 0 <= slot < HAND_SIZE, canPlace(hand[slot], hex at (q,r)),
+           facing in 0..5 for Things with push, pull or shove (ignored, stored null, for fixtures),
+           color in colorChoices(kind)                  # D-32
+    if a Thing stands at (q,r): things.remove(it)       # replaced; its card is spent (D-28)
+    things.push({kind, color, q, r, facing}); hand[slot] = draw(); tick()
+colorChoices(kind) = cardOf(kind).colored ? open colors, in opening order : [WHITE]
+    # the new Thing is last in placement order and acts this tick on a piece standing there
+rotate(q, r):  legal: a Thing with a facing (push, pull or shove) stands at (q,r)
+    facing = (facing + 5) mod 6               # no tick: events = [], turn unchanged
+remove(q, r):  legal: a Thing stands at (q,r)
+    things.remove(that Thing)                  # the card is spent; the hand is untouched
+    if a piece stands there on open water: sink it (lost += its value)
+    tick(), with that sink as its first event and that kind in its emerge
+blast(q, r):   legal: a crate (PIECES cargo) stands at (q,r)        [D]
+    remove it; lost += its value               # Things untouched; gremlins can't be blasted
+    tick(), with splat{id, by: null, trap: false} as its first event
+move(slot, fq, fr, q, r, facing):                                  [D-47]
+    legal: 0 <= slot < HAND_SIZE, hand[slot] is a MOVER, a Thing T stands at (fq,fr),
+           canPlace(T.kind, hex at (q,r)), facing in 0..5 if T.kind aims
+    things.remove(T)                           # (q,r) may be (fq,fr): judged with T gone
+    if a Thing stands at (q,r): things.remove(it)       # replaced (D-28)
+    things.push({kind: T.kind, color: T.color, q, r, facing})   # same color, kept (D-32); last in order
+    hand[slot] = draw()
+    if a piece stands at (fq,fr) on open water: sink it (lost += its value)
+    tick(), with that sink as its first event; a card was used (idleTicks reset)
+scrap(slot, fq, fr):                                              [D-47]
+    legal: 0 <= slot < HAND_SIZE, hand[slot] is a MOVER, a Thing T stands at (fq,fr)
+    things.remove(T); hand[slot] = draw()
+    if a piece stands at (fq,fr) on open water: sink it (lost += its value)
+    tick(), as move
+bomb(slot, hexes):                                                [D-48]
+    legal: 0 <= slot < HAND_SIZE, hand[slot] is a tool with wipes > 0,
+           1 <= len(hexes) <= its wipes, each on the board and canPick(its kind, h), none twice
+    for h in hexes, in order:
+        if a Thing on h: things.remove(it); emit clear{kind, q, r, hop: 0}   # no card back
+        if a piece on h: remove it; lost += its value; emit splat{id, by: null, trap: false, hop: 0}
+    hand[slot] = draw()
+    tick(), with those events first and the pieces' kinds in its emerge   # a card was used
+                                                # (a gremlin counts in exGremlins and re-emerges)
+canPick(kind, hex) = TOOLS[kind] and PICKS[TOOLS[kind].picks](hex)
+    # 'thing': a Thing stands there; 'filled': a Thing or a piece stands there
+discard(slot): legal: 0 <= slot < HAND_SIZE                       [D]
+    hand[slot] = draw(); tick()                # Things and the other cards untouched
+wait():        always legal; tick()
+```
+
+---
+
+## §5 Agents — gremlins [P]
+
+*Serves:* comedy, routes going stale. Gremlins use the same `step` as everything else. They
+know only the board and occupancy. They pick a random free land or covered-water (Bridge, Slide) neighbor, or
+stay, and a crate on a neighbor counts as free: stepping there wrecks it. They never push
+crates; a gremlin in the way is a wall until it moves, unless it steps onto the crate.
+Pushed or pulled into a crate, a gremlin is only blocked, unless the crate stands on slick
+ground: then it bumps it (D-33), and a gremlin on slick ground gets bumped like a crate, or carried along in a bumped line. A gremlin that bumps while sliding goes splat instead of following, and a gremlin it bumps splats with it (D-54). A gremlin standing on a
+mover (a Bridge too) gets carried. One that drowns or splats is replaced by a new one on the shore.
+The count only drops when the whole shore is walled off or full.
+
+---
+
+## §6 Numbers [T]
+
+The code constant in `GameArtifacts` is the single source.
+
+| Name | Value | Unit |
+|---|---|---|
+| `MAP_SIZES` small / medium / large / huge | 16 × 10 / 20 × 20 / 30 × 30 / 60 × 60 | cols × rows (D-3) |
+| `MAP_SIZES.*.heightmap` | 33 / 33 / 33 / 65 | diamond-square grid side (2ⁿ+1, ≥ the longer side) |
+| `MAP_SIZES.*.knownGoodSeed` | 1 at every size | seed (must pass R-23) |
+| `MAP_SIZES.*.colors` | 1 / 2 / 3 / 4 | most colors the board opens [D] |
+| `ENHANCE_CHANCE` | 0.5 | chance a new color comes out of an existing source [D] |
+| `FIRST_MILESTONE` | 10 | crates (then the 1-2-5 series, forever) |
+| `MAP_SIZES.*.crates` | 2 / 3 / 4 / 5 | crates the board holds at once before any milestone; `crateCap(size)` returns it; +1 per milestone reached (D-31) [D] |
+| `BIG_CRATE_START` | 0.01 | big-crate chance with no milestones reached (D-45) [D] |
+| `BIG_CRATE_AT_FIFTH` | 0.05 | big-crate chance at `BIG_CRATE_KNEE` milestones (D-45) [D] |
+| `BIG_CRATE_KNEE` | 5 | milestones over which the chance rises in a straight line, START → AT_FIFTH; `bigCrateChance(m)` = START + (AT_FIFTH − START)·m / KNEE for m ≤ KNEE: 1, 1.8, 2.6, 3.4, 4.2, 5% (D-45) [D: the end points; T: the straight line] |
+| `BIG_CRATE_EASE` | 0.85 | past the knee, `bigCrateChance(m)` = 1 − (1 − AT_FIFTH)·this^(m − KNEE): 19% at 6, 31% at 7, 58% at 10, 81% at 15, toward 1, never 1 (D-45) [D: asymptotic to 1; T: the ratio] |
+| `PIECES.bigcrate.value` | 10 | crates a big crate is worth (D-34) [D] |
+| `HAND_SIZE` | 3 | cards |
+| `BUMP_ADVANCE` | 2 | hexes a bumped line advances; its bumper follows to one hex behind it (D-33) [D] |
+| `MAX_SLIDE` | 3 | moves from a slick hex (bare ice or a Slide) onto a slick hex one ground motion or skid makes; it stops on the 3rd, so at most 4 slick hexes in a row (D-52) [D] |
+| `IDLE_REDRAW_TICKS` | 10 | ticks in a row with no card used before one random card is redrawn (D-26) |
+| `CRATE_COLORS` | red, green, blue, yellow | the colors a game can open; their count is the spawn cycle's length (one crate chance per color per round, D-43) [D] |
+| `WHITE` | white | the color of a Thing that acts on every piece [D] |
+| `THINGS.SPRING.push` | 3 | hexes |
+| `THINGS.BELT.push` | 1 | hexes |
+| `THINGS.BRIDGE.push` | 1 | hexes, on the ground: a Belt over water (D-27) [D] |
+| `THINGS.ROCKET.push` | 8 | hexes (its range) [D] |
+| `THINGS.CANNON.push` / `.clears` | 5 / 4 | hexes: its range, and how many of them it passes over untouched (D-36) [D] |
+| `THINGS.PULLER.pull` | 1 | hexes |
+| `THINGS.PUSHER.shove` | 1 | hexes [D] |
+| `UNLOCKS` | [BELT, BRIDGE, WALL, TRAP], [PUSHER, PULLER], [SLIDE], [SPRING], [MOVER], [CANNON], [ROCKET], [BOMB] | the order cards join the deck, one step per milestone [D; CANNON the last Thing D-36, then moved before ROCKET D-51; MOVER after SPRING D-47; BOMB last D-48] |
+| `THINGS.*.weight` BELT/SPRING/ROCKET/PUSHER/PULLER/WALL/TRAP/BRIDGE/SLIDE/CANNON | 6 / 2 / 1 / 0.5 / 0.5 / 2 / 1 / 1 / 2 / 1 | relative (TRAP [D]: as ROCKET; PUSHER, PULLER [D]: rare, about one per color is plenty; SLIDE [D-29]: as WALL and SPRING; CANNON [D-36: low D, 1 P]: as ROCKET) |
+| `TOOLS.MOVER.weight` | 0.5 | relative, on the same scale; rare like a Pusher or Puller [D-47: rare D, the number P] |
+| `TOOLS.BOMB.weight` / `.wipes` | 0.5 / 5 | relative, rare like a Pusher or Puller / hexes one Bomb clears [D-48: rare D, 0.5 P; 5 D] |
+| `GREMLIN_HEXES_PER_DIE` / `GREMLIN_DICE_SIDES` | 160 / 4 | hexes of board area per die (the small board's area) [D] / sides; gremlins = `gremlinDice(size)` d sides |
+| `GEN_MAX_ATTEMPTS` | 10 | tries per seed |
+| `HEIGHTMAP_ROUGHNESS` | 0.55 | — |
+| `WATER_PCT` | 0.18 | elevation percentile |
+| `MOUNTAIN_PCT` | 0.90 | elevation percentile |
+| `ICE_FRAC` | 0.08 | of inner hexes |
+| `PLACE_SLICE_FRAC` / `PLACE_SLICE_MIN` | 0.05 / 3 | of passable hexes / hexes |
+| `HOP_MS` | 140 | ms per animated hop (client) |
+| `RUN_GAP_MS` | 250 | ms between ticks while Go runs (client) |
+| `MILESTONE_MS` | 3500 | ms the milestone banner shows (client) |
+| `NOTICE_MS` | 2500 | ms a refusal's reason holds the hover bar (client, D-55) |
+| `DRAG_THRESHOLD` | 4 | px (client) |
+| `SPLAT_BLOTS` | 8 | drops in the splat burst (client) |
+
+---
+
+## §7 Commands, queries, and events
+
+### Commands
+
+| Command | Legal when | Effect | Result |
+|---|---|---|---|
+| `newGame(seed, size)` | `seed` is a non-negative integer and `size` a key of `MAP_SIZES` | regenerate at that size | `{ok:true}` |
+| `place(slot, q, r, facing, color)` | see Commands rule (`color` one of `colorChoices`) | build in `color` (replacing any Thing there), redraw slot, tick | `{ok, events}` |
+| `rotate(q, r)` | a Belt, Bridge, Spring, Rocket, Cannon, Pusher, or Puller is there | turn clockwise; no tick | `{ok, events: []}` |
+| `remove(q, r)` | any Thing is there | take it off (a piece left on open water sinks), tick | `{ok, events}` |
+| `blast(q, r)` | a crate (or big crate) is there | blow it up (lost + its value), tick | `{ok, events}` |
+| `move(slot, fq, fr, q, r, facing)` | `hand[slot]` is a Mover, a Thing is on (fq,fr), and its kind may go on (q,r) (with a facing if it aims) | the Thing goes from (fq,fr) to (q,r), same kind and color (replacing any Thing there; a piece left on open water sinks), redraw slot, tick (D-47) | `{ok, events}` |
+| `scrap(slot, fq, fr)` | `hand[slot]` is a Mover and a Thing is on (fq,fr) | take the Thing off for good (a piece left on open water sinks), redraw slot, tick (D-47) | `{ok, events}` |
+| `bomb(slot, hexes)` | `hand[slot]` is a Bomb; `hexes` 1 to `wipes` distinct board hexes, each holding a Thing or a piece | clear each: its Thing off, its piece destroyed (lost + a crate's value; a gremlin is an ex-gremlin), redraw slot, tick (D-48) | `{ok, events}` |
+| `discard(slot)` | `0 <= slot < HAND_SIZE` | redraw that slot, tick | `{ok, events}` |
+| `wait()` | always | tick | `{ok, events}` |
+
+Illegal → `{ ok:false }` and nothing changed (hand and `Rando` included).
+
+### Queries
+- `canPlace(kind, hex)` → bool — the check `place` enforces.
+- `legalPlacements(kind)` → `Set<key>` — every hex where `canPlace` holds (none for a tool card).
+- `canPick(kind, hex)`, `legalPicks(kind)` → bool, `Set<key>` — where a tool card's clicks may land (the Mover: every hex holding a Thing; the Bomb: every hex holding a Thing or a piece; none for a Thing card, D-47, D-48).
+- `colorChoices(kind)` → color names — the colors `place` accepts for that kind: the open colors for a `colored` kind (the client asks the player when there's more than one), `[WHITE]` for any other (D-32).
+- `affects(thing, piece)` — whether a Thing's color lets it act on that piece.
+- `thingAt(q, r)`, `pieceAt(q, r)`, `targetAt(q, r)`, `sourceOf(color)`, `openColors()`, `isEndpoint(hex)`.
+- `unlockedKinds()`, `drawableKinds()` — the kinds open so far, and the deck the Draw rule uses.
+- `spawnKind()` — `'bigcrate'` or `'crate'` for the next spawn (Tick rule; one `Rando` roll per spawn, D-34, D-45).
+- `board.*`.
+
+### Events (each `move` with its start hop, each end with the hop it happened on)
+
+| Event | Fields |
+|---|---|
+| `move` | `id, path: [{q,r}…], hop, over` — one per piece that moved: one hex per hop from hop `hop` (the hop it entered `path[0]`), in order, including slides and a bumper's follow; a hop it sat out (a bumper waiting on its contact hop, a flight about to drop back) repeats its hex. `over` is how many of the first hexes it passed over (a Cannon's shot, unseen, D-36), else 0. Every `move` comes before every end, a bumped line's after its bumper's (D-38) |
+| `sink` | `id, hop` (the piece is gone from that hop on, after its last `move`, or where it stood, at hop 0, if the Bridge or Slide under it was removed, moved or scrapped) |
+| `deliver` | `id, hop` |
+| `splat` | `id, by, trap, hop` — a piece destroyed by a Rocket's flight, a Trap, a target, a gremlin's step, a mid-air crash, or `blast` or `bomb` (hop 0), or a newly opened source or target (the tick's last hop, D-44): `by` is the flier or gremlin that landed on it, or the other flight it crashed into (D-38), or null for the launched piece itself, a trapped piece (after its `move`), a shot or flight with nowhere to come down, a blasted crate, a bombed piece, or a cleared piece; `trap` is true only when a Trap killed it |
+| `spawn` | `id, q, r` — a new crate on a source, or a gremlin climbing out on the shore |
+| `redraw` | `slot` — the hand slot the idle rule redrew this tick |
+| `milestone` | `count` — a milestone this tick's deliveries reached (after the tick's other events) |
+| `open` | `color, source: {q,r}, target: {q,r}` — the color that milestone opened, right after its `milestone` |
+| `clear` | `kind, q, r, hop` — a Thing taken off its hex outside the tick's motions: by a newly opened source or target, right after its `open`, at the tick's last hop (with a `splat` for a piece it destroyed, D-44); or by `bomb`, at hop 0, before the tick's own events, each hex's `clear` before its piece's `splat` (D-48). The client bursts it over the hop after `hop` |
+| `unlock` | `kinds` — the `UNLOCKS` step that milestone opened, after its `milestone`, `open` and clears |
+
+A piece pushed into water gets a `move` whose path ends on the water hex, then `sink`.
+
+### Client contract [D]
+The client reads state, calls commands and queries, never writes state, never calls
+`Rando`, and animates only from events.
