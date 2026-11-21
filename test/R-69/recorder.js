@@ -13,6 +13,9 @@
 //     live endpoint from anywhere but localhost, which posts to its own origin
 //   - a new game sends the last game's records under its own record; switchIdentity sends under
 //     the old player, then the next batch carries a new one
+//   - each event record's seq: 0, 1, 2, … per game in queue order (refused ones too, milestones
+//     not), with no gap across batches and switchIdentity, back to 0 with a new game; resumeGame
+//     goes on from the eventSeq it is given under the saved key (0 without a key)
 //   - nothing recorded or sent without data-version, from file:, or with Global Privacy Control
 //   - a throwing fetch, a rejecting fetch or a throwing sendBeacon throws nothing into play
 //   - every batch the recorder sent is one the Worker takes (204, rows written)
@@ -115,6 +118,8 @@ piece('crate', 7, 3);
 run('blast', { q: 7, r: 3 }, engine.blast(7, 3));
 const afterBlast = snapOf(state);
 const evs = p.T.pending().events;
+check('event records are numbered 0, 1, 2, … in order, the refused place included; eventSeq() is the next',
+    evs.map(e => e.seq).join() === '0,1,2,3,4,5,6,7,8' && p.T.eventSeq() === 9);
 check('one event per recorded command, in order; none for rotate or wait',
     same(evs.map(e => e.command), ['place', 'place', 'remove', 'discard', 'discard', 'move', 'scrap', 'bomb', 'blast']));
 check('the first place: accepted, its args as given, the snapshot after its tick',
@@ -175,6 +180,9 @@ run('blast', { q: 0, r: 0 }, { ok: false });
 p.fire();
 check('the next batch carries a new player, same game', p.sent.length === 4 && p.sent[3].batch.player !== oldPlayer &&
     same(p.sent[3].batch.games[0], rec));
+const sentSeqs = [...p.sent, ...p.beacons].flatMap(s => s.batch.events).filter(e => e.gameKey === rec.gameKey).map(e => e.seq).sort((a, b) => a - b);
+check('seq runs on across batches and switchIdentity, with no gap or repeat',
+    sentSeqs.every((s, i) => s === i) && p.sent[3].batch.events[0].seq === p.sent[2].batch.events[0].seq + 1);
 run('blast', { q: 0, r: 0 }, { ok: false });
 p.T.startGame({ seed: 12345, size: 'medium' });
 const next = p.T.pending();
@@ -185,6 +193,27 @@ check('listeners are installed once', p.winL.pagehide.length === 1 && p.docL.vis
 p.fire();
 check('a game with no records yet still sends its game record once', p.sent.length === 6 && p.sent[5].batch.events.length === 0 &&
     p.T.pending() === null && p.live().length === 0);
+check('a new game starts its count over', p.T.eventSeq() === 0);
+run('blast', { q: 0, r: 0 }, { ok: false });
+check('… its first event record is seq 0', p.T.pending().events[0].seq === 0 && p.T.eventSeq() === 1);
+p.fire();
+
+// ---- resumeGame (the sign-in redirect's save, D-67) ----
+{
+    const before = page();
+    before.T.startGame({ seed: 7, size: 'small' });
+    for (let i = 0; i < 3; i++) before.T.command('blast', { q: 0, r: 0 }, { ok: false }, state);
+    const key = before.T.gameKey(), n = before.T.eventSeq();
+    const after = page();
+    after.T.resumeGame({ seed: 7, size: 'small', gameKey: key, eventSeq: n });
+    after.T.command('blast', { q: 0, r: 0 }, { ok: false }, state);
+    const e = after.T.pending().events[0];
+    check('resumeGame keeps the game key and numbers on from the saved eventSeq', n === 3 && e.gameKey === key && e.seq === 3 && after.T.eventSeq() === 4);
+    const fresh = page();
+    fresh.T.resumeGame({ seed: 7, size: 'small', gameKey: null, eventSeq: 5 });
+    fresh.T.command('blast', { q: 0, r: 0 }, { ok: false }, state);
+    check('resumeGame with no saved key: a fresh game key, numbering from 0', fresh.T.pending().events[0].seq === 0);
+}
 
 // ---- where it sends from ----
 const local = page({ protocol: 'http:', hostname: 'localhost', origin: 'http://localhost:8787' });

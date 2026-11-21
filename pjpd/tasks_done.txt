@@ -333,6 +333,22 @@ Done when: just cc-test passes with the new rows and the uiboot test.
 ----
 Priority:   70
 Status: Done
+ID: eventseq-r3vx
+Created: 2026-11-21T17:18:06Z
+Updated: 2026-11-21T17:41:40Z
+
+Stop counting each telemetry event's seq inside the INSERT. Today worker/telemetry.js numbers events with a (SELECT COUNT(*) ... ) subquery over the game's earlier events, so a game with n events reads about n^2/2 rows; a 1000-move game reads ~500k rows, and D1's free plan allows 5M rows read per day. The browser already knows the order, so it sends seq.
+Settled design:
+- Browser (telemetry.js, GameTelemetry): a per-game event counter, starting at 0 with each new game record, incremented for every event record it queues (accepted or refused; milestones don't use it). Each event record carries it as seq. It survives switchIdentity (same game, same counter).
+- Save around sign-in (D-67): the saved ui block keeps the counter next to the telemetry game key, and resumeGame takes it back, so a restored game goes on numbering from where it stopped. An old save without it (none exist in the wild) is refused like any bad save.
+- Worker: seq is a required non-negative integer on each event record; a missing or wrong-typed seq is a 400 like other known fields. The INSERT binds it directly; the COUNT subquery goes. INSERT OR IGNORE on the existing (game_key, seq) key still drops a resent batch's duplicates.
+- Format stays 1: nothing is deployed yet and no portal build has shipped telemetry, so the format changes in place. Say so in the design docs.
+- Tests: R-68 (seq required, bound as sent, duplicates ignored, no COUNT in the SQL), R-69 (counter per game, across switchIdentity, starts over on a new game), the D-67 restore tests (counter kept), R-70 report fixtures if they build events.
+- Docs: ONTOLOGY Telemetry (batch format, endpoint pseudocode), RATIONALE D-64/D-65 (current state; why), CRITERIA, ARCHITECTURE_LOG entry, CLAUDE.md where it mentions the seq subquery.
+Done when: just cc-test passes; grep finds no COUNT(*) in worker/telemetry.js's insert SQL; under just d1-local + just dev-worker a played game's events have seq 0..n-1 with no gaps.
+----
+Priority:   70
+Status: Done
 ID: bskysignin-5sap
 Created: 2026-11-21T08:15:47Z
 Updated: 2026-11-21T10:31:53Z

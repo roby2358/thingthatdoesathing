@@ -21,6 +21,12 @@
 // the account instead. switchIdentity() sends what is queued under the old one first, so a batch
 // never mixes two.
 //
+// Each event record carries its `seq`: 0 for a game's first event record, then 1, 2, … in the
+// order they are queued (accepted or refused; milestones aren't numbered). The Worker stores it
+// as sent (D-64), so it never has to count a game's earlier rows. The count belongs to the game:
+// it carries on across switchIdentity, starts over with each startGame, and rides the sign-in
+// redirect's save (eventSeq() / resumeGame, D-67).
+//
 // crash.js (D-71) sends its own crash batch; beforeCrash() hands it the identity and game key
 // after sending the queue by beacon.
 const GameTelemetry = (function () {
@@ -34,6 +40,7 @@ const GameTelemetry = (function () {
     let token = null;          // the sign-in's access token while signed in (D-68), else null
     let game = null;           // the current game's record, or null: not recording
     let gameUnsent = false;    // no batch has carried this game's record yet
+    let eventSeq = 0;          // the seq the game's next event record gets: 0, 1, 2, … per game
     let events = [];
     let milestones = [];
     let timer = null;
@@ -146,6 +153,7 @@ const GameTelemetry = (function () {
                 };
                 if (player === null) player = randomId();
                 gameUnsent = true;
+                eventSeq = 0;
                 listen();
                 schedule();
             });
@@ -158,7 +166,7 @@ const GameTelemetry = (function () {
             guarded(() => {
                 if (!game || quiet()) return;
                 const now = unixSeconds(), snap = snapshot(state), gameKey = game.gameKey;
-                if (RECORDED.has(command)) events.push({ gameKey, unixSeconds: now, command, accepted: res.ok, ...snap, args });
+                if (RECORDED.has(command)) events.push({ gameKey, seq: eventSeq++, unixSeconds: now, command, accepted: res.ok, ...snap, args });
                 if (res.ok) for (const e of res.events)
                     if (e.type === 'milestone') milestones.push({ gameKey, milestone: e.count, unixSeconds: now, ...snap });
                 if (events.length + milestones.length >= TELEMETRY_FLUSH_RECORDS) flush('fetch');
@@ -172,21 +180,31 @@ const GameTelemetry = (function () {
             return game ? game.gameKey : null;
         },
 
+        // The seq the current game's next event record gets (0 before any): a save for the
+        // sign-in redirect keeps it next to the game key (D-67).
+        eventSeq() {
+            return eventSeq;
+        },
+
         // A game restored after the sign-in redirect (D-67): recorded as startGame would, but
-        // under the key it had before the reload, so its records stay one game. The record goes
-        // again with the next batch; the Worker keeps the first it got for that key. A save
-        // with no key (nothing was recorded then) gets a fresh one, as a new game would.
-        resumeGame({ seed, size, gameKey }) {
+        // under the key it had before the reload, so its records stay one game, and numbering
+        // its events on from `eventSeq`, where it stopped. The record goes again with the next
+        // batch; the Worker keeps the first it got for that key. A save with no key (nothing was
+        // recorded then) gets a fresh one and starts at 0, as a new game would.
+        resumeGame({ seed, size, gameKey, eventSeq: seq }) {
             guarded(() => {
                 this.startGame({ seed, size });
-                if (game && typeof gameKey === 'string' && gameKey) game.gameKey = gameKey;
+                if (game && typeof gameKey === 'string' && gameKey) {
+                    game.gameKey = gameKey;
+                    eventSeq = seq;
+                }
             });
         },
 
         // Send what's queued under the current identity, then take a fresh random one (none
         // before the first game: it makes its own), and the
-        // sign-in's access token (D-68), or none for a signed-out identity. The game and its
-        // key carry on.
+        // sign-in's access token (D-68), or none for a signed-out identity. The game, its key
+        // and its event count carry on.
         switchIdentity(signInToken) {
             guarded(() => {
                 flush('fetch');

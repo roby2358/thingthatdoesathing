@@ -143,7 +143,7 @@ const SNAPSHOT = {
     gameKey: ['str', true, 64], unixSeconds: ['int', true], turn: ['int', true], delivered: ['int', true],
     lost: ['int', true], exGremlins: ['int', true], trapped: ['int', true], things: ['int', true], crates: ['int', true],
 };
-const EVENT = { ...SNAPSHOT, command: ['str', true, 16], accepted: ['bool', true] };
+const EVENT = { ...SNAPSHOT, seq: ['int', true], command: ['str', true, 16], accepted: ['bool', true] };
 const MILESTONE = { ...SNAPSHOT, milestone: ['int', true] };
 const CRASH = {
     unixSeconds: ['int', true], format: ['int', false], version: ['str', false, 64], gameKey: ['str', false, 64],
@@ -170,6 +170,7 @@ function readFormat1(batch) {
     const events = lists.events.map((e, i) => {
         const where = `events[${i}]`;
         const row = fields(e, EVENT, where);
+        if (row.seq < 0) throw new BadBatch(where + '.seq');
         if (!KNOWN_COMMANDS.includes(row.command)) throw new BadBatch(where + '.command');
         const args = e.args ?? {};
         if (!isObject(args)) throw new BadBatch(where + '.args');
@@ -229,13 +230,13 @@ const INSERT_GAME = `
     rules_version, user_agent, screen)
   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`;
 
-/** An event's `seq` is the count of its game's events so far, taken inside the insert, so the
- *  database numbers a game's events in the order it gets them. */
+/** An event's `seq` is the browser's: its game's event records numbered 0, 1, 2, … as queued
+ *  (telemetry.js), bound as sent, so nothing here reads a game's earlier rows. INSERT OR IGNORE on
+ *  the (game_key, seq) key keeps the first of a resent event. */
 const INSERT_EVENT = `
-  INSERT INTO events (game_key, seq, player_id, signed_in, unix_seconds, command, accepted, turn, delivered, lost,
-    ex_gremlins, trapped, things, crates, kind, q, r, facing, color, rest)
-  VALUES (?1, (SELECT COUNT(*) FROM events WHERE game_key = ?1), ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,
-    ?14, ?15, ?16, ?17, ?18, ?19)`;
+  INSERT OR IGNORE INTO events (game_key, seq, player_id, signed_in, unix_seconds, command, accepted, turn, delivered,
+    lost, ex_gremlins, trapped, things, crates, kind, q, r, facing, color, rest)
+  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)`;
 
 const INSERT_MILESTONE = `
   INSERT OR IGNORE INTO milestones (game_key, milestone, player_id, signed_in, turn, unix_seconds, delivered, lost,
@@ -252,7 +253,7 @@ function statementsFor(db, { identity: { playerId, signedIn }, games, events, mi
     return [
         ...games.map(g => db.prepare(INSERT_GAME).bind(g.gameKey, playerId, signedIn, g.format, g.startedUnixSeconds,
             g.seed, g.size, g.version, g.rulesVersion, g.userAgent, g.screen)),
-        ...events.map(e => db.prepare(INSERT_EVENT).bind(e.gameKey, playerId, signedIn, e.unixSeconds, e.command,
+        ...events.map(e => db.prepare(INSERT_EVENT).bind(e.gameKey, e.seq, playerId, signedIn, e.unixSeconds, e.command,
             e.accepted ? 1 : 0, e.turn, e.delivered, e.lost, e.exGremlins, e.trapped, e.things, e.crates,
             ...Object.keys(ARG_COLUMNS).map(k => e.columns[k]), e.rest)),
         ...milestones.map(m => db.prepare(INSERT_MILESTONE).bind(m.gameKey, m.milestone, playerId, signedIn, m.turn,

@@ -14,7 +14,9 @@
 //     command, a missing required field, not JSON, an array) → 400 and nothing written
 //   - a missing or unknown format (a string "1" included) → 204, nothing written, a console.error
 //     that holds nothing of the body
-//   - seq follows arrival order, across batches
+//   - seq is required (a whole number ≥ 0) and stored as the browser sent it, across batches and
+//     out of arrival order; an event resent with the same game and seq is kept once (the first);
+//     the event INSERT holds no COUNT subquery
 //   - two batches of one game with different players stamp their own rows with their own player_id
 //   - a game record sent twice is inserted once (the first player kept); a milestone sent twice too
 //   - no IP (CF-Connecting-IP, X-Forwarded-For) in any bind or log line
@@ -87,7 +89,7 @@ const total = d1 => tables.reduce((n, t) => n + d1.count(t), 0);
 const GAME = { gameKey: 'g1', startedUnixSeconds: 1763700000, seed: 4242, size: 'small', version: 'abc1234',
     rulesVersion: 1, userAgent: 'Mozilla/5.0 test', screen: '1280x720@1' };
 const snap = { turn: 7, delivered: 3, lost: 1, exGremlins: 2, trapped: 1, things: 5, crates: 2, deliveredByColor: { red: 3 } };
-const EVENT = { gameKey: 'g1', unixSeconds: 1763700010, command: 'place', accepted: true, ...snap,
+const EVENT = { gameKey: 'g1', seq: 0, unixSeconds: 1763700010, command: 'place', accepted: true, ...snap,
     args: { kind: 'BELT', q: 3, r: -1, facing: 0, color: 'white', how: 'pick' } };
 const MILESTONE = { gameKey: 'g1', milestone: 10, unixSeconds: 1763700100, ...snap, turn: 60, delivered: 10 };
 const CRASH = { unixSeconds: 1763700200, version: 'abc1234', gameKey: 'g1', seed: 4242, size: 'small', turn: 61,
@@ -107,7 +109,7 @@ const CRASH = { unixSeconds: 1763700200, version: 'abc1234', gameKey: 'g1', seed
     {
         const d1 = fakeD1(false);
         const res = await post(d1, { format: 1, player: 'p-one', token: 'ignored', games: [GAME],
-            events: [EVENT, { ...EVENT, command: 'discard', accepted: false, args: { kind: 'WALL', how: 'slot' } }, { ...EVENT, command: 'wait', args: undefined }],
+            events: [EVENT, { ...EVENT, seq: 1, command: 'discard', accepted: false, args: { kind: 'WALL', how: 'slot' } }, { ...EVENT, seq: 2, command: 'wait', args: undefined }],
             milestones: [MILESTONE], crashes: [CRASH] });
         check('a valid batch → 204', res.status === 204);
         check('… with Access-Control-Allow-Origin *', res.headers.get('Access-Control-Allow-Origin') === '*');
@@ -157,6 +159,10 @@ const CRASH = { unixSeconds: 1763700200, version: 'abc1234', gameKey: 'g1', seed
         ['a wrong type (seed a string)', { format: 1, player: 'p', games: [{ ...GAME, seed: '4242' }] }, {}, 'games[0].seed'],
         ['a wrong type (accepted a number)', { format: 1, player: 'p', games: [GAME], events: [{ ...EVENT, accepted: 1 }] }, {}, 'events[0].accepted'],
         ['a wrong type (an arg column)', { format: 1, player: 'p', games: [GAME], events: [{ ...EVENT, args: { q: 'three' } }] }, {}, 'events[0].args.q'],
+        ['a missing seq', { format: 1, player: 'p', games: [GAME], events: [{ ...EVENT, seq: undefined }] }, {}, 'events[0].seq'],
+        ['a wrong type (seq a string)', { format: 1, player: 'p', games: [GAME], events: [{ ...EVENT, seq: '0' }] }, {}, 'events[0].seq'],
+        ['a wrong type (seq a fraction)', { format: 1, player: 'p', games: [GAME], events: [{ ...EVENT, seq: 1.5 }] }, {}, 'events[0].seq'],
+        ['a negative seq', { format: 1, player: 'p', games: [GAME], events: [{ ...EVENT, seq: -1 }] }, {}, 'events[0].seq'],
         ['an unknown command', { format: 1, player: 'p', games: [GAME], events: [{ ...EVENT, command: 'teleport' }] }, {}, 'events[0].command'],
         ['a missing player', { format: 1, games: [GAME] }, {}, 'player'],
         ['a missing required field', { format: 1, player: 'p', milestones: [{ ...MILESTONE, turn: undefined }] }, {}, 'milestones[0].turn'],
@@ -182,21 +188,38 @@ const CRASH = { unixSeconds: 1763700200, version: 'abc1234', gameKey: 'g1', seed
         check(`… one console line, without the body`, lines.length === 1 && !/secret/.test(lines[0]));
     }
 
-    // seq in arrival order, across batches; identities per batch; resent records kept once.
+    // seq as sent, across batches; identities per batch; resent records kept once.
     {
         const d1 = fakeD1(false);
         logged.length = 0;
-        await post(d1, { format: 1, player: 'first', games: [GAME], events: [{ ...EVENT, turn: 1 }, { ...EVENT, turn: 2 }], milestones: [MILESTONE] });
-        await post(d1, { format: 1, player: 'second', games: [{ ...GAME, seed: 1 }], events: [{ ...EVENT, turn: 3 }], milestones: [{ ...MILESTONE, turn: 99 }] });
+        await post(d1, { format: 1, player: 'first', games: [GAME], events: [{ ...EVENT, seq: 0, turn: 1 }, { ...EVENT, seq: 1, turn: 2 }], milestones: [MILESTONE] });
+        await post(d1, { format: 1, player: 'second', games: [{ ...GAME, seed: 1 }], events: [{ ...EVENT, seq: 2, turn: 3 }], milestones: [{ ...MILESTONE, turn: 99 }] });
         const ev = d1.rows('events', 'seq');
-        check('seq follows arrival order across batches', ev.map(e => e.seq).join() === '0,1,2' && ev.map(e => e.turn).join() === '1,2,3');
+        check('seq is stored as sent, across batches', ev.map(e => e.seq).join() === '0,1,2' && ev.map(e => e.turn).join() === '1,2,3');
         check('each batch stamps its own rows with its own player_id', ev.map(e => e.player_id).join() === 'first,first,second');
+        await post(d1, { format: 1, player: 'third', games: [GAME], events: [{ ...EVENT, seq: 1, turn: 77 }, { ...EVENT, seq: 2, turn: 78 }] });
+        const again = d1.rows('events', 'seq');
+        check('an event resent with the same game and seq is kept once, the first', again.length === 3 &&
+            again.map(e => e.turn).join() === '1,2,3' && again.map(e => e.player_id).join() === 'first,first,second');
+        await post(d1, { format: 1, player: 'first', games: [GAME], events: [{ ...EVENT, seq: 9, turn: 10 }, { ...EVENT, seq: 5, turn: 6 }] });
+        const later = d1.rows('events', 'seq');
+        check('seq is the browser\'s, not the arrival order (a gap and a late one kept as sent)', later.map(e => e.seq).join() === '0,1,2,5,9' &&
+            later.map(e => e.turn).join() === '1,2,3,6,10');
         const g = d1.rows('games', 'rowid');
         check('a game record sent twice is inserted once, the first kept', g.length === 1 && g[0].player_id === 'first' && g[0].seed === 4242);
         const m = d1.rows('milestones', 'rowid');
         check('a milestone sent twice is inserted once', m.length === 1 && m[0].turn === 60);
         check('no IP in any bind', !JSON.stringify(d1.binds).includes(IP));
         check('no IP in any log line', !logged.some(l => l.includes(IP)));
+    }
+
+    // The event INSERT counts nothing: seq is bound as sent (the old COUNT(*) subquery read every
+    // earlier event of the game on each insert).
+    {
+        const src = fs.readFileSync(path.join(ROOT, 'worker', 'telemetry.js'), 'utf8');
+        const insert = (src.match(/const INSERT_EVENT = `([^`]*)`/) || [])[1] || '';
+        check('the event INSERT is INSERT OR IGNORE with no COUNT or subquery', /INSERT OR IGNORE INTO events/.test(insert) &&
+            !/COUNT|SELECT/i.test(insert));
     }
 
     // Other paths and methods: 404.

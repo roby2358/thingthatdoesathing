@@ -214,7 +214,10 @@ const text = report(fixture(), HEADING, SIZES);
     check('a non-number never reaches the SQL', threw);
 }
 
-const PLACEHOLDER_CONFIG = fs.readFileSync(path.join(ROOT, 'wrangler.jsonc'), 'utf8');
+// The real wrangler.jsonc with env.production's database id put back to the placeholder (the
+// top-level local id is left alone), so the refusal checks don't depend on the live id.
+const PLACEHOLDER_CONFIG = fs.readFileSync(path.join(ROOT, 'wrangler.jsonc'), 'utf8')
+    .replace(/("database_id":\s*")(?!local-only)[^"]+"/, '$1PUT-THE-DATABASE-ID-HERE"');
 
 async function main() {
     // ---- playFromD1 with a fake wrangler ----
@@ -308,12 +311,12 @@ process.stdout.write(JSON.stringify([{ results, success: true, meta: {} }]));
     };
     const statuses = [
         await post({ format: 1, player: 'load-1', games: [wireGame('new', now - 100)],
-            events: [{ gameKey: 'new', unixSeconds: now - 90, command: 'place', accepted: true, ...wireSnap, args: { kind: 'BELT', q: 1, r: 2, facing: 0, color: null } },
-                { gameKey: 'new', unixSeconds: now - 80, command: 'discard', accepted: true, ...wireSnap, args: { kind: 'WALL', how: 'slot' } },
-                { gameKey: 'new', unixSeconds: now - 70, command: 'bomb', accepted: true, ...wireSnap, args: { hexes: [{ q: 1, r: 1 }, { q: 2, r: 2 }, { q: 3, r: 3 }] } }],
+            events: [{ gameKey: 'new', seq: 0, unixSeconds: now - 90, command: 'place', accepted: true, ...wireSnap, args: { kind: 'BELT', q: 1, r: 2, facing: 0, color: null } },
+                { gameKey: 'new', seq: 1, unixSeconds: now - 80, command: 'discard', accepted: true, ...wireSnap, args: { kind: 'WALL', how: 'slot' } },
+                { gameKey: 'new', seq: 2, unixSeconds: now - 70, command: 'bomb', accepted: true, ...wireSnap, args: { hexes: [{ q: 1, r: 1 }, { q: 2, r: 2 }, { q: 3, r: 3 }] } }],
             milestones: [{ gameKey: 'new', milestone: 10, unixSeconds: now - 60, ...wireSnap, turn: 44, delivered: 10 }] }),
         await post({ format: 1, player: 'load-0', games: [wireGame('old', now - 10 * DAY)],
-            events: [{ gameKey: 'old', unixSeconds: now - 10 * DAY + 5, command: 'remove', accepted: false, ...wireSnap, args: { q: 1, r: 1, kind: null } }] }),
+            events: [{ gameKey: 'old', seq: 0, unixSeconds: now - 10 * DAY + 5, command: 'remove', accepted: false, ...wireSnap, args: { q: 1, r: 1, kind: null } }] }),
         await post({ format: 1, player: 'load-1', crashes: [{ unixSeconds: now - 50, message: 'TypeError at 12:7', gameKey: 'new' }] }),
     ];
     check('the Worker took the fixture batches', statuses.every(s => s === 204));

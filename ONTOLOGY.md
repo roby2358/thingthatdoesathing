@@ -694,7 +694,7 @@ touch of `localStorage` in try/catch.
 save (localStorage[SAVE_KEY], JSON):
   { version: SAVE_VERSION, savedAt: unix seconds,
     state: engine.save(),                              # the whole GameState, Rando's rng included
-    ui: { zoom, scale, panX, panY, telemetryGameKey, running } }
+    ui: { zoom, scale, panX, panY, telemetryGameKey, telemetrySeq, running } }   # telemetrySeq: GameTelemetry.eventSeq()
 
 saveForRedirect() → bool:
   no board, or the intro / New Game panel / About over the intro is up: save nothing, false
@@ -707,8 +707,8 @@ boot (GameUI.start, after the input is wired):
   remove it                                            # read once, whatever happens next
   if the URL's OAuth state starts with SIGNIN_STATE_PREFIX (a sign-in return, D-68)
      and it parses, version = SAVE_VERSION, 0 ≤ now − savedAt < SAVE_REDIRECT_MAX_AGE_S
-     and engine.restore(save.state) is ok:
-    GameTelemetry.resumeGame(seed, size, telemetryGameKey)   # same game record, D-65
+     and ui.telemetrySeq is a whole number ≥ 0 and engine.restore(save.state) is ok:
+    GameTelemetry.resumeGame(seed, size, telemetryGameKey, telemetrySeq)   # same game record, its events numbered on, D-65
     Go off; zoom and pan back (a bad view context: 1x, centered); no intro, no first-time Help
   else: the intro, with no message                     # bad, old, wrong-version, or not a return
 ```
@@ -742,6 +742,7 @@ startGame(seed, size):                         # GameUI.startGame: the intro's s
                                                #   and navigator.globalPrivacyControl isn't true
   game ← { gameKey: a fresh random UUID, startedUnixSeconds, seed, size, version: data-version,
            rulesVersion: RULES_VERSION, userAgent (cut to 512), screen: "${innerWidth}x${innerHeight}@${devicePixelRatio}" }
+  eventSeq ← 0                                 # the seq this game's next event record gets
   the first time: listen for pagehide, and visibilitychange to hidden → flush('beacon')
   start the flush timer
 
@@ -750,7 +751,8 @@ command(command, args, res, state):            # GameUI.commit, every engine com
   snap ← state after the tick: turn, delivered, lost, exGremlins, trapped,
          things (Things on the board), crates (pieces that aren't gremlins), deliveredByColor
   if command ∈ {place, remove, discard, move, scrap, bomb, blast}:
-      queue event { gameKey, unixSeconds, command, accepted: res.ok, ...snap, args }
+      queue event { gameKey, seq: eventSeq, unixSeconds, command, accepted: res.ok, ...snap, args }; eventSeq += 1
+                                               # accepted or refused; milestones aren't numbered
   for each milestone{count} in res.events (wait and Go included): queue milestone { gameKey, milestone: count, unixSeconds, ...snap }
   queued records ≥ TELEMETRY_FLUSH_RECORDS → flush('fetch'), else start the timer if it isn't running
 
@@ -765,7 +767,13 @@ flush(via):                                    # also when the timer fires (TELE
 
 switchIdentity(token?):  flush('fetch') under the current player, then player ← a fresh random UUID
                    (none before the first game, which makes its own), token ← the sign-in's access
-                   token or null; every later batch carries the token while it is set (D-68)
+                   token or null; every later batch carries the token while it is set (D-68);
+                   the game, its key and eventSeq carry on
+gameKey(), eventSeq(): the current game's key (or null) and the next seq, for the redirect's save (D-67)
+resumeGame(seed, size, gameKey, eventSeq):     # a game restored after the sign-in redirect (D-67)
+  startGame(seed, size); if recording and gameKey is a non-empty string:
+    game.gameKey ← gameKey; eventSeq ← the saved eventSeq (a whole number ≥ 0)
+  # no saved key: a fresh key and eventSeq 0, as a new game
 endpoint: TELEMETRY_ENDPOINT (https://ttdat.yuwakisa.com/t) from anywhere, portal builds too;
           a page on localhost, 127.0.0.1 or [::1] (wrangler dev) posts to its own origin + '/t'
 
@@ -807,7 +815,7 @@ Event `args`, as GameUI reads them before the command runs:
 | Record | Fields |
 |---|---|
 | game | `gameKey` (a random ID per game), `startedUnixSeconds`, `seed`, `size` (a `MAP_SIZES` key), `version` (the commit hash from `<html data-version>`), `rulesVersion` (`GameArtifacts.RULES_VERSION`), `userAgent`?, `screen`? |
-| event | `gameKey`, `unixSeconds`, `command` (one of the engine's commands, §7), `accepted` (bool), the snapshot after its tick: `turn`, `delivered`, `lost`, `exGremlins`, `trapped`, `things` (Things on the board), `crates` (pieces that aren't gremlins); `deliveredByColor`? (`{color: n}`); `args`? (the command's arguments: `kind`, `q`, `r`, `facing`, `color`, anything else) |
+| event | `gameKey`, `seq` (0, 1, 2, … per game, in the order the recorder queued its event records), `unixSeconds`, `command` (one of the engine's commands, §7), `accepted` (bool), the snapshot after its tick: `turn`, `delivered`, `lost`, `exGremlins`, `trapped`, `things` (Things on the board), `crates` (pieces that aren't gremlins); `deliveredByColor`? (`{color: n}`); `args`? (the command's arguments: `kind`, `q`, `r`, `facing`, `color`, anything else) |
 | milestone | `gameKey`, `milestone` (the count reached: 10, 20, 50, …), `unixSeconds`, the same snapshot and `deliveredByColor`? |
 | crash | `unixSeconds`, `message`, `format`?, `version`?, `gameKey`?, `seed`?, `size`?, `turn`? (each null if unknown), `stack`?, `userAgent`? |
 
@@ -820,7 +828,9 @@ One JSON object, sent as `text/plain` (no CORS preflight; `sendBeacon` can carry
 - `format` — `TELEMETRY_FORMAT` (worker/telemetry.js and `GameDisplayArtifacts`), bumped in both
   whenever a field is renamed, removed or retyped. The itch.io and Newgrounds zips run whatever
   build was uploaded for months, so old clients keep sending old shapes: the Worker keeps one
-  reader per known format (`READERS`; `KNOWN_FORMATS` = [1]).
+  reader per known format (`READERS`; `KNOWN_FORMATS` = [1]). Until a build that sends telemetry
+  ships, the format changes in place without a bump: an event's required `seq` (D-64) was added to
+  format 1 that way, since nothing was deployed and no portal build had shipped telemetry.
 - `player` — the sender's random per-load ID (a string, at most 64 chars).
 - `token`? — the sign-in's access token while signed in (D-68; in the body, not an Authorization
   header, so `sendBeacon` can carry it and no CORS preflight is needed). Never logged or stored.
@@ -842,8 +852,8 @@ fetch(request):
   not a JSON object → 400
   format missing, not a number, or not in KNOWN_FORMATS → 204, nothing written, console.error with no body
   READERS[format](batch) fails (a list that isn't one, > MAX_RECORDS records in all, a record
-    that isn't an object, a required field missing (or an empty string), a wrong field type or length, an unknown
-    command, a bad arg column or deliveredByColor) → 400, nothing written
+    that isn't an object, a required field missing (or an empty string), a wrong field type or length, an
+    event's seq not a whole number ≥ 0, an unknown command, a bad arg column or deliveredByColor) → 400, nothing written
   else → 204 (Access-Control-Allow-Origin: *); ctx.waitUntil(identity, then one D1 batch of every row)
          identity = identityFor(batch.token) (Sign-in section) or the batch's random player
          a failed write is console.error'd and dropped
@@ -859,8 +869,9 @@ so a cross-origin page sees them and backs off.
 - `games` — PK `game_key`; `player_id`, `signed_in` (of the batch that first inserted it), `format`,
   `started_unix_seconds`, `seed`, `size`, `version`, `rules_version`, `user_agent`, `screen`.
   `INSERT OR IGNORE`: the browser resends the game record in each batch of its game.
-- `events` — PK (`game_key`, `seq`); `seq` is the count of that game's events so far, taken inside
-  the insert (arrival order); the snapshot columns, `kind`/`q`/`r`/`facing`/`color` from `args`
+- `events` — PK (`game_key`, `seq`); `seq` is the event record's own, numbered by the recorder and
+  bound as sent (nothing reads the game's earlier rows); `INSERT OR IGNORE`, so a resent event is kept
+  once; the snapshot columns, `kind`/`q`/`r`/`facing`/`color` from `args`
   (null where absent), `rest` JSON `{args: the other args, deliveredByColor}`.
 - `milestones` — PK (`game_key`, `milestone`), `INSERT OR IGNORE`; the snapshot, `rest` JSON `{deliveredByColor}`.
 - `crashes` — `id` autoincrement, plain INSERT; `format`, `version`, `game_key`, `seed`, `size`, `turn`,

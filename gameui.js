@@ -626,27 +626,29 @@ const GameUI = (function () {
 
         // D-67: save the game in play just before the sign-in redirect reloads the page: its
         // whole state (engine.save(), the Rando stream included) and a little view context
-        // (zoom, pan, the telemetry game key, whether Go ran) under SAVE_KEY. Only the settled
-        // game is kept, never a picked card, a selection, an open overlay or a Mover/Bomb in
-        // hand; the caller backs those out first, as Esc would (a carried Thing or a Bomb's
-        // booms the engine hasn't heard of are simply not in the save). With no game in play
-        // (the intro, the New Game panel, About over the intro) it saves nothing. True if it saved.
+        // (zoom, pan, the telemetry game key and event count, whether Go ran) under SAVE_KEY.
+        // Only the settled game is kept, never a picked card, a selection, an open overlay or a
+        // Mover/Bomb in hand; the caller backs those out first, as Esc would (a carried Thing
+        // or a Bomb's booms the engine hasn't heard of are simply not in the save). With no
+        // game in play (the intro, the New Game panel, About over the intro) it saves nothing.
+        // True if it saved.
         saveForRedirect() {
             const under = this.overlay === 'about' ? this.aboutFrom : this.overlay;
             if (!this.state.hexes || under === 'intro' || under === 'size') return false;
             const save = {
                 version: SAVE_VERSION, savedAt: unixSeconds(), state: this.engine.save(),
                 ui: { zoom: this.zoom, scale: this.scale, panX: this.panX, panY: this.panY,
-                    telemetryGameKey: GameTelemetry.gameKey(), running: this.running },
+                    telemetryGameKey: GameTelemetry.gameKey(), telemetrySeq: GameTelemetry.eventSeq(), running: this.running },
             };
             return writeSave(JSON.stringify(save));
         }
 
         // At boot (D-67): a save is read once and removed, whatever happens next. Only a
         // sign-in return restores it, and only if it parses, has SAVE_VERSION, is younger than
-        // SAVE_REDIRECT_MAX_AGE_S and the engine takes its state; otherwise it's dropped with no
-        // message and the intro shows as usual. A restore skips the intro and first-time Help,
-        // keeps the telemetry game, puts the zoom and pan back, and leaves Go off. True if restored.
+        // SAVE_REDIRECT_MAX_AGE_S, holds the telemetry event count (a whole number ≥ 0) and the
+        // engine takes its state; otherwise it's dropped with no message and the intro shows as
+        // usual. A restore skips the intro and first-time Help, keeps the telemetry game and its
+        // event count, puts the zoom and pan back, and leaves Go off. True if restored.
         restoreSaved() {
             const raw = readSave();
             if (raw === null) return false;
@@ -657,9 +659,10 @@ const GameUI = (function () {
             if (!save || typeof save !== 'object' || save.version !== SAVE_VERSION || !Number.isFinite(save.savedAt)) return false;
             const age = unixSeconds() - save.savedAt;
             if (age < 0 || age >= SAVE_REDIRECT_MAX_AGE_S) return false;
-            if (!this.engine.restore(save.state).ok) return false;
             const view = save.ui && typeof save.ui === 'object' ? save.ui : {};
-            GameTelemetry.resumeGame({ seed: this.state.seed, size: this.state.size, gameKey: view.telemetryGameKey });
+            if (!Number.isSafeInteger(view.telemetrySeq) || view.telemetrySeq < 0) return false;
+            if (!this.engine.restore(save.state).ok) return false;
+            GameTelemetry.resumeGame({ seed: this.state.seed, size: this.state.size, gameKey: view.telemetryGameKey, eventSeq: view.telemetrySeq });
             this.setRunning(false);   // Go waits for the player, who may not remember it was on
             this.canvas.width = window.innerWidth;
             this.canvas.height = window.innerHeight;

@@ -1,6 +1,6 @@
 // R-72: the boot rule for a save under SAVE_KEY (D-67). A return from the sign-in redirect
 // (an OAuth state starting with SIGNIN_STATE_PREFIX in the URL, D-68) with a good save restores that game: no intro, no Help, the
-// same board, Go off, the telemetry game key kept, the save removed. A bad, old or wrong-version
+// same board, Go off, the telemetry game key and event count kept, the save removed. A bad, old or wrong-version
 // save is removed with no message and the page boots to the intro as usual; so is any save on a
 // boot that isn't a sign-in return. Storage that throws boots as usual.
 'use strict';
@@ -14,12 +14,14 @@ const KEY = D.SAVE_KEY, RETURN = '?code=c0de&state=' + D.SIGNIN_STATE_PREFIX + '
 first.ui.startGame('medium');
 first.ui.dismissOverlay();   // the first-time Help
 for (let i = 0; i < 12; i++) first.engine.wait();
+for (let i = 0; i < 3; i++) first.run("GameTelemetry.command('discard', { kind: 'BELT', how: 'pick' }, { ok: true, events: [] }, state)");
 first.ui.setZoom('2');
 first.ui.setRunning(true);
 check('a page with a game in play saves for the redirect', first.ui.saveForRedirect() === true && first.storage.map.has(KEY));
 const goodText = first.storage.map.get(KEY);
 const good = JSON.parse(goodText);
 const gameKey = first.run('GameTelemetry.gameKey()');
+const eventSeq = first.run('GameTelemetry.eventSeq()');
 const savedGame = JSON.stringify(first.engine.save());
 
 // A boot that dropped its save and showed the intro, as a page with no save would.
@@ -43,6 +45,11 @@ function bootsFresh(label, text, search = RETURN) {
     check('Go was running and comes back off', good.ui.running === true && p.ui.running === false);
     check('the zoom comes back', p.ui.zoom === '2' && p.ui.scale === 0.5);
     check('the telemetry game key is kept', typeof gameKey === 'string' && p.run('GameTelemetry.gameKey()') === gameKey);
+    check('the telemetry event count is kept: the next event record goes on from it', eventSeq === 3 && good.ui.telemetrySeq === 3 &&
+        p.run('GameTelemetry.eventSeq()') === 3);
+    p.run("GameTelemetry.command('discard', { kind: 'BELT', how: 'pick' }, { ok: true, events: [] }, state)");
+    const next = p.run('GameTelemetry.pending()').events;
+    check('… the restored game\'s first event record is seq 3 under the saved key', next.length === 1 && next[0].seq === 3 && next[0].gameKey === gameKey);
     const a = first.engine.wait(), b = p.engine.wait();
     check('the restored game ticks on as the original does', JSON.stringify(a) === JSON.stringify(b) &&
         JSON.stringify(first.engine.save()) === JSON.stringify(p.engine.save()));
@@ -65,6 +72,10 @@ bootsFresh('saved in the future', JSON.stringify({ ...good, savedAt: now + 3600 
 bootsFresh('no savedAt', JSON.stringify({ ...good, savedAt: 'yesterday' }));
 bootsFresh('a state the engine refuses', JSON.stringify({ ...good, state: { ...good.state, size: 'galactic' } }));
 bootsFresh('no state', JSON.stringify({ ...good, state: undefined }));
+bootsFresh('no telemetry event count (an older save)', JSON.stringify({ ...good, ui: { ...good.ui, telemetrySeq: undefined } }));
+bootsFresh('a telemetry event count that isn\'t a whole number', JSON.stringify({ ...good, ui: { ...good.ui, telemetrySeq: '3' } }));
+bootsFresh('a negative telemetry event count', JSON.stringify({ ...good, ui: { ...good.ui, telemetrySeq: -1 } }));
+bootsFresh('no view context at all', JSON.stringify({ ...good, ui: undefined }));
 {
     const p = bootsFresh('a dropped save', JSON.stringify({ ...good, version: 99 }));
     p.ui.startGame('small');
@@ -77,9 +88,9 @@ bootsFresh('no state', JSON.stringify({ ...good, state: undefined }));
     const p = bootPage({ storage, search: RETURN });
     check('a save under SAVE_REDIRECT_MAX_AGE_S old restores', p.ui.overlay === null && !!p.state.hexes && !storage.map.has(KEY));
 }
-// Bad view context: the game still restores, centered at 1x.
+// Bad view context (with its telemetry event count): the game still restores, centered at 1x.
 {
-    const storage = memoryStorage({ [KEY]: JSON.stringify({ ...good, ui: { zoom: '7', scale: 'big', panX: null } }) });
+    const storage = memoryStorage({ [KEY]: JSON.stringify({ ...good, ui: { zoom: '7', scale: 'big', panX: null, telemetrySeq: 0 } }) });
     const p = bootPage({ storage, search: RETURN });
     check('a save with a bad view context still restores the game, at 1x and centered', p.ui.overlay === null && !!p.state.hexes && p.ui.zoom === '1' && p.ui.scale === 1);
 }

@@ -30,9 +30,10 @@ CREATE INDEX IF NOT EXISTS games_by_start ON games (started_unix_seconds);
 
 -- One row per event record: a command on a game, with the board's counts after its tick. The
 -- primary key is also the index that joins a game's events to its games row, in seq order.
+-- INSERT OR IGNORE: an event sent twice (same game_key and seq) is kept once.
 CREATE TABLE IF NOT EXISTS events (
   game_key TEXT NOT NULL,
-  seq INTEGER NOT NULL,                    -- from 0 per game, in the order the database got them
+  seq INTEGER NOT NULL,                    -- from 0 per game, numbered by the browser as it queued them
   player_id TEXT NOT NULL,
   signed_in INTEGER NOT NULL,
   unix_seconds INTEGER NOT NULL,
