@@ -1,7 +1,8 @@
 // R-68 — the ttdat Worker's POST /t (worker/index.js routing to worker/telemetry.js, D-64): a telemetry batch checked whole
 // and written to D1.
 //
-// The worker is imported as the ES module wrangler deploys, and run against a fake D1 that is a
+// Sign-in isn't configured here (no AUTH_SERVICE in env), so a batch's `token` changes nothing;
+// R-74 has the signed-in identity. The worker is imported as the ES module wrangler deploys, and run against a fake D1 that is a
 // real SQLite database (node:sqlite) with worker/telemetry_schema.sql applied, recording every
 // bind, and a fake ctx whose waitUntil collects the writes. Cases:
 //   - a valid batch → 204 with Access-Control-Allow-Origin *, and the right rows in all four

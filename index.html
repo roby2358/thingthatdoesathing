@@ -25,6 +25,8 @@
                 <button id="sound" class="btn" title="Turn all sound on or off (M)">Sound: on</button>
                 <button id="help" class="btn" title="The keys and every Thing; ticks hold while it's open">Help</button>
                 <button id="about" class="btn" title="Credits, version and privacy; ticks hold while it's open">About</button>
+                <button id="signin" class="btn hidden" title="Sign in with Bluesky (optional)">Sign in</button>
+                <span id="signin-label" class="signin-label hidden"></span>
             </span>
         </div>
         <div id="zoom" class="panel" title="Map scale"><span class="zoom-label">Map</span><span class="buttons" id="zoom-buttons"></span></div>
@@ -65,7 +67,11 @@
             ticks the world once, so build where it counts.</p>
         <p class="pick-size">Pick a board to begin</p>
         <div class="sizes" id="intro-sizes"></div>
-        <button id="intro-about" class="link" type="button">About</button>
+        <div class="panel-links">
+            <button id="intro-about" class="link" type="button">About</button>
+            <button id="intro-signin" class="btn hidden" type="button" title="Sign in with Bluesky (optional)">Sign in</button>
+            <span id="intro-signin-label" class="signin-label hidden"></span>
+        </div>
     </div>
     <!-- Help (D-60): a pager like About (D-59), opening on Keys; then Special cards (the Pusher/Puller
     color, the Mover, the Bomb); then Things, one row per card,
@@ -143,6 +149,7 @@
                 <h2>Credits</h2>
                 <div id="about-credits"></div>
                 <p id="about-feedback-line" class="hidden">Found a bug or have an idea? <a id="about-feedback">Tell me</a></p>
+                <p id="about-signin" class="about-signin hidden"></p>
                 <p class="about-version">Version <span id="about-version" class="selectable">dev</span><span id="about-seed-part"> · Seed <span id="about-seed" class="selectable"></span></span></p>
             </div>
             <div id="about-page-1" class="hidden">
@@ -150,10 +157,12 @@
                 <p>While you play, the game sends your moves, the board size, the seed, the game
                     version, your browser type and window size to our own server. They're used only
                     to tune the game.</p>
-                <p>They're tied to a random ID made fresh each time you open the game. No cookies,
-                    no account, no IP addresses kept, no personal data.</p>
+                <p>They're tied to a random ID made fresh each time you open the game. If you sign
+                    in with Bluesky, they're tied to a hashed form of that account instead. We don't
+                    keep your handle. No cookies, no IP addresses kept.</p>
                 <p>Your browser's Global Privacy Control setting turns it off.</p>
-                <p>Your browser keeps your settings (like mute), and your game while you sign in. It never leaves your computer.</p>
+                <p>Your browser keeps your settings (like mute), your game while you sign in and, if
+                    you sign in, your sign-in. Only the sign-in is ever sent, with your moves.</p>
             </div>
             <div class="pager-nav">
                 <button id="about-prev" class="btn" type="button" title="Previous page (←)">&lt;</button>
@@ -168,6 +177,10 @@
         <p class="pick-size">Pick a board</p>
         <div class="sizes" id="new-sizes"></div>
         <button id="size-cancel" class="btn">Keep playing <kbd>Esc</kbd></button>
+        <div class="panel-links">
+            <button id="size-signin" class="btn hidden" type="button" title="Sign in with Bluesky (optional)">Sign in</button>
+            <span id="size-signin-label" class="signin-label hidden"></span>
+        </div>
     </div>
     <div id="news-panel" class="hidden">
         <div class="panel news-card">
@@ -214,11 +227,12 @@
     </div>
     <!-- Plain script includes (globals), not ES modules: the page runs on a double-click
     (D-9). The crash screen first, so it catches an error in any script after it (D-63), then
-    dependency order: artifacts → display artifacts → telemetry → libs → piece/board → state → engine → ui → bootstrap. -->
+    dependency order: artifacts → display artifacts → telemetry → sign-in → libs → piece/board → state → engine → ui → bootstrap. -->
     <script src="crash.js"></script>
     <script src="artifacts.js"></script>
     <script src="displayartifacts.js"></script>
     <script src="telemetry.js"></script>
+    <script src="signin.js"></script>
     <script src="rando.js"></script>
     <script src="colortheory.js"></script>
     <script src="hex.js"></script>

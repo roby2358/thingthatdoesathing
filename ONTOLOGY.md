@@ -188,6 +188,7 @@ in one command (`bomb`, D-48).
 | `running` | bool — Go/Pause. While true, the client calls `wait()` `RUN_GAP_MS` after each animation ends, and holds while a card is picked, a hex is selected or an overlay is open. [D] |
 | `sound` | `GameSound`, `Math.random` only; muted by the Sound button or `M`, remembered in `localStorage` (D-53). |
 | (crash screen) | Not GameUI state: `crash.js`, loaded before every other script, owns it, so it works if GameUI never booted or a script failed to load (D-63). Its window `error` / `unhandledrejection` handlers show `#crash-panel` once (`crashed`): the error, the version (`<html data-version>` or "dev") and, with a board, the seed, selectable; Go stops and keys stop reaching the game; Reload reloads; Start fresh removes only `localStorage[SAVE_KEY]` (`'thingfactory.run'`, the saved run's key, written only around the sign-in redirect, D-67) and reloads. |
+| (sign-in) | Not GameUI state: `GameSignIn` (signin.js) reads the sign-in from `localStorage[AUTH_KEY]` each time it's asked, and GameUI only shows it (`showSignIn`: the Sign in buttons or the handle label in the bar and both size panels, About's line). Offered only on `SIGNIN_SITES` origins (§9, D-68). |
 
 ---
 
@@ -685,8 +686,8 @@ The client reads state, calls commands and queries, never writes state, never ca
 `Rando`, and animates only from events.
 
 ### Save around the sign-in redirect — GameUI [D-67]
-*Serves:* signing in (a full-page redirect and back) never costs the game in play. The sign-in
-work calls `saveForRedirect()` just before it redirects; autosave and Continue (save-resume)
+*Serves:* signing in (a full-page redirect and back) never costs the game in play. The top-left
+bar's Sign in (`signInFromGame()`, Sign-in section) calls `saveForRedirect()` just before it redirects; autosave and Continue (save-resume)
 build on the same save later. The engine and state stay DOM-free; GameUI does the storage, every
 touch of `localStorage` in try/catch.
 ```
@@ -704,7 +705,7 @@ saveForRedirect() → bool:
 boot (GameUI.start, after the input is wired):
   save ← localStorage[SAVE_KEY]; none: the intro, as always
   remove it                                            # read once, whatever happens next
-  if the URL's query string has SIGNIN_RETURN_PARAM (a sign-in return)
+  if the URL's OAuth state starts with SIGNIN_STATE_PREFIX (a sign-in return, D-68)
      and it parses, version = SAVE_VERSION, 0 ≤ now − savedAt < SAVE_REDIRECT_MAX_AGE_S
      and engine.restore(save.state) is ok:
     GameTelemetry.resumeGame(seed, size, telemetryGameKey)   # same game record, D-65
@@ -716,7 +717,7 @@ boot (GameUI.start, after the input is wired):
 | `SAVE_KEY` | `'thingfactory.run'` | the save's localStorage key (`GameDisplayArtifacts`; Start fresh removes it, D-63) |
 | `SAVE_VERSION` | 1 | the save's shape; any other version is dropped (D-67) |
 | `SAVE_REDIRECT_MAX_AGE_S` | 1800 | seconds a save stays good for a sign-in return (D-67) |
-| `SIGNIN_RETURN_PARAM` | `'signin'` | the query parameter that marks a sign-in return; the sign-in work owns it (D-67) |
+| `SIGNIN_STATE_PREFIX` | `'signin.'` | how every OAuth `state` signin.js sends begins, so a page URL whose `state` has it is a sign-in return (D-67, D-68) |
 
 ---
 
@@ -731,7 +732,7 @@ recorder each new game and each committed command.
 ```
 page load:
   nothing: no player, record, timer or listener until the first startGame
-  player ← a random UUID with the first recorded game (or a switchIdentity), in memory only,
+  player ← a random UUID with the first recorded game (or a switchIdentity after it), in memory only,
            never stored, kept for the page load              # identity, sent once per batch
 
 startGame(seed, size):                         # GameUI.startGame: the intro's size pick, New Game
@@ -759,7 +760,9 @@ flush(via):                                    # also when the timer fires (TELE
   via 'fetch': fetch(endpoint, POST, keepalive, credentials omit); via 'beacon': navigator.sendBeacon
   any failure: dropped, never retried, never shown, never thrown into the game
 
-switchIdentity():  flush('fetch') under the current player, then player ← a fresh random UUID
+switchIdentity(token?):  flush('fetch') under the current player, then player ← a fresh random UUID
+                   (none before the first game, which makes its own), token ← the sign-in's access
+                   token or null; every later batch carries the token while it is set (D-68)
 endpoint: TELEMETRY_ENDPOINT (https://ttdat.yuwakisa.com/t) from anywhere, portal builds too;
           a page on localhost, 127.0.0.1 or [::1] (wrangler dev) posts to its own origin + '/t'
 ```
@@ -797,14 +800,17 @@ One JSON object, sent as `text/plain` (no CORS preflight; `sendBeacon` can carry
   build was uploaded for months, so old clients keep sending old shapes: the Worker keeps one
   reader per known format (`READERS`; `KNOWN_FORMATS` = [1]).
 - `player` — the sender's random per-load ID (a string, at most 64 chars).
-- `token` — reserved for a sign-in access token (in the body so `sendBeacon` can carry it); ignored for now.
+- `token`? — the sign-in's access token while signed in (D-68; in the body, not an Authorization
+  header, so `sendBeacon` can carry it and no CORS preflight is needed). Never logged or stored.
 - Identity is per batch, not per game: one game may run under a random ID, then a signed-in
-  one, then a new random one. Every row a batch writes is stamped with its identity
-  (`player_id` = `player`, `signed_in` 0 for now).
+  one, then a new random one. Every row a batch writes is stamped with its identity: a token
+  that verifies (Sign-in section) gives `player_id` = the salted hash of its `sub`, `signed_in` 1;
+  otherwise `player_id` = `player`, `signed_in` 0.
 
 ### Endpoint — `POST /t` (worker/index.js → worker/telemetry.js)
 ```
 fetch(request):
+  POST /auth/token → the sign-in's code exchange (Sign-in section)
   path ≠ '/t' or method ≠ POST → 404        # the static assets serve every file before this
   body > MAX_BODY_BYTES → 400
   not a JSON object → 400
@@ -812,7 +818,8 @@ fetch(request):
   READERS[format](batch) fails (a list that isn't one, > MAX_RECORDS records in all, a record
     that isn't an object, a required field missing (or an empty string), a wrong field type or length, an unknown
     command, a bad arg column or deliveredByColor) → 400, nothing written
-  else → 204 (Access-Control-Allow-Origin: *); ctx.waitUntil(one D1 batch of every row)
+  else → 204 (Access-Control-Allow-Origin: *); ctx.waitUntil(identity, then one D1 batch of every row)
+         identity = identityFor(batch.token) (Sign-in section) or the batch's random player
          a failed write is console.error'd and dropped
 ```
 A crash's `message` and `stack` are cut to `CRASH_MESSAGE_CHARS` / `CRASH_STACK_CHARS`, not
@@ -877,3 +884,96 @@ Sections, in order (a table with no rows prints `(none)`):
 | `TELEMETRY_FLUSH_RECORDS` | 50 | queued records that send at once, before the timer (D-65) |
 | `TELEMETRY_ENDPOINT` | https://ttdat.yuwakisa.com/t | where batches go from anywhere but localhost (D-65) |
 | `RULES_VERSION` | 1 | `GameArtifacts`: the rules a game ran under, on its game record. Bumped by hand, by one, in the same change as any rule change or any change to a Numbers-table value play depends on (D-65) |
+
+---
+
+## §9 Sign-in [D; D-68]
+*Serves:* knowing a returning player across page loads in telemetry, without making anyone sign
+in; later, saves and achievements build on it. Playing never needs it. For now a sign-in changes
+only telemetry's identity. Thing Factory is a public OAuth client of yuwakisacloud's auth/ (its
+`/authorize` page offers "Sign in with Bluesky" through bskyoidc): authorization code with PKCE,
+run in the browser (`signin.js`, `GameSignIn`), with two small server halves in the ttdat Worker
+(`worker/auth.js`). auth/ is reached from the Worker only through the `AUTH_SERVICE` service
+binding; its issuer is `AUTH_ISSUER` and this game's client row `TTDAT_CLIENT_ID` (wrangler.jsonc
+vars, per environment). The client row lives in auth/'s D1, another repo: README "Deploy" has its
+seed SQL. Signing out is its own task.
+
+### Browser — `GameSignIn` (signin.js) and GameUI's spots
+```
+offered: location's origin ∈ SIGNIN_SITES (http(s) only)    # the live site, wrangler dev on :8787
+         else nothing at all: no button, label or About line (portal iframes, file://, the dev page)
+
+current(): localStorage[AUTH_KEY] = { token, handle (or null), expiresAt (unix s) }
+           missing → signed out; unreadable, tokenless or expiresAt ≤ now → removed, signed out
+           # no refresh token: an expired sign-in silently counts as signed out
+
+spots (the top-left bar by Help, About and Sound; the intro, beside About; New Game, under Keep playing):
+  signed out → a "Sign in" button, title "Sign in with Bluesky (optional)"
+  signed in  → a plain label in its place: "@" + handle, or "Signed in" with no handle
+  About's credits page, one line: "Not signed in. Signing in with Bluesky is optional." /
+  "Signed in with Bluesky as @handle." / "Signed in with Bluesky."
+
+Sign in from the bar (signInFromGame):
+  under an overlay, not offered, or signed in → nothing
+  the picked card goes back and the selection goes (in the view only, no command sent)
+  a board: saveForRedirect() (D-67); refused → REASONS.signInSave, nothing else
+  Go off; begin()
+Sign in from the intro or New Game (signInFromPanel):
+  no save (no game, or New Game ends it); Go off; begin()       # the return lands on the intro
+begin():
+  verifier ← 32 random bytes, base64url (43 chars); state ← SIGNIN_STATE_PREFIX + 16 random bytes, base64url
+  sessionStorage[SIGNIN_FLOW_KEY] ← { state, verifier }         # refused → false, nothing else
+  location.assign(issuer + '/authorize?' + response_type=code, client_id, redirect_uri = origin + '/',
+                  scope = SIGNIN_SCOPE, state, code_challenge = base64url(SHA-256(verifier)), S256)
+  any failure → false: the save is dropped and REASONS.signInFailed shows
+
+boot (GameUI.start, after restoreSaved, D-67):
+  a stored sign-in → GameTelemetry.switchIdentity(token); the spots show it
+  a return (the URL's state starts with SIGNIN_STATE_PREFIX, with code or error) → finish():
+    flow ← sessionStorage[SIGNIN_FLOW_KEY], removed; code, state, error, error_description, iss
+    stripped from the URL (history.replaceState)
+    not offered, no code, no flow, or flow.state ≠ state → signed out, silently
+    POST SIGNIN_TOKEN_PATH (form: code, code_verifier, redirect_uri), credentials omitted
+    200 with access_token and expires_in → localStorage[AUTH_KEY] ← { token, handle, now + expires_in }
+      (refused storage: signed in for this page load only); GameTelemetry.switchIdentity(token)
+      (what was queued goes under the random ID first); the spots show it
+    anything else → signed out, silently
+```
+
+### Worker — `worker/auth.js`
+```
+POST /auth/token (exchangeCode):                 # auth/'s /token has no CORS (auth/ D-38)
+  sign-in not configured (no AUTH_SERVICE, AUTH_ISSUER or TTDAT_CLIENT_ID) → 404 {error: sign_in_unavailable}
+  body > MAX_EXCHANGE_BYTES, or no code, code_verifier or redirect_uri → 400 {error: invalid_request}
+  AUTH_SERVICE.fetch(AUTH_ISSUER + '/token', POST form: grant_type=authorization_code, code,
+                     redirect_uri, client_id = TTDAT_CLIENT_ID, code_verifier)
+  unreadable → 502 {error: server_error}
+  not ok or no access_token → 400 {error: auth/'s error code, else server_error}
+  else → 200 {access_token, expires_in, handle: the ID token's preferred_username (≤ MAX_HANDLE_CHARS) or null}, no-store
+
+identityFor(token) (a telemetry batch's, inside its ctx.waitUntil write):
+  not a non-empty string ≤ MAX_TOKEN_CHARS, or sign-in not configured → null
+  verifyAccessToken(token, issuer AUTH_ISSUER, audience TTDAT_CLIENT_ID, keys via AUTH_SERVICE,
+                    CLOCK_SKEW_S)                 # the vendored auth-client (worker/vendor/auth-client)
+  invalid, scope without PLAY_SCOPE, or any error → null (console.error with the reason only)
+  else → { playerId: hex(SHA-256(PLAYER_SALT + sub)), signedIn: 1 }
+  null → the batch's random player, signed_in 0             # a batch is never refused over auth
+```
+Nothing in the Worker logs or stores a token, code, verifier, handle or `sub`; only the hash is
+written. worker/index.js imports the vendored auth-client (TypeScript, bundled by wrangler with
+`cbor-x` from `worker/node_modules`) lazily, on the first token it must check.
+
+### Numbers [T]
+| Name | Value | Meaning |
+|---|---|---|
+| `SIGNIN_SITES` | the live site → auth.yuwakisa.com; http://localhost:8787 → http://localhost:8788 | where sign-in is offered, with auth/'s issuer and this game's client id there (`GameDisplayArtifacts`; wrangler.jsonc's `AUTH_ISSUER`/`TTDAT_CLIENT_ID` match) |
+| `SIGNIN_SCOPE` | `'openid profile ttdat:play'` | what the browser asks for: an ID token with the handle, and the play scope |
+| `PLAY_SCOPE` | `'ttdat:play'` | the scope a telemetry token must carry (worker/auth.js) |
+| `PLAYER_SALT` | `'ttdat-player-v1:'` | hashed with `sub` into a signed-in player_id; changing it splits every signed-in player |
+| `AUTH_KEY` | `'thingfactory.auth'` | localStorage: the sign-in |
+| `SIGNIN_FLOW_KEY` | `'thingfactory.signin'` | sessionStorage: the state and verifier, across the redirect only |
+| `SIGNIN_TOKEN_PATH` | `'/auth/token'` | the Worker's code exchange, on the page's own origin |
+| `CLOCK_SKEW_S` | 60 | seconds of clock skew a token's iat/exp may have (auth/'s consumer contract) |
+| `MAX_TOKEN_CHARS` | 4096 | a longer telemetry token isn't verified |
+| `MAX_EXCHANGE_BYTES` | 4096 | the code exchange's largest form body |
+| `MAX_HANDLE_CHARS` | 253 | a longer `preferred_username` gives no handle (a Bluesky handle is a DNS name) |

@@ -1,5 +1,5 @@
 // R-72: the boot rule for a save under SAVE_KEY (D-67). A return from the sign-in redirect
-// (SIGNIN_RETURN_PARAM in the URL) with a good save restores that game: no intro, no Help, the
+// (an OAuth state starting with SIGNIN_STATE_PREFIX in the URL, D-68) with a good save restores that game: no intro, no Help, the
 // same board, Go off, the telemetry game key kept, the save removed. A bad, old or wrong-version
 // save is removed with no message and the page boots to the intro as usual; so is any save on a
 // boot that isn't a sign-in return. Storage that throws boots as usual.
@@ -10,7 +10,7 @@ const { bootPage, memoryStorage } = require('../helpers/page');
 // A real save, made by a page that played a little.
 const first = bootPage();
 const D = first.run('GameDisplayArtifacts');
-const KEY = D.SAVE_KEY, RETURN = '?' + D.SIGNIN_RETURN_PARAM + '=1';
+const KEY = D.SAVE_KEY, RETURN = '?code=c0de&state=' + D.SIGNIN_STATE_PREFIX + 'r4nd0m';
 first.ui.startGame('medium');
 first.ui.dismissOverlay();   // the first-time Help
 for (let i = 0; i < 12; i++) first.engine.wait();
@@ -51,6 +51,7 @@ function bootsFresh(label, text, search = RETURN) {
 // Good save, but not a sign-in return: dropped (save-resume will keep it).
 bootsFresh('a good save on an ordinary boot', goodText, '');
 bootsFresh('a good save, another query string', goodText, '?signing=1');
+bootsFresh('a good save, a state without the prefix', goodText, '?code=c0de&state=r4nd0m');
 // Bad, old or wrong-version saves on a sign-in return.
 const now = Math.floor(Date.now() / 1000);
 bootsFresh('bad JSON', '{"version": 1, "sav');

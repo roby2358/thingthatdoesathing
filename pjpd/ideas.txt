@@ -230,6 +230,13 @@ Jackpot events: rare, exciting moments where the game suddenly pays out big, a b
 - Slot-machine flavor: when a jackpot hits, a banner, fanfare and visual flourish play (GameSound already has a fanfare).
 Design calls to settle: what triggers it (pure chance per tick, a skill feat, or chance boosted by play); what it pays (deliveries toward milestones, cards, unlocks, score); how rare it is and how it scales with milestones or board size; whether it's seeded by the game's Rando (reproducible, which matters for the seed-words and leaderboard ideas); whether a jackpot can be missed (it appears, and you have to catch it); and how it relates to the goal-gen, level-goals and big-crate pacing ideas. Needs an interview before it becomes tasks.
 ----
+Score:   20
+ID: signinrow-3dns
+Created: 2026-11-21T10:26:54Z
+Updated: 2026-11-21T10:26:54Z
+
+Telemetry on a sign-in return: GameUI restores the game (GameTelemetry.resumeGame queues its game record) before the code exchange finishes, and switchIdentity(token) then flushes that queue under the random per-load ID first, so the restored game's games row (the Worker keeps the first insert) is stamped with the random ID and signed_in 0 while its later rows carry the signed-in hash; the telemetry report counts it as a game that switched identity. Possible fix: on a sign-in return, hold telemetry's first flush until GameSignIn.finish() settles (or have finish() run before resumeGame), so the whole restored game lands under the signed-in identity. Only matters for the report's Players section.
+----
 Score:   50
 ID: rules-hi6e
 Created: 2026-11-17T18:38:42Z

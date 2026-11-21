@@ -315,6 +315,13 @@ kbd {
 .btn.size .note { font-size: 11px; color: var(--text-dim); }
 .btn.size kbd { position: absolute; top: 4px; right: 5px; font-size: 10px; padding: 1px 4px; }
 #size-cancel { margin-top: 12px; padding: 5px 14px; }
+/* The optional Bluesky sign-in (D-68): a Sign in button in the top-left bar and on both size
+   panels, or the handle in its place while signed in; hidden where sign-in isn't offered. */
+.panel-links { display: flex; justify-content: center; align-items: baseline; gap: 14px; }
+#intro-signin, #size-signin { margin-top: 10px; padding: 4px 12px; }
+.signin-label { color: var(--text-dim); font-size: 13px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-links .signin-label { margin-top: 10px; }
+.about-card p.about-signin { text-align: center; color: var(--text); }
 
 #lost-info { color: #ff8a7a; font-size: 13px; font-variant-numeric: tabular-nums; }
 #intro-panel .src { color: #4ce08a; }      /* SOURCE_COLOR */

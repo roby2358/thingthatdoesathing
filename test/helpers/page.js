@@ -3,7 +3,7 @@
 // no animation: timers and animation frames never fire. test/integration/uiboot.js has the full
 // stub that plays through the UI.
 //
-//   const page = bootPage({ storage, search: '?signin=1' });
+//   const page = bootPage({ storage, search: '?code=c&state=signin.x' });
 //   page.ui, page.state, page.engine, page.els, page.run('GameTelemetry.gameKey()')
 'use strict';
 
@@ -60,9 +60,11 @@ class SilentAudio {
 }
 
 // A page load. `storage` is window.localStorage (a memoryStorage, or a getter that throws when
-// `storage` is 'throws'); `search` the URL's query string. The page is a ship build on the live
-// site, so telemetry records (sending into a stub fetch).
-function bootPage({ storage = memoryStorage(), search = '' } = {}) {
+// `storage` is 'throws'); `search` the URL's query string; `origin` the page's origin (the live
+// site by default; 'null' with a file: protocol for file://). The page is a ship build, so
+// telemetry records (sending into a stub fetch). `win` adds to window (sessionStorage, history),
+// `globals` to the page's globals (fetch, crypto, …); location.assign calls land in `assigned`.
+function bootPage({ storage = memoryStorage(), search = '', origin = 'https://ttdat.yuwakisa.com', win = {}, globals = {} } = {}) {
     const els = {};
     const document = {
         getElementById: id => (els[id] ||= fakeEl(id)),
@@ -73,25 +75,31 @@ function bootPage({ storage = memoryStorage(), search = '' } = {}) {
         addEventListener() {},
     };
     document.documentElement.dataset.version = 'page1234';
-    const href = 'https://ttdat.yuwakisa.com/' + search;
-    const location = { protocol: 'https:', hostname: 'ttdat.yuwakisa.com', origin: 'https://ttdat.yuwakisa.com', href, search };
+    const fileUrl = origin === 'null';
+    const href = (fileUrl ? 'file:///home/player/ttdat' : origin) + '/' + search;
+    const assigned = [];
+    const location = {
+        protocol: fileUrl ? 'file:' : origin.slice(0, origin.indexOf(':') + 1), hostname: fileUrl ? '' : origin.replace(/^\w+:\/\/|:\d+$/g, ''),
+        origin, href, search, pathname: '/', hash: '', assign: url => assigned.push(url),
+    };
     const window = {
         innerWidth: 1280, innerHeight: 720, devicePixelRatio: 1, location, AudioContext: SilentAudio,
-        getSelection: () => ({ toString: () => '' }), addEventListener() {},
+        getSelection: () => ({ toString: () => '' }), addEventListener() {}, ...win,
     };
     if (storage === 'throws') Object.defineProperty(window, 'localStorage', { get() { throw new Error('denied'); } });
     else window.localStorage = storage;
     let uuids = 0;
     const ctx = vm.createContext({
-        console, document, window, location, AudioContext: SilentAudio,
+        console, document, window, location, AudioContext: SilentAudio, URLSearchParams,
         performance: { now: () => 0 }, requestAnimationFrame: () => {}, setTimeout: () => 0, clearTimeout: () => {},
         navigator: { userAgent: 'Page/1.0', sendBeacon: () => true },
         fetch: () => Promise.resolve({ status: 204 }),
         crypto: { randomUUID: () => 'page-uuid-' + (++uuids) },
+        ...globals,
     });
     vm.runInContext(pageSource + '\n;globalThis.__page = { ui, state, engine };', ctx, { filename: 'page.js' });
     const run = src => vm.runInContext(src, ctx);
-    return { ...ctx.__page, els, ctx, run, storage };
+    return { ...ctx.__page, els, ctx, run, storage, assigned, location };
 }
 
 module.exports = { bootPage, memoryStorage };

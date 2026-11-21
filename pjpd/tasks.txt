@@ -1,34 +1,3 @@
-Priority:   70
-Status: ToDo
-ID: bskysignin-5sap
-Created: 2026-11-21T08:15:47Z
-Updated: 2026-11-21T10:03:18Z
-
-Optional "Sign in with Bluesky" for Thing Factory, through yuwakisacloud's auth/ (the bskyoidc "Sign in with Bluesky" flow starreach uses). Playing never needs it. For now, signing in only changes how telemetry counts the player. Signed out, telemetry carries a truly random ID: made fresh at every page load, kept only in memory, never stored. Signed in, it carries a salted hash of the auth/ `sub`. Later, saves and achievements build on it.
-
-Depends on telemetrydb-hgs4 (the ttdat Worker and `POST /t`) and telemetry-q77g (the recorder). Do that one first.
-
-Settled design:
-- Thing Factory is a public OAuth client of auth/: authorization code with PKCE, run in the browser. Redirect URI: https://ttdat.yuwakisa.com/ (plus http://localhost:8787/ for wrangler dev). Its own scope: `ttdat:play`.
-- The client row lives in yuwakisacloud's auth/ D1, which is another repo. Write the seed SQL and steps into ttdat's README "Deploy" and leave them to the designer. Don't commit in yuwakisacloud.
-- The sign-in is offered only on the live site, when the page origin is https://ttdat.yuwakisa.com, or on localhost under wrangler dev. The portal builds (itch.io, Newgrounds iframes) and file:// show nothing: redirects break inside portal iframes.
-- UI: a "Sign in" button in the top-left bar beside Help, About and Sound, visible while playing. The same button also appears on the board-size panels (the intro and New Game), so a player can sign in before the first game. From those panels there's no confirm: on the intro no game is in play, and New Game is ending it anyway. Coming back from the redirect lands on the intro, signed in. Its title is "Sign in with Bluesky (optional)". Signed in, the button becomes a plain label showing the handle if the token's claims carry one (else "Signed in"). Signing out is task signout (a separate button), not this one. About page 1 repeats the state in one line. Sign-in is a full-page redirect and back. The button is ignored while an overlay is open, like Help.
-  - No confirm: before redirecting from the top-left bar, call GameUI.saveForRedirect() (savelogin-hf44, which comes first), and on return the game is restored and play goes on. Add the return marker to the redirect URI's state so savelogin-hf44's boot check sees a sign-in return. As built, the boot check (signInReturn() in gameui.js) looks for the query parameter GameDisplayArtifacts.SIGNIN_RETURN_PARAM ('signin') in the page URL; if the marker rides in the OAuth state instead, change that one function (and the constant) to match, and strip the marker/code from the URL after the restore.
-- Identity is orthogonal to play, per batch (telemetrydb-hgs4): a player can play under the random ID, sign in, keep playing under the hashed ID, sign out, and keep playing under a new random ID. On a successful sign-in, call GameTelemetry.switchIdentity(token). The game continues across the redirect (savelogin-hf44), and its next batches carry the signed-in identity.
-- Token storage: the access token goes in localStorage `thingfactory.auth` (try/catch). An expired or invalid token silently counts as signed out. No refresh tokens.
-- Telemetry: while signed in, each batch to `POST /t` carries the access token in the batch body's `token` field (reserved by telemetrydb-hgs4), not an Authorization header, so sendBeacon batches carry it too and no CORS preflight is needed. The Worker never logs or stores the token.
-  - The Worker verifies it offline with auth/'s keys, fetched through an AUTH_SERVICE service binding, as starreach's adapters/cloudflare/src/auth.ts does. Vendor the auth-client the same way.
-  - A valid token makes the batch's identity a salted SHA-256 of `sub` (its own salt constant), with signed_in 1, stamped on every row the batch writes.
-  - A missing or invalid token keeps the random per-load ID the batch carries. A batch is never refused over auth.
-  - Neither the handle nor `sub` is stored.
-- Privacy page: the ID line becomes "They're tied to a random ID made fresh each time you open the game. If you sign in with Bluesky, they're tied to a hashed form of that account instead. We don't keep your handle." The browser-storage line adds the sign-in: "Your browser keeps your settings (like mute) and, if you sign in, your sign-in." Merge it with whatever that line says by then (savelogin-hf44 adds "your game while you sign in"; save-resume-tbe3 may later make it "your game in progress").
-- Docs: an ONTOLOGY sign-in section, a RATIONALE D-n (why optional, why live site only, why no refresh token), CRITERIA rows (the Worker's token→player_id mapping as an R-row with tests using a stub verifier; the redirect flow as a U-row), an ARCHITECTURE_LOG entry, and CLAUDE.md and README.
-
-Done when:
-- just cc-test passes, including the new R-row tests: a valid token gives the sub-hash, and an invalid or missing token keeps the random ID.
-- Under wrangler dev with yuwakisacloud's `just dev-up`, the U-row walk works: sign in, the handle shows on About, a played batch lands in local D1 with the sub-based player_id.
-- The portal zip and file:// show no Sign in button.
-----
 Priority:   65
 Status: ToDo
 ID: signout-f4x8

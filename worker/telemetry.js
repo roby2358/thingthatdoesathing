@@ -15,9 +15,15 @@
 // READERS, and add the new one; a new optional field needs no bump (unknown fields are ignored).
 //
 // Identity is per batch: every row a batch writes carries the batch's player_id and signed_in.
-// For now that is always the batch's `player`, signed_in 0 (`token` is reserved for sign-in and
-// ignored). Nothing here reads, logs or stores the request's IP or any other header but the
-// body's length. The tables are in telemetry_schema.sql. Plain JavaScript, no build.
+// A batch whose `token` is a valid sign-in access token (auth.js identityFor, D-68) is stamped
+// with the salted hash of its `sub` and signed_in 1; any other batch (no token, a bad or expired
+// one, sign-in not configured) with its random `player` and signed_in 0. A batch is never refused
+// over its token, and the token is checked inside the ctx.waitUntil write, so the reply never
+// waits on it either. The token is never logged or stored. Nothing here reads, logs or stores the
+// request's IP or any other header but the body's length. The tables are in
+// telemetry_schema.sql. Plain JavaScript, no build.
+
+import { identityFor } from './auth.js';
 
 /** The format this build's browser sends (GameDisplayArtifacts.TELEMETRY_FORMAT). */
 export const TELEMETRY_FORMAT = 1;
@@ -35,8 +41,9 @@ class BadBatch extends Error {
     constructor(where) { super(where); this.where = where; }
 }
 
-/** POST /t: one batch, answered 204 (written, or dropped for its format) or 400 (written nowhere). */
-export async function telemetry(request, env, ctx) {
+/** POST /t: one batch, answered 204 (written, or dropped for its format) or 400 (written nowhere).
+ *  `verify` checks a sign-in token (the auth-client's verifyAccessToken; worker/index.js passes it). */
+export async function telemetry(request, env, ctx, verify) {
     const length = Number(request.headers.get('Content-Length'));
     if (length > MAX_BODY_BYTES) return refuse('body too big');
     const text = await request.text();
@@ -55,14 +62,18 @@ export async function telemetry(request, env, ctx) {
         if (e instanceof BadBatch) return refuse(e.where);
         throw e;
     }
-    const statements = statementsFor(env.TELEMETRY, rows);
-    if (statements.length > 0) ctx.waitUntil(write(env.TELEMETRY, statements));
+    if (rowCount(rows) > 0) ctx.waitUntil(identityFor(batch.token, env, verify, Math.floor(Date.now() / 1000)).then(signedIn =>
+        write(env.TELEMETRY, statementsFor(env.TELEMETRY, signedIn ? { ...rows, identity: signedIn } : rows))));
     return new Response(null, { status: 204, headers: CORS });
 }
 
 function refuse(where) {
     console.error('telemetry batch refused: ' + where);
     return new Response(null, { status: 400, headers: CORS });
+}
+
+function rowCount({ games, events, milestones, crashes }) {
+    return games.length + events.length + milestones.length + crashes.length;
 }
 
 async function write(db, statements) {

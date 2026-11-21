@@ -1,6 +1,8 @@
 // Thing Factory on Cloudflare: the ttdat Worker. Its static assets (the ship build) serve
-// every file; worker/index.js (plain JS, no build) gets only the requests that match none, and
-// answers POST /t (telemetry batches into D1, D-64) and 404 to anything else.
+// every file; worker/index.js (plain JS, bundled by wrangler with the vendored auth-client and its
+// cbor-x from worker/node_modules, `just worker-deps`) gets only the requests that match none, and
+// answers POST /t (telemetry batches into D1, D-64), POST /auth/token (the sign-in's code exchange,
+// D-68) and 404 to anything else.
 // `just deploy` runs `just ship` first, so ./dist/web is the current commit's files.
 {
   "name": "ttdat",
@@ -18,6 +20,17 @@
     { "binding": "TELEMETRY", "database_name": "ttdat-telemetry", "database_id": "local-only-ttdat-telemetry" }
   ],
 
+  // The optional Bluesky sign-in (D-68): auth/ is reached for its keys and its /token through a
+  // service binding (a public same-zone fetch returned an edge 522 for jsonsolver). Locally auth/
+  // runs on :8788 under yuwakisacloud's `cd auth && just dev-up`, and wrangler dev finds it by name.
+  "services": [{ "binding": "AUTH_SERVICE", "service": "auth" }],
+  "vars": {
+    "AUTH_ISSUER": "http://localhost:8788",
+    // The ttdat client row in the local auth/ D1 (README "Deploy" has its seed SQL); the token
+    // `aud` the Worker pins. GameDisplayArtifacts.SIGNIN_SITES holds the same id for the browser.
+    "TTDAT_CLIENT_ID": "Jy9UmAa94JbLcMCa"
+  },
+
   // Routes live only under env.production so `wrangler dev` carries none. `name` is
   // pinned so the env doesn't deploy as "ttdat-production". custom_domain has Cloudflare
   // create the DNS record and the certificate on the first deploy; it fails if a DNS record
@@ -33,7 +46,13 @@
       // refuses while the placeholder is here.
       "d1_databases": [
         { "binding": "TELEMETRY", "database_name": "ttdat-telemetry", "database_id": "PUT-THE-DATABASE-ID-HERE" }
-      ]
+      ],
+      "services": [{ "binding": "AUTH_SERVICE", "service": "auth" }],
+      "vars": {
+        "AUTH_ISSUER": "https://auth.yuwakisa.com",
+        // The ttdat client row in production auth/ (README "Deploy"), as in SIGNIN_SITES
+        "TTDAT_CLIENT_ID": "Bxcoy3Lb3sgm8Bus"
+      }
     }
   }
 }

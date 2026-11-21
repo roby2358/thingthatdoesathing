@@ -45,6 +45,8 @@ const GameDisplayArtifacts = (function () {
             noCrate: 'Point at a crate first, then B',
             carrying: 'Put the Thing down or Esc first',
             bombing: 'Finish the bomb or Esc first',
+            signInSave: "Can't keep the game while you sign in",   // D-68: the save before the redirect was refused
+            signInFailed: "Can't start the sign-in",
         },
         MILESTONE_MS: 3500,          // how long the milestone banner stays up
         // Map-scale buttons (D-40): each divisor is a button showing the board at 1/d size;
@@ -63,10 +65,23 @@ const GameDisplayArtifacts = (function () {
         SAVE_KEY: 'thingfactory.run',
         SAVE_VERSION: 1,                 // the save's shape; a save with any other version is dropped (D-67)
         SAVE_REDIRECT_MAX_AGE_S: 1800,   // a save older than this (seconds) is dropped, not restored (D-67)
-        // A page URL whose query string has this parameter is a return from the sign-in redirect,
-        // the only boot that restores a save (D-67). The sign-in work owns the real marker and
-        // may change how it's carried; nothing sets it yet.
-        SIGNIN_RETURN_PARAM: 'signin',
+        // A return from the sign-in redirect, the only boot that restores a save (D-67): the
+        // page URL's OAuth `state` starts with this. signin.js makes every state it sends to
+        // auth/ as this prefix and a random part (D-68).
+        SIGNIN_STATE_PREFIX: 'signin.',
+        // The optional Bluesky sign-in (D-68), offered only on these page origins: the live site
+        // and wrangler dev (`just dev-worker`). The portal builds (itch.io, Newgrounds iframes),
+        // file:// and any other origin show no Sign in button. Each names auth/'s issuer and this
+        // game's client row there (wrangler.jsonc's TTDAT_CLIENT_ID for the same environment);
+        // the redirect URI is the origin + '/'.
+        SIGNIN_SITES: {
+            'https://ttdat.yuwakisa.com': { issuer: 'https://auth.yuwakisa.com', clientId: 'Bxcoy3Lb3sgm8Bus' },
+            'http://localhost:8787': { issuer: 'http://localhost:8788', clientId: 'Jy9UmAa94JbLcMCa' },
+        },
+        SIGNIN_SCOPE: 'openid profile ttdat:play',   // the handle (profile) and the play scope (worker/auth.js PLAY_SCOPE)
+        SIGNIN_TOKEN_PATH: '/auth/token',             // the Worker's code exchange, on the page's own origin
+        AUTH_KEY: 'thingfactory.auth',                // localStorage: { token, handle, expiresAt } while signed in
+        SIGNIN_FLOW_KEY: 'thingfactory.signin',       // sessionStorage: { state, verifier } across the redirect only
         HELP_CARD_PX: 32,            // each card's tile on Help's Things page (D-60)
         HELP_PIECE_SCALE: 1.4,       // a piece in a World picture, times its board size against the hex, so a gremlin's label still draws (D-61)
         HELP_LADDER_SHOWN: 7,        // milestones Help's World page lists before "and on" (D-61)

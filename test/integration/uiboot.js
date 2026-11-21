@@ -87,7 +87,7 @@ const fireDueTimers = () => {
 };
 const windowListeners = {};
 const ctx = vm.createContext({
-    console, document, Math: seededMath, JSON, Number, String, Array, Map, Set, Object, Proxy, parseInt, Float64Array,
+    console, document, Math: seededMath, JSON, Number, String, Array, Map, Set, Object, Proxy, parseInt, Float64Array, URLSearchParams,
     window: {
         innerWidth: 1280, innerHeight: 720, devicePixelRatio: 1,
         getSelection: () => ({ toString: () => selectedText }),
@@ -1190,7 +1190,7 @@ function bootPointer(media, nav, opts = {}) {
     const asked = [];
     if (media !== undefined) win.matchMedia = q => { asked.push(q); return { matches: media, media: q }; };
     const pageCtx = vm.createContext({
-        console, document: page, Math: seededMath, JSON, Number, String, Array, Map, Set, Object, Proxy, parseInt, Float64Array,
+        console, document: page, Math: seededMath, JSON, Number, String, Array, Map, Set, Object, Proxy, parseInt, Float64Array, URLSearchParams,
         window: win, performance: { now: () => clock }, requestAnimationFrame: () => {},
         setTimeout: fakeSetTimeout, clearTimeout: fakeClearTimeout, AudioContext: SilentAudio,
     });
@@ -1351,9 +1351,9 @@ run('saveForRedirect, then a fresh page on the sign-in return: the same game goe
     els['zoom-buttons'].children.find(b => b.dataset.zoom === '2').fire('click');
     if (ui.state.turn < 5 || ui.overlay) throw new Error('expected a game some turns in, no overlay: turn ' + ui.state.turn + ', ' + ui.overlay);
     if (!ui.saveForRedirect() || !stored.has(vm.runInContext('GameDisplayArtifacts.SAVE_KEY', ctx))) throw new Error('saveForRedirect must save a game in play');
-    const marker = vm.runInContext('GameDisplayArtifacts.SIGNIN_RETURN_PARAM', ctx);
-    const url = 'https://ttdat.yuwakisa.com/?' + marker + '=1';
-    const p = bootPointer(false, undefined, { win: { localStorage: store, innerWidth: 1280, innerHeight: 720, location: { href: url, search: '?' + marker + '=1' } } });
+    const search = '?code=c0de&state=' + vm.runInContext('GameDisplayArtifacts.SIGNIN_STATE_PREFIX', ctx) + 'r4nd0m';
+    const url = 'https://ttdat.yuwakisa.com/' + search;
+    const p = bootPointer(false, undefined, { win: { localStorage: store, innerWidth: 1280, innerHeight: 720, location: { href: url, search } } });
     const s = p.boot.state, pui = p.boot.ui;
     if (pui.overlay !== null || !p.els['intro-panel'].classList.set.has('hidden') || !p.els['help-panel'].classList.set.has('hidden'))
         throw new Error('the restored page must skip the intro and the first-time Help: ' + pui.overlay);
@@ -1372,7 +1372,7 @@ run('saveForRedirect, then a fresh page on the sign-in return: the same game goe
     if (JSON.stringify(a) !== JSON.stringify(b) || JSON.stringify(ui.engine.save()) !== JSON.stringify(p.boot.engine.save())) throw new Error('the restored game ticks differently');
     if (pui.state.hand.length !== 3 || !p.listeners.keydown) throw new Error('the restored page must be playable');
     // Reloaded again, with the marker still in the URL: no save, so the intro.
-    const again = bootPointer(false, undefined, { win: { localStorage: store, location: { href: url, search: '?' + marker + '=1' } } });
+    const again = bootPointer(false, undefined, { win: { localStorage: store, location: { href: url, search } } });
     if (again.boot.ui.overlay !== 'intro' || again.boot.state.hexes) throw new Error('a second load finds no save and shows the intro');
     delete ctx.window.localStorage;
 });

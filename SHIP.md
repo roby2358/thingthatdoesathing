@@ -92,7 +92,7 @@ it needs the author: it gets no pjpd task.
 | LEGAL-5 | AI disclosure in game | T2 | done | the Decisions draft, on the About panel's first page (D-59) | |
 | OPS-2 | Version visible | T2 | done | About shows `<html data-version>` ("dev" unstamped) beside the seed, both selectable (D-59); uiboot check | |
 | OPS-1 | Feedback channel | T2 | missing | feedback link hidden until the GitHub Issues page exists (`ABOUT.feedbackUrl` is empty; the line shows once it is set) | you |
-| PRIV-3 | What is stored is stated | T2 | done | About's privacy page: what telemetry sends (moves, board size, seed, version, browser type, window size), the random per-load ID, no cookies, account, IP addresses or personal data, GPC turns it off, settings and the game while you sign in kept in the browser, never leaving it (D-59, D-65, D-67, U-33) | privacydocs-ntj5 |
+| PRIV-3 | What is stored is stated | T2 | done | About's privacy page: what telemetry sends (moves, board size, seed, version, browser type, window size), the random per-load ID or, signed in with Bluesky, a hashed form of the account (handle not kept), no cookies or IP addresses kept, GPC turns it off, settings, the game while you sign in and the sign-in kept in the browser, only the sign-in ever sent (D-59, D-65, D-67, D-68, U-33) | privacydocs-ntj5 |
 | WEB-7 | A way back | T2 | done | About links yuwakisa.com, new tab (D-59) | |
 | MENU-6 | End payoff | T2 | partial | endless; milestone banners only; New Game drops the run unseen | run-stats-m6pe |
 | SAVE-7 | Player can wipe data | T2 | missing | nothing to wipe yet | wipe-data-mw24 |

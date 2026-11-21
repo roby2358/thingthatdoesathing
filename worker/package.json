@@ -1,0 +1,11 @@
+{
+  "name": "ttdat-worker",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The ttdat Worker's one npm dependency: cbor-x for the vendored auth-client (wrangler bundles it). The game itself has no npm.",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "cbor-x": "1.6.4"
+  }
+}

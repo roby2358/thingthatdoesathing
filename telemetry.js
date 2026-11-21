@@ -14,8 +14,10 @@
 // into the game (try/catch around everything).
 //
 // Identity is per batch: `player` is a random ID for this page load, made with its first game
-// (so a page with no game makes nothing) and kept only in memory.
-// switchIdentity() sends what is queued under the old one first, so a batch never mixes two.
+// (so a page with no game makes nothing) and kept only in memory; while signed in (D-68) each
+// batch also carries the access token as `token`, and the Worker stamps its rows with a hash of
+// the account instead. switchIdentity() sends what is queued under the old one first, so a batch
+// never mixes two.
 const GameTelemetry = (function () {
     const { TELEMETRY_FORMAT, TELEMETRY_ENDPOINT, TELEMETRY_FLUSH_MS, TELEMETRY_FLUSH_RECORDS } = GameDisplayArtifacts;
     const { RULES_VERSION } = GameArtifacts;
@@ -24,6 +26,7 @@ const GameTelemetry = (function () {
     const RECORDED = new Set(['place', 'remove', 'discard', 'move', 'scrap', 'bomb', 'blast']);
 
     let player = null;         // this page load's identity, never stored: made with its first game
+    let token = null;          // the sign-in's access token while signed in (D-68), else null
     let game = null;           // the current game's record, or null: not recording
     let gameUnsent = false;    // no batch has carried this game's record yet
     let events = [];
@@ -70,7 +73,9 @@ const GameTelemetry = (function () {
     // The batch the queue makes now, or null if there's nothing to send.
     function batch() {
         if (!game || (!gameUnsent && events.length === 0 && milestones.length === 0)) return null;
-        return { format: TELEMETRY_FORMAT, player, games: [game], events, milestones };
+        const b = { format: TELEMETRY_FORMAT, player, games: [game], events, milestones };
+        if (token) b.token = token;
+        return b;
     }
 
     // Send the queue as one batch ('fetch', or 'beacon' as the page goes away) and empty it.
@@ -159,12 +164,15 @@ const GameTelemetry = (function () {
             });
         },
 
-        // Send what's queued under the current identity, then take a fresh random one (sign-in
-        // adds the token side). The game and its key carry on.
-        switchIdentity() {
+        // Send what's queued under the current identity, then take a fresh random one (none
+        // before the first game: it makes its own), and the
+        // sign-in's access token (D-68), or none for a signed-out identity. The game and its
+        // key carry on.
+        switchIdentity(signInToken) {
             guarded(() => {
                 flush('fetch');
-                player = randomId();
+                if (player !== null) player = randomId();   // before any game, the first game makes one
+                token = typeof signInToken === 'string' && signInToken ? signInToken : null;
             });
         },
 

@@ -13,7 +13,7 @@ const GameUI = (function () {
         PIECE_LOOK, CRATE_SHADES, BIG_CRATE_SCALE, COLOR_INK, SPLAT_BLOTS, SOURCE_COLOR, PORT_NEUTRAL_MARK, PORT_OUTLINE,
         PORT_MARK_WIDTH, PORT_RING_RADII, PORT_PLUS_REACH, PORT_OUTLINE_WIDTH, BG_COLOR, UI_FONT, REACH_COLOR, MAP_SIZE_NOTES,
         COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES, ABOUT, HELP_CARD_PX, HELP_PIECE_SCALE, HELP_LADDER_SHOWN, WORLD_LOOK,
-        SAVE_KEY, SAVE_VERSION, SAVE_REDIRECT_MAX_AGE_S, SIGNIN_RETURN_PARAM
+        SAVE_KEY, SAVE_VERSION, SAVE_REDIRECT_MAX_AGE_S
     } = GameDisplayArtifacts;
     const { TERRAIN, THINGS, WHITE, HAND_SIZE, MAP_SIZES, CARDS, PIECES, MAX_SLIDE, aims, cardOf, nextMilestone } = GameArtifacts;
     const SIZE_KEYS = Object.keys(MAP_SIZES);
@@ -457,11 +457,15 @@ const GameUI = (function () {
         try { window.localStorage.removeItem(SAVE_KEY); } catch (e) { /* no storage: nothing to drop */ }
     }
 
-    // Is this page load a return from the sign-in redirect? Its URL's query string carries
-    // SIGNIN_RETURN_PARAM.
+    // Is this page load a return from the sign-in redirect? Its URL's OAuth state starts with
+    // SIGNIN_STATE_PREFIX (GameSignIn.isReturn, D-68), whether the sign-in worked or not.
     function signInReturn() {
-        return new RegExp('[?&]' + SIGNIN_RETURN_PARAM + '(=|&|$)').test(window.location.search || '');
+        return GameSignIn.isReturn();
     }
+
+    // The optional sign-in's spots (D-68): the top-left bar and both board-size panels, each a
+    // Sign in button and the label that stands in for it while signed in.
+    const SIGNIN_SPOTS = [['signin', 'signin-label'], ['intro-signin', 'intro-signin-label'], ['size-signin', 'size-signin-label']];
 
     const unixSeconds = () => Math.floor(Date.now() / 1000);
 
@@ -534,11 +538,74 @@ const GameUI = (function () {
 
         // No board until a size is picked from the intro, unless this is a return from the
         // sign-in redirect with a good save: then that game goes on where it was (D-67).
+        // Then the sign-in (D-68): a stored one gives telemetry its token; a sign-in return,
+        // once the game is restored, trades its code for one.
         start() {
             this.attach();
-            if (this.restoreSaved()) return;
-            this.showOverlay('intro');
-            this.resize();
+            if (!this.restoreSaved()) {
+                this.showOverlay('intro');
+                this.resize();
+            }
+            this.startSignIn();
+        }
+
+        // ---- The optional Bluesky sign-in (D-68; GameSignIn does the OAuth) ----
+        startSignIn() {
+            const auth = GameSignIn.current();
+            if (auth) GameTelemetry.switchIdentity(auth.token);
+            this.showSignIn(auth);
+            if (!signInReturn()) return;
+            GameSignIn.finish().then(fresh => {
+                if (!fresh) return;
+                GameTelemetry.switchIdentity(fresh.token);   // the next batches carry the signed-in identity
+                this.showSignIn(fresh);
+            });
+        }
+
+        // Each spot shows the Sign in button while signed out, or the handle ("Signed in" with
+        // none) while signed in; neither where sign-in isn't offered (portal builds, file://).
+        showSignIn(auth) {
+            const offered = GameSignIn.offered();
+            const label = auth ? (auth.handle ? '@' + auth.handle : 'Signed in') : '';
+            for (const [button, tag] of SIGNIN_SPOTS) {
+                document.getElementById(button).classList.toggle('hidden', !offered || !!auth);
+                const el = document.getElementById(tag);
+                el.classList.toggle('hidden', !offered || !auth);
+                el.textContent = label;
+            }
+            const line = document.getElementById('about-signin');
+            line.classList.toggle('hidden', !offered);
+            line.textContent = !auth ? 'Not signed in. Signing in with Bluesky is optional.'
+                : auth.handle ? 'Signed in with Bluesky as @' + auth.handle + '.' : 'Signed in with Bluesky.';
+        }
+
+        // The top-left bar's Sign in, over the game: ignored under an overlay (the panels have
+        // their own). No confirm: a card in play goes back (in the view only: a carried Thing or
+        // a Bomb's booms were never sent, D-67), the game is saved and Go stops, then the page
+        // goes to auth/. A game that can't be saved isn't left behind: nothing happens.
+        signInFromGame() {
+            if (this.overlay || !GameSignIn.offered() || GameSignIn.current()) return;
+            this.unpick();
+            this.selected = null;
+            if (!this.saveForRedirect()) { this.notify(REASONS.signInSave); return; }
+            this.setRunning(false);
+            this.redirectToSignIn();
+        }
+
+        // The intro's or New Game's Sign in: no game is in play, or New Game is ending it, so
+        // nothing is saved; the return lands on the intro, signed in.
+        signInFromPanel() {
+            if ((this.overlay !== 'intro' && this.overlay !== 'size') || !GameSignIn.offered() || GameSignIn.current()) return;
+            this.setRunning(false);
+            this.redirectToSignIn();
+        }
+
+        redirectToSignIn() {
+            GameSignIn.begin().then(ok => {
+                if (ok) return;
+                dropSave();
+                this.notify(REASONS.signInFailed);
+            });
         }
 
         // D-67: save the game in play just before the sign-in redirect reloads the page: its
@@ -718,6 +785,7 @@ const GameUI = (function () {
             if (this.overlay && this.overlay !== 'intro') return;
             this.aboutFrom = this.overlay;
             document.getElementById('about-version').textContent = gameVersion();
+            this.showSignIn(GameSignIn.current());   // its line on the credits page, and an expired sign-in shown as signed out
             const board = !!this.state.hexes;
             document.getElementById('about-seed-part').classList.toggle('hidden', !board);
             if (board) document.getElementById('about-seed').textContent = String(this.state.seed);
@@ -1928,6 +1996,9 @@ const GameUI = (function () {
             document.getElementById('size-cancel').addEventListener('click', () => this.dismissOverlay());
             document.getElementById('news-panel').addEventListener('click', () => this.dismissOverlay());
             document.getElementById('sound').addEventListener('click', () => this.toggleMute());
+            document.getElementById('signin').addEventListener('click', () => this.signInFromGame());
+            document.getElementById('intro-signin').addEventListener('click', () => this.signInFromPanel());
+            document.getElementById('size-signin').addEventListener('click', () => this.signInFromPanel());
             this.showMute();
             this.buildHelp();
             this.buildAbout();

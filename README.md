@@ -85,7 +85,8 @@ that comes onto a target dies there, so they can't camp it.
 - About (top left, by Help; also a link on the intro): who made it, how it was made (with AI), the version and the board's seed (selectable, for bug reports), and a privacy page that lists what the game sends and says Global Privacy Control turns it off; `<` `>` or ← → turn the pages, any other key or a click closes it; ticks hold while it's open
 - If the game hits a bug, a card says so over everything, with the error and the version and seed (selectable, for a bug report), Reload, and Start fresh (drops any saved game, in case it's what broke, and reloads; the sound setting stays)
 - New Game: pick a board size (click or `1`–`4`); Esc keeps the current game
-- Signing in keeps your game: just before the sign-in page the game is saved in this browser, and when you come back (signed in or not) it picks up where it was, map zoom included, with Go off; a save more than 30 minutes old is dropped. Any other reload still starts at the intro (sign-in itself is still to come)
+- Sign in (optional; top left by Help, About and Sound, and on the intro and New Game): "Sign in with Bluesky" through yuwakisa's sign-in page and back. Playing never needs it; for now it only lets the game's telemetry recognize you across visits (a hashed form of your account; your handle stays in your browser). Signed in, the button shows your handle; About says whether you're signed in. A sign-in lasts a few hours, then you're quietly signed out. Only on ttdat.yuwakisa.com (and `just dev-worker`): the itch.io and Newgrounds builds and `file://` don't show it
+- Signing in keeps your game: just before the sign-in page the game is saved in this browser, and when you come back (signed in or not) it picks up where it was, map zoom included, with Go off; a save more than 30 minutes old is dropped. From the intro or New Game nothing is saved and you come back to the intro. Any other reload still starts at the intro
 
 ## Deploy
 
@@ -99,7 +100,11 @@ Three places run the game, all from the same ship build (`just ship`, see CLAUDE
 
 `just deploy` builds and runs `wrangler deploy --env production` (the `ttdat` Cloudflare Worker,
 `wrangler.jsonc`: the build as static assets, plus `worker/`, which takes telemetry batches at
-`POST /t` into a D1 database). It uses yuwakisacloud's wrangler, so that repo sits next to this
+`POST /t` into a D1 database and passes the sign-in's code exchange on to auth/ at
+`POST /auth/token`). The Worker's one npm dependency (`cbor-x`, for the vendored auth-client in
+`worker/vendor/`) installs into `worker/node_modules` with `just worker-deps`
+(`npm ci --ignore-scripts`), which `deploy`, `dev-worker` and `preview` run on their own when it's
+missing. It uses yuwakisacloud's wrangler, so that repo sits next to this
 one. It refuses while production's D1 id is still the placeholder (see below); `just deploy
 --dry-run` checks the bundle without uploading. `just preview` serves the build locally first.
 Commit before you ship: the build's version is the commit hash, marked `-dirty` when there are
@@ -114,10 +119,12 @@ By hand, once:
    prints its `database_id`. Paste it over `PUT-THE-DATABASE-ID-HERE` in `wrangler.jsonc`'s
    `env.production`, then run `just d1-production` again: it gives the database its tables
    (`worker/telemetry_schema.sql`; every statement is safe to rerun). Commit the id.
-4. Here: `just deploy`. The first deploy creates the `ttdat` Worker, the DNS record and the
+4. The sign-in's client row in auth/ (yuwakisacloud's `auth` D1, not this repo; see "Sign-in"
+   below): run the production SQL there once, and deploy auth/ before ttdat if it isn't live.
+5. Here: `just deploy`. The first deploy creates the `ttdat` Worker, the DNS record and the
    certificate (`custom_domain` in `wrangler.jsonc`); give the certificate a few minutes.
-5. Check https://ttdat.yuwakisa.com in a clean browser profile.
-6. When you're ready, retire the old copy at yuwakisa.com/thingthatdoesathing/: remove it from
+6. Check https://ttdat.yuwakisa.com in a clean browser profile, then sign in with Bluesky once.
+7. When you're ready, retire the old copy at yuwakisa.com/thingthatdoesathing/: remove it from
    yuwakisaweb, or replace it with a redirect page to https://ttdat.yuwakisa.com/.
 
 ### Telemetry
@@ -126,7 +133,8 @@ Once a board is picked, the game records each game (seed, board size, version, r
 browser type and window size) and every command but waits and rotations (with whether it was
 accepted and the tally after its tick), plus each milestone, and sends them in batches to
 `POST /t` on ttdat.yuwakisa.com, the portal builds included, under a random ID made fresh for
-each page load. Only ship builds served over http(s) send (`<html data-version>` set: not the
+each page load; a player signed in with Bluesky sends the sign-in's token with each batch, and
+the Worker stamps those rows with a salted hash of the account instead (`signed_in` 1). Only ship builds served over http(s) send (`<html data-version>` set: not the
 dev page, not `file://`), a browser with Global Privacy Control on sends nothing, and a send
 that fails is dropped silently. The Worker checks each batch and writes it to the
 `ttdat-telemetry` D1 database (tables `games`, `events`, `milestones`, `crashes`;
@@ -146,3 +154,33 @@ sizes and pixel ratios; crashes; signed-in players. It reads production's databa
 while the placeholder id is still in `wrangler.jsonc`); `just telemetry-report local-d1` reads
 the local one, and a number limits it to games started in that many days
 (`just telemetry-report local-d1 7`). It only reads.
+
+### Sign-in
+
+The optional "Sign in with Bluesky" (D-68) runs through yuwakisacloud's auth/: Thing Factory is a
+public OAuth client there (authorization code with PKCE in the browser, scope `ttdat:play`), and
+the Worker reaches auth/ through the `AUTH_SERVICE` service binding, verifying tokens offline with
+its keys. Each environment needs one client row in auth/'s D1, with the id that
+`wrangler.jsonc`'s `TTDAT_CLIENT_ID` and `displayartifacts.js`'s `SIGNIN_SITES` already carry.
+That database belongs to yuwakisacloud, so these steps run there, by hand; nothing in this repo
+writes to it.
+
+Production, once (in `../yuwakisacloud/auth`, logged in to the account):
+
+```bash
+npx wrangler d1 execute auth --remote --command "INSERT OR IGNORE INTO clients (client_id, client_name, client_secret_hash, redirect_uris, allowed_scopes, token_auth_method, status, quota_monthly, created_at, updated_at) VALUES ('Bxcoy3Lb3sgm8Bus', 'Thing Factory', NULL, '[\"https://ttdat.yuwakisa.com/\"]', '[\"openid\",\"profile\",\"ttdat:play\"]', 'none', 'active', NULL, unixepoch(), unixepoch());"
+```
+
+Locally (auth/'s emulated D1, after `just install-dev` there; run again after its `just reset`):
+
+```bash
+npx wrangler d1 execute auth --local --command "INSERT OR IGNORE INTO clients (client_id, client_name, client_secret_hash, redirect_uris, allowed_scopes, token_auth_method, status, quota_monthly, created_at, updated_at) VALUES ('Jy9UmAa94JbLcMCa', 'Thing Factory', NULL, '[\"http://localhost:8787/\"]', '[\"openid\",\"profile\",\"ttdat:play\"]', 'none', 'active', NULL, unixepoch(), unixepoch());"
+```
+
+The row is a public client (no secret, PKCE only) whose redirect URI is the site's root; the
+access token's audience is the client id, so no resource row is needed. To try it locally: in
+`../yuwakisacloud/auth`, `just dev-up` (auth on :8788, bskyoidc on :8791; not the meta-repo's
+`just dev-up`, which also puts jsonsolver on :8787); here, `just d1-local` and `just dev-worker`;
+open http://localhost:8787 and Sign in. auth/'s local page also takes its dev password user,
+which has no handle (the button then says "Signed in"). U-37 in CRITERIA.md is the full walk.
+

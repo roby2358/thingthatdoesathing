@@ -1,4 +1,5 @@
-# wrangler comes from yuwakisacloud's pinned install (`just bootstrap` there); this repo has no npm
+# wrangler comes from yuwakisacloud's pinned install (`just bootstrap` there). The game has no npm;
+# the Worker's one dependency (cbor-x, for the vendored auth-client, D-68) is worker/package.json
 wrangler := justfile_directory() + "/../yuwakisacloud/node_modules/.bin/wrangler"
 
 # List available commands
@@ -23,12 +24,12 @@ ship:
     node tools/ship.js
 
 # Serve the ship build locally the way Cloudflare will (http://localhost:8794)
-preview: ship _wrangler
+preview: ship _wrangler _worker-deps
     {{wrangler}} dev --port 8794
 
 # The ship build under wrangler dev with the Worker and its local D1, for checking POST /t
 # (http://localhost:8787; run `just d1-local` once first)
-dev-worker: ship _wrangler
+dev-worker: ship _wrangler _worker-deps
     {{wrangler}} dev --port 8787
 
 # Give wrangler dev's local telemetry database its tables (D-64); safe to run again
@@ -48,10 +49,17 @@ d1-production: _wrangler
 
 # Build and deploy to https://ttdat.yuwakisa.com (needs a wrangler login); refused while
 # production's D1 id is the placeholder (`just deploy --dry-run` passes)
-deploy *args: _wrangler
+deploy *args: _wrangler _worker-deps
     bash tools/telemetry_db.sh deploy-check wrangler.jsonc {{args}}
     just ship
     {{wrangler}} deploy --env production {{args}}
+
+# Install the Worker's pinned npm dependency (cbor-x) into worker/node_modules, scripts off (D-68)
+worker-deps:
+    cd worker && npm ci --ignore-scripts
+
+_worker-deps:
+    @test -d worker/node_modules/cbor-x || just worker-deps
 
 _wrangler:
     @test -x {{wrangler}} || { echo "no wrangler at {{wrangler}}: run 'just bootstrap' in ../yuwakisacloud"; exit 1; }
