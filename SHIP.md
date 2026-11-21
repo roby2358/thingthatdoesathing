@@ -312,7 +312,7 @@ are T1 as well.
 | PRIV-2 | No uncovered tracking | T1 | done | no scripts, beacons or fetches | |
 | PRIV-3 | What's stored is stated | T2 | done | see above | |
 | PRIV-4 | Telemetry hygiene | T2 | n/a | not built; requirements are in telemetry-v54s | |
-| PRIV-5 | Server data | T2 | n/a | not built; D1 telemetry will need it | |
+| PRIV-5 | Server data | T2 | n/a | server side built (D-64: no IP read or stored, observability off); retention not stated; nothing sends yet | |
 
 ### OPS
 
@@ -347,7 +347,7 @@ Portal docs checked 2026-11-17:
 | PORT-3 | Fits the frame | T1 | partial | | portal-frame-aqns |
 | PORT-4 | Fullscreen | T2 | missing | | settings-rrcw |
 | PORT-5 | Links leave the frame | T2 | done | every external link goes through `externalLink()` in gameui.js: `target="_blank" rel="noopener"` (D-59) | |
-| PORT-6 | Server CORS | T2 | n/a | until telemetry exists; the D1 Worker must allow the portal CDN origins | |
+| PORT-6 | Server CORS | T2 | n/a | `POST /t` answers `Access-Control-Allow-Origin: *` and takes text/plain (no preflight), D-64; check from a portal once the recorder sends | |
 | PORT-7 | Device flags | T1 | missing | | listing-r8fn |
 | PORT-8 | Listing complete | T2 | missing | | listing-r8fn |
 | PORT-9 | AI disclosure field | T2 | missing | | listing-r8fn |

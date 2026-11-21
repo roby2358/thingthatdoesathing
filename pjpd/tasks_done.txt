@@ -55,6 +55,59 @@ Docs: README (how sources and targets look), RATIONALE new D-n (why fill plus ma
 ----
 Priority:   85
 Status: Done
+ID: telemetrydb-hgs4
+Created: 2026-11-21T08:36:16Z
+Updated: 2026-11-21T09:15:14Z
+
+The telemetry database and its server side for Thing Factory, on starreach's pattern (../starreach: adapters/cloudflare/src/telemetry.ts, adapters/cloudflare/telemetry_schema.sql, tools/telemetry_db.sh; its docs/RATIONALE D-53). This adds the ttdat Worker's POST /t, which checks a batch of telemetry records and writes it to D1. The browser recorder that sends the batches is task telemetry-q77g, which comes next. This task defines the batch format both sides use.
+
+Batch format (JSON, sent as text/plain): { format: 1, player: string (the sender's random per-load ID), token?: string (reserved for bskysignin-5sap's access token, in the body so sendBeacon can carry it and no CORS preflight is needed; ignored by this task), games: [gameRecord…], events: [event…], milestones: [milestone…], crashes: [crash…] } (every array optional).
+
+The format field: the itch.io and Newgrounds zips keep running whatever build was uploaded, for months, so old clients will keep sending old shapes after the format changes. The Worker keeps a KNOWN_FORMATS list (just [1] for now) and a reader per format.
+  - A batch with a missing or unknown format gets 204 and is dropped quietly, with a console.error that has no body. It does not get 400: an old client is not malformed.
+  - A known format that fails its checks still gets 400.
+  - Store the format as a column on games (format), so the report can tell builds apart.
+  - Bump TELEMETRY_FORMAT (in the worker, and in GameDisplayArtifacts for the browser task to send) whenever a field is renamed, removed or retyped. A new optional field doesn't need a bump.
+  - Say all this in ONTOLOGY and in the RATIONALE D-n.
+
+The fields are those of the tables below, camelCase in JSON. An event's command-specific args (kind, q, r, facing, color, plus anything else) come as an args object; columns take what has a column, and rest takes the remainder plus deliveredByColor.
+
+Settled design:
+
+Worker:
+- ttdat stops being assets-only. wrangler.jsonc gets "main": "worker/index.js" (a plain-JS ES module, no build) and a D1 binding TELEMETRY (database ttdat-telemetry).
+  - Locally: a made-up local-only id.
+  - In env.production: a placeholder PUT-THE-DATABASE-ID-HERE, replaced on the designer's go-ahead. Bindings don't inherit, so restate it there.
+  - Assets still serve every file. Only POST /t reaches the script; anything else gets 404.
+- Keep Cloudflare observability/request logging off. Never log or store CF-Connecting-IP or any IP (ratelimit-27qf will read it only as the rate limiter's in-memory key). The privacy page says no IP addresses are kept.
+- POST /t takes one JSON batch (sent as text/plain, so no CORS preflight) and answers 204 with Access-Control-Allow-Origin: *.
+- Checks: body at most 64 KB, at most 200 records, known record types and field types. A batch that fails gets 400 and nothing is written.
+- Writes go to ctx.waitUntil, so the response never waits on D1. A failed write is console.error'd and dropped.
+- Each event's seq is counted inside its insert, as starreach's INSERT_EVENT does.
+
+D1 schema: worker/telemetry_schema.sql, every statement CREATE ... IF NOT EXISTS, no migration history.
+- Identity is per batch, not per game: sign-in and sign-out are orthogonal to play, so one game can run under a random ID, then a signed-in hash, then a new random ID. The Worker resolves one identity per batch (for now always the batch's `player`, signed_in 0; bskysignin-5sap adds the token check) and stamps it as player_id and signed_in on every row the batch writes.
+- games: game_key PK, player_id and signed_in (the identity of the batch that first inserted the row: who started the game), started_unix_seconds, seed, size, version (the commit hash from <html data-version>), rules_version, user_agent, screen. Insert with INSERT OR IGNORE: the browser resends the game record in each batch of that game, so a dropped first batch doesn't lose it.
+- events: game_key, seq, unix_seconds, command, accepted, turn, delivered, lost, ex_gremlins, trapped, things, crates, then kind, q, r, facing, color as columns where the command has them (null otherwise), and rest JSON (the remaining args plus delivered per color). PK (game_key, seq). Every row also has player_id and signed_in from its batch. No foreign key.
+- milestones: game_key, milestone (the count: 10, 20, 50, …), player_id, signed_in, turn, unix_seconds, delivered, lost, ex_gremlins, trapped, things, crates, rest JSON (delivered per color). PK (game_key, milestone), INSERT OR IGNORE. No seq, no colors opened, no cards unlocked.
+- crashes: id INTEGER PK AUTOINCREMENT, unix_seconds, format, version, game_key (null if no game had started), player_id and signed_in (from the batch), seed, size, turn (each null if unknown), message (cut to 500 chars), stack (cut to 2000 chars: the first lines), user_agent. Plain INSERT, no dedupe. The browser side that sends crash records is a later task (crashreport-zj3f); this task only defines and accepts them.
+- Indexes: games by start time, events by time and command, crashes by time and version.
+
+justfile: d1-local (apply the schema to wrangler dev's local D1), d1-production (create the database while the placeholder is there and print the id to paste; run again, apply the schema), and a deploy check in just deploy that refuses while the placeholder remains (a --dry-run passes). Model these on starreach's tools/telemetry_db.sh. Use yuwakisacloud's wrangler as just deploy does. Add just dev-worker (wrangler dev on dist/web after just ship) for local checks.
+
+Tests:
+- A CRITERIA R-row owning test/R-n/: the worker imported in Node with a fake D1 that records binds and a fake ctx.waitUntil. A valid batch → the right rows in all four tables (a crash-only batch included). A bad batch (too big, too many records, a wrong type, an unknown command) → 400 and nothing written. A missing or unknown format → 204 and nothing written. The format is stored on the game row. seq follows arrival order. Two batches of one game with different players stamp their own rows with their own player_id. A game record sent twice is inserted once, and so is a milestone sent twice. No IP in any bind or log. A non-/t path or method → 404. A D1 failure is logged, and the response is still 204.
+- ship.js: worker/ is not in dist/web.
+
+Docs: the ONTOLOGY Telemetry section's records (crash records included), batch format, endpoint and database parts; a RATIONALE D-n (D1 tables and columns vs rest, INSERT OR IGNORE for resent records, no foreign keys, the placeholder id and deploy check, no IP); the CRITERIA row, plus a U-row for the curl check below; ARCHITECTURE_LOG; the CLAUDE.md module table (worker/); README Deploy (the D1 steps).
+
+Done when:
+- just cc-test passes.
+- just d1-local, then just ship and just dev-worker; a curl POST of a hand-written batch to http://localhost:8787/t gets 204, and its rows show in the local D1.
+- just deploy refuses while the production id is the placeholder.
+----
+Priority:   85
+Status: Done
 ID: spawn-cycle-jisb
 Created: 2026-11-13T17:44:19Z
 Updated: 2026-11-13T18:23:47Z

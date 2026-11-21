@@ -157,6 +157,9 @@ const GameDisplayArtifacts = (function () {
         BG_COLOR: '#0e1116',
         UI_FONT: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
         REACH_COLOR: '255, 214, 51',   // rgb of --accent
+        // The telemetry batch format the browser sends (D-64); worker/telemetry.js's TELEMETRY_FORMAT,
+        // bumped with it whenever a batch field is renamed, removed or retyped.
+        TELEMETRY_FORMAT: 1,
         // The unlisted screencap key (P, D-58): beside the window-sized shot, one PNG per entry,
         // same center and zoom as the screen; the name goes in the file name.
         CAPTURE_SIZES: [

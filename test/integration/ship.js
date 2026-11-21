@@ -3,7 +3,7 @@
 // Runs the build into a temp dir and reads the zip back: index.html at the zip root, only
 // the files the page loads (no docs, tests or backlog), every local script and stylesheet
 // URL stamped with the version, the version on <html data-version>, and web/ holding the
-// same files as the zip plus og.png when it exists. Not a game rule, so it lives outside the test/R-n/ directories.
+// same files as the zip plus og.png when it exists, and no worker/ in either. Not a game rule, so it lives outside the test/R-n/ directories.
 'use strict';
 
 const fs = require('fs');
@@ -67,6 +67,7 @@ try {
     const web = fs.readdirSync(path.join(out, 'web')).sort();
     check('web/ holds the zip\'s files' + (og ? ', plus og.png' : ''), JSON.stringify(web) === JSON.stringify([...names, ...(og ? ['og.png'] : [])].sort()));
     check('og.png stays out of the zip', !files.has('og.png'));
+    check('the Worker (worker/) is in neither web/ nor the zip', !fs.existsSync(path.join(out, 'web', 'worker')) && !names.some(n => /^worker\//.test(n)));
 } finally {
     fs.rmSync(out, { recursive: true, force: true });
 }

@@ -676,3 +676,75 @@ A piece pushed into water gets a `move` whose path ends on the water hex, then `
 ### Client contract [D]
 The client reads state, calls commands and queries, never writes state, never calls
 `Rando`, and animates only from events.
+
+---
+
+## §8 Telemetry [D; D-64]
+*Serves:* tuning §6 from real play (how far games get, how fast, what players build), and bugs
+players never report. The browser recorder that makes and sends the records is [D, unbuilt]; what
+is built is the batch format and the server side: the ttdat Worker's `POST /t` and its D1
+database. The engine knows nothing of telemetry.
+
+### Records (JSON fields camelCase; D1 columns snake_case)
+
+| Record | Fields |
+|---|---|
+| game | `gameKey` (a random ID per game), `startedUnixSeconds`, `seed`, `size` (a `MAP_SIZES` key), `version` (the commit hash from `<html data-version>`), `rulesVersion` (an integer for the rules the game ran under; the recorder, [D, unbuilt], names its constant), `userAgent`?, `screen`? |
+| event | `gameKey`, `unixSeconds`, `command` (one of the engine's commands, §7), `accepted` (bool), the snapshot after its tick: `turn`, `delivered`, `lost`, `exGremlins`, `trapped`, `things` (Things on the board), `crates` (pieces that aren't gremlins); `deliveredByColor`? (`{color: n}`); `args`? (the command's arguments: `kind`, `q`, `r`, `facing`, `color`, anything else) |
+| milestone | `gameKey`, `milestone` (the count reached: 10, 20, 50, …), `unixSeconds`, the same snapshot and `deliveredByColor`? |
+| crash | `unixSeconds`, `message`, `format`?, `version`?, `gameKey`?, `seed`?, `size`?, `turn`? (each null if unknown), `stack`?, `userAgent`? |
+
+`?` = may be missing or null. Fields a record doesn't list are ignored, so a new optional field
+needs no format bump.
+
+### Batch format
+One JSON object, sent as `text/plain` (no CORS preflight; `sendBeacon` can carry it):
+`{ format, player, token?, games?: [game…], events?: [event…], milestones?: [milestone…], crashes?: [crash…] }`.
+- `format` — `TELEMETRY_FORMAT` (worker/telemetry.js and `GameDisplayArtifacts`), bumped in both
+  whenever a field is renamed, removed or retyped. The itch.io and Newgrounds zips run whatever
+  build was uploaded for months, so old clients keep sending old shapes: the Worker keeps one
+  reader per known format (`READERS`; `KNOWN_FORMATS` = [1]).
+- `player` — the sender's random per-load ID (a string, at most 64 chars).
+- `token` — reserved for a sign-in access token (in the body so `sendBeacon` can carry it); ignored for now.
+- Identity is per batch, not per game: one game may run under a random ID, then a signed-in
+  one, then a new random one. Every row a batch writes is stamped with its identity
+  (`player_id` = `player`, `signed_in` 0 for now).
+
+### Endpoint — `POST /t` (worker/index.js → worker/telemetry.js)
+```
+fetch(request):
+  path ≠ '/t' or method ≠ POST → 404        # the static assets serve every file before this
+  body > MAX_BODY_BYTES → 400
+  not a JSON object → 400
+  format missing, not a number, or not in KNOWN_FORMATS → 204, nothing written, console.error with no body
+  READERS[format](batch) fails (a list that isn't one, > MAX_RECORDS records in all, a record
+    that isn't an object, a required field missing (or an empty string), a wrong field type or length, an unknown
+    command, a bad arg column or deliveredByColor) → 400, nothing written
+  else → 204 (Access-Control-Allow-Origin: *); ctx.waitUntil(one D1 batch of every row)
+         a failed write is console.error'd and dropped
+```
+A crash's `message` and `stack` are cut to `CRASH_MESSAGE_CHARS` / `CRASH_STACK_CHARS`, not
+refused; its `format` defaults to the batch's. Nothing reads, logs or stores the request's IP
+or any header but its length; Cloudflare observability is off.
+
+### Database — D1 `ttdat-telemetry`, bound as `TELEMETRY` (worker/telemetry_schema.sql)
+- `games` — PK `game_key`; `player_id`, `signed_in` (of the batch that first inserted it), `format`,
+  `started_unix_seconds`, `seed`, `size`, `version`, `rules_version`, `user_agent`, `screen`.
+  `INSERT OR IGNORE`: the browser resends the game record in each batch of its game.
+- `events` — PK (`game_key`, `seq`); `seq` is the count of that game's events so far, taken inside
+  the insert (arrival order); the snapshot columns, `kind`/`q`/`r`/`facing`/`color` from `args`
+  (null where absent), `rest` JSON `{args: the other args, deliveredByColor}`.
+- `milestones` — PK (`game_key`, `milestone`), `INSERT OR IGNORE`; the snapshot, `rest` JSON `{deliveredByColor}`.
+- `crashes` — `id` autoincrement, plain INSERT; `format`, `version`, `game_key`, `seed`, `size`, `turn`,
+  `message`, `stack`, `user_agent`.
+- Every row carries `player_id` and `signed_in`; no foreign keys; no IP column. Indexes: games by
+  start time, events by time and by command, crashes by time and by version.
+
+### Numbers [T]
+| Name | Value | Meaning |
+|---|---|---|
+| `TELEMETRY_FORMAT` | 1 | the batch format this build sends and reads |
+| `MAX_BODY_BYTES` | 64 KB | the largest batch body |
+| `MAX_RECORDS` | 200 | records per batch, all four lists together |
+| `CRASH_MESSAGE_CHARS` | 500 | a crash's message is cut to this |
+| `CRASH_STACK_CHARS` | 2000 | a crash's stack is cut to this (its first lines) |

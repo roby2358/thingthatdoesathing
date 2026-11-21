@@ -1,0 +1,207 @@
+// worker/telemetry.js — POST /t, the ttdat Worker's one route: telemetry batches into D1 (D-64).
+// worker/index.js routes to it. A batch is one JSON object sent as text/plain (so a browser
+// sends it with no CORS preflight, and sendBeacon can carry it):
+//
+//   { format: 1, player: string, token?: string,
+//     games?: [game…], events?: [event…], milestones?: [milestone…], crashes?: [crash…] }
+//
+// It is checked whole (at most MAX_BODY_BYTES, at most MAX_RECORDS records, known record
+// types, field types) and answered 204 before anything is written: the rows go to D1 in one
+// db.batch() handed to ctx.waitUntil, so the reply never waits on the database, and a write
+// that fails is logged and dropped. A batch that fails its checks gets 400 and writes nothing.
+// A missing or unknown `format` gets 204 and is dropped quietly: the portal zips keep running
+// old builds for months, and an old client isn't malformed. Bump TELEMETRY_FORMAT (here and in
+// GameDisplayArtifacts) when a field is renamed, removed or retyped, keep the old reader in
+// READERS, and add the new one; a new optional field needs no bump (unknown fields are ignored).
+//
+// Identity is per batch: every row a batch writes carries the batch's player_id and signed_in.
+// For now that is always the batch's `player`, signed_in 0 (`token` is reserved for sign-in and
+// ignored). Nothing here reads, logs or stores the request's IP or any other header but the
+// body's length. The tables are in telemetry_schema.sql. Plain JavaScript, no build.
+
+/** The format this build's browser sends (GameDisplayArtifacts.TELEMETRY_FORMAT). */
+export const TELEMETRY_FORMAT = 1;
+export const MAX_BODY_BYTES = 64 * 1024;
+export const MAX_RECORDS = 200;
+/** The engine's commands an event may name (R-68 checks each is a GameEngine method). */
+export const KNOWN_COMMANDS = ['place', 'rotate', 'remove', 'blast', 'move', 'scrap', 'bomb', 'discard', 'wait'];
+export const CRASH_MESSAGE_CHARS = 500;     // a crash's message and stack are cut, not refused
+export const CRASH_STACK_CHARS = 2000;
+
+const CORS = { 'Access-Control-Allow-Origin': '*' };
+
+/** A batch that fails its checks: `where` names the field, never its value. */
+class BadBatch extends Error {
+    constructor(where) { super(where); this.where = where; }
+}
+
+/** POST /t: one batch, answered 204 (written, or dropped for its format) or 400 (written nowhere). */
+export async function telemetry(request, env, ctx) {
+    const length = Number(request.headers.get('Content-Length'));
+    if (length > MAX_BODY_BYTES) return refuse('body too big');
+    const text = await request.text();
+    if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) return refuse('body too big');
+    let batch;
+    try { batch = JSON.parse(text); } catch { return refuse('not JSON'); }
+    if (!isObject(batch)) return refuse('not an object');
+
+    const read = typeof batch.format === 'number' && Object.hasOwn(READERS, batch.format) ? READERS[batch.format] : null;
+    if (!read) {
+        console.error('telemetry batch dropped: unknown format');
+        return new Response(null, { status: 204, headers: CORS });
+    }
+    let rows;
+    try { rows = read(batch); } catch (e) {
+        if (e instanceof BadBatch) return refuse(e.where);
+        throw e;
+    }
+    const statements = statementsFor(env.TELEMETRY, rows);
+    if (statements.length > 0) ctx.waitUntil(write(env.TELEMETRY, statements));
+    return new Response(null, { status: 204, headers: CORS });
+}
+
+function refuse(where) {
+    console.error('telemetry batch refused: ' + where);
+    return new Response(null, { status: 400, headers: CORS });
+}
+
+async function write(db, statements) {
+    try { await db.batch(statements); }
+    catch (e) { console.error('telemetry not written to D1: ' + (e && e.message)); }
+}
+
+// ---- format 1 -------------------------------------------------------------------------------
+
+/** One reader per known format: batch → the rows to write, or a BadBatch. */
+const READERS = { 1: readFormat1 };
+/** The formats this Worker reads. */
+export const KNOWN_FORMATS = Object.keys(READERS).map(Number);
+
+// Field specs: [type, required, max length]. 'int' is a safe integer, 'str' a string, 'bool' a
+// boolean; a field that isn't required may be missing or null. Unknown fields are ignored.
+const GAME = {
+    gameKey: ['str', true, 64], startedUnixSeconds: ['int', true], seed: ['int', true], size: ['str', true, 16],
+    version: ['str', true, 64], rulesVersion: ['int', true], userAgent: ['str', false, 512], screen: ['str', false, 64],
+};
+const SNAPSHOT = {
+    gameKey: ['str', true, 64], unixSeconds: ['int', true], turn: ['int', true], delivered: ['int', true],
+    lost: ['int', true], exGremlins: ['int', true], trapped: ['int', true], things: ['int', true], crates: ['int', true],
+};
+const EVENT = { ...SNAPSHOT, command: ['str', true, 16], accepted: ['bool', true] };
+const MILESTONE = { ...SNAPSHOT, milestone: ['int', true] };
+const CRASH = {
+    unixSeconds: ['int', true], format: ['int', false], version: ['str', false, 64], gameKey: ['str', false, 64],
+    seed: ['int', false], size: ['str', false, 16], turn: ['int', false],
+    message: ['str', true, Infinity], stack: ['str', false, Infinity], userAgent: ['str', false, 512],
+};
+/** An event's args that have their own columns, in the order INSERT_EVENT binds them; `rest` keeps the others. */
+const ARG_COLUMNS = { kind: ['str', false, 16], q: ['int', false], r: ['int', false], facing: ['int', false], color: ['str', false, 16] };
+
+function readFormat1(batch) {
+    const identity = { playerId: field(batch, 'player', ['str', true, 64], 'player'), signedIn: 0 };
+    const lists = {};
+    let count = 0;
+    for (const name of ['games', 'events', 'milestones', 'crashes']) {
+        const list = batch[name] ?? [];
+        if (!Array.isArray(list)) throw new BadBatch(name);
+        list.forEach((record, i) => { if (!isObject(record)) throw new BadBatch(`${name}[${i}]`); });
+        lists[name] = list;
+        count += list.length;
+    }
+    if (count > MAX_RECORDS) throw new BadBatch('too many records');
+
+    const games = lists.games.map((g, i) => ({ ...fields(g, GAME, `games[${i}]`), format: batch.format }));
+    const events = lists.events.map((e, i) => {
+        const where = `events[${i}]`;
+        const row = fields(e, EVENT, where);
+        if (!KNOWN_COMMANDS.includes(row.command)) throw new BadBatch(where + '.command');
+        const args = e.args ?? {};
+        if (!isObject(args)) throw new BadBatch(where + '.args');
+        row.columns = fields(args, ARG_COLUMNS, where + '.args');
+        const others = Object.fromEntries(Object.entries(args).filter(([k]) => !Object.hasOwn(ARG_COLUMNS, k)));
+        row.rest = JSON.stringify({ args: others, deliveredByColor: byColor(e, where) });
+        return row;
+    });
+    const milestones = lists.milestones.map((m, i) => {
+        const where = `milestones[${i}]`;
+        return { ...fields(m, MILESTONE, where), rest: JSON.stringify({ deliveredByColor: byColor(m, where) }) };
+    });
+    const crashes = lists.crashes.map((c, i) => {
+        const row = fields(c, CRASH, `crashes[${i}]`);
+        row.format = row.format ?? batch.format;
+        row.message = row.message.slice(0, CRASH_MESSAGE_CHARS);
+        row.stack = row.stack === null ? null : row.stack.slice(0, CRASH_STACK_CHARS);
+        return row;
+    });
+    return { identity, games, events, milestones, crashes };
+}
+
+/** deliveredByColor: an optional { color: count } map. */
+function byColor(record, where) {
+    const map = record.deliveredByColor ?? {};
+    if (!isObject(map)) throw new BadBatch(where + '.deliveredByColor');
+    for (const [color, n] of Object.entries(map))
+        if (color.length > 16 || !Number.isSafeInteger(n)) throw new BadBatch(where + '.deliveredByColor');
+    return map;
+}
+
+function fields(record, spec, where) {
+    const out = {};
+    for (const [name, s] of Object.entries(spec)) out[name] = field(record, name, s, where + '.' + name);
+    return out;
+}
+
+function field(record, name, [type, required, maxLength], where) {
+    const v = record[name];
+    if (v === undefined || v === null) {
+        if (required) throw new BadBatch(where);
+        return null;
+    }
+    const ok = type === 'int' ? Number.isSafeInteger(v)
+        : type === 'bool' ? typeof v === 'boolean'
+        : typeof v === 'string' && v.length <= maxLength && (!required || v.length > 0);
+    if (!ok) throw new BadBatch(where);
+    return v;
+}
+
+function isObject(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
+
+// ---- D1 -------------------------------------------------------------------------------------
+
+const INSERT_GAME = `
+  INSERT OR IGNORE INTO games (game_key, player_id, signed_in, format, started_unix_seconds, seed, size, version,
+    rules_version, user_agent, screen)
+  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`;
+
+/** An event's `seq` is the count of its game's events so far, taken inside the insert, so the
+ *  database numbers a game's events in the order it gets them. */
+const INSERT_EVENT = `
+  INSERT INTO events (game_key, seq, player_id, signed_in, unix_seconds, command, accepted, turn, delivered, lost,
+    ex_gremlins, trapped, things, crates, kind, q, r, facing, color, rest)
+  VALUES (?1, (SELECT COUNT(*) FROM events WHERE game_key = ?1), ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,
+    ?14, ?15, ?16, ?17, ?18, ?19)`;
+
+const INSERT_MILESTONE = `
+  INSERT OR IGNORE INTO milestones (game_key, milestone, player_id, signed_in, turn, unix_seconds, delivered, lost,
+    ex_gremlins, trapped, things, crates, rest)
+  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`;
+
+const INSERT_CRASH = `
+  INSERT INTO crashes (unix_seconds, format, version, game_key, player_id, signed_in, seed, size, turn, message, stack,
+    user_agent)
+  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`;
+
+/** Every row of a batch as D1 statements, in the order they're written: games, events, milestones, crashes. */
+function statementsFor(db, { identity: { playerId, signedIn }, games, events, milestones, crashes }) {
+    return [
+        ...games.map(g => db.prepare(INSERT_GAME).bind(g.gameKey, playerId, signedIn, g.format, g.startedUnixSeconds,
+            g.seed, g.size, g.version, g.rulesVersion, g.userAgent, g.screen)),
+        ...events.map(e => db.prepare(INSERT_EVENT).bind(e.gameKey, playerId, signedIn, e.unixSeconds, e.command,
+            e.accepted ? 1 : 0, e.turn, e.delivered, e.lost, e.exGremlins, e.trapped, e.things, e.crates,
+            ...Object.keys(ARG_COLUMNS).map(k => e.columns[k]), e.rest)),
+        ...milestones.map(m => db.prepare(INSERT_MILESTONE).bind(m.gameKey, m.milestone, playerId, signedIn, m.turn,
+            m.unixSeconds, m.delivered, m.lost, m.exGremlins, m.trapped, m.things, m.crates, m.rest)),
+        ...crashes.map(c => db.prepare(INSERT_CRASH).bind(c.unixSeconds, c.format, c.version, c.gameKey, playerId,
+            signedIn, c.seed, c.size, c.turn, c.message, c.stack, c.userAgent)),
+    ];
+}

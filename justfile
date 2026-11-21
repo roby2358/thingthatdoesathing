@@ -26,9 +26,26 @@ ship:
 preview: ship _wrangler
     {{wrangler}} dev --port 8794
 
-# Build and deploy to https://ttdat.yuwakisa.com (needs a wrangler login)
-deploy: ship _wrangler
-    {{wrangler}} deploy --env production
+# The ship build under wrangler dev with the Worker and its local D1, for checking POST /t
+# (http://localhost:8787; run `just d1-local` once first)
+dev-worker: ship _wrangler
+    {{wrangler}} dev --port 8787
+
+# Give wrangler dev's local telemetry database its tables (D-64); safe to run again
+d1-local: _wrangler
+    WRANGLER={{wrangler}} bash tools/telemetry_db.sh local wrangler.jsonc worker/telemetry_schema.sql
+
+# Production's telemetry database: run once to create it and print the id to paste into
+# wrangler.jsonc's env.production, then again to give it its tables (needs a wrangler login)
+d1-production: _wrangler
+    WRANGLER={{wrangler}} bash tools/telemetry_db.sh production wrangler.jsonc worker/telemetry_schema.sql
+
+# Build and deploy to https://ttdat.yuwakisa.com (needs a wrangler login); refused while
+# production's D1 id is the placeholder (`just deploy --dry-run` passes)
+deploy *args: _wrangler
+    bash tools/telemetry_db.sh deploy-check wrangler.jsonc {{args}}
+    just ship
+    {{wrangler}} deploy --env production {{args}}
 
 _wrangler:
     @test -x {{wrangler}} || { echo "no wrangler at {{wrangler}}: run 'just bootstrap' in ../yuwakisacloud"; exit 1; }
