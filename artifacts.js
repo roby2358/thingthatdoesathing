@@ -26,7 +26,7 @@ const GameArtifacts = (function () {
     //   overMountains — a flying push that passes over mountains too; it can't come down on
     //            one, so it lands on the last hex short of it that it flew over (D-35)
     //   overWalls — a flying push that passes over Walls too, treating a Wall hex exactly like
-    //            a mountain: it can't come down on one either (Spring only; D-62)
+    //            a mountain: it can't come down on one either (D-62)
     //   clears — how many hexes of its push pass over everything (water, mountains, Walls,
     //            pieces, targets, Traps): the shot touches nothing on them, and the rest of the
     //            push goes on the ground from the last one. Stopped right after them, it comes

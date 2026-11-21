@@ -137,7 +137,7 @@ gremlins treat it the same (D-34).
 | `clears` | How many hexes at the start of its push pass over everything: water (the outer sea too), mountains, Walls, pieces (gremlins unsplatted), targets, Traps; the shot touches nothing on them, and the rest of the push goes through `step` from the last one, on the ground unless `flies` (Cannon: 4 of its 5). Stopped right after them, it comes down on the last cleared hex if the ground there would take it (no Wall, no other piece, not open water, not a mountain or another color's target; its color's target delivers it), else it doesn't fire; a path that leaves the map within them doesn't fire. 0 for every other kind. [D-36: the clearing and the 4th-hex landing D; off-map and the target cases P] |
 | `shove` | Hexes it pushes the piece on the **near hex** (the one it faces) on, along `facing` (Pusher). [D] |
 | `pull` | Hexes it pulls the piece on the **far hex** (two ahead along `facing`) back toward itself, into the **near hex** (one ahead) (Puller). |
-| `blocks` | Pieces can't enter (Wall); only a flight `overWalls` passes over it (D-62). |
+| `blocks` | Pieces can't enter (Wall); a flight `overWalls` passes over it (D-62), and a shot's `clears` hexes pass over it (D-36). |
 | `traps` | A piece that splats dies when it comes onto this hex: walked, pushed, slid, or coming down from a flight; a flight passing over doesn't count (Trap). Every target does the same, with no Thing (Motion rule). [D] |
 | `colored` | Placed in an open crate color the player picks, never white (`colorChoices`, D-32); its card is drawn plain, and only once two or more colors are open (Pusher, Puller). [D] |
 | `slides` | Slick ground: a piece that comes onto it on the ground keeps going the same way, free, exactly like bare ice (Slide), up to `MAX_SLIDE` slick-to-slick moves per motion, so at most 4 slick hexes in a row (D-52). The one slick test, `isSlick`, reads it: a Thing on a hex decides by `slides`; with no Thing, the hex is slick if it's ICE. [D-29] |
@@ -349,11 +349,12 @@ stopped do:
 ground arrival on hex: its color's target delivers; a Trap or a target kills a piece that splats
                        (splat, trap says which); open water sinks (lost += value)
 groundOpen(hex) = on the map, not MOUNTAIN, no blocking Thing, not another color's target
+canLand(hex) = groundOpen(hex): a flight comes down only where a ground step could go (D-35, D-62)
 land:   the landing checks on its hex (its color's target delivers; open water sinks; a Trap kills
         a piece that splats); then a gremlin on a Rocket (doomed) splats; else on slick ground it
         skids (phase skid), unless it splatted a gremlin to land there; else it stops
 comeDownHere: a flight over a MOUNTAIN, a Wall or another color's target drops back (phase drop, next hop)
-        to the last hex it flew over that it may land on, or its start (D-35); a shot over a hex
+        to the last hex it flew over that it may land on (canLand), or its start (D-35, D-62); a shot over a hex
         that's a MOUNTAIN, another color's target, a Wall or another piece crashes; else land
 crash:  remove it; lost += its value; emit splat{id, by: what it hit or null, trap: false}
 stop:   the motion is over; a doomed piece splats (splat{id, by: null})
@@ -372,8 +373,8 @@ shot (clears > 0):  hexes 1..clears must be on the map, and either hex clears+1 
                     → phase over for clears hexes, then ground for n - clears
 flight (flies):     its length is fixed now: up to n hexes, stopping before the map's edge, a Wall
                     (unless overWalls) or a MOUNTAIN (unless overMountains), and on its color's target
-                    or the outer sea; then trimmed back off any MOUNTAIN, Wall or other color's target
-                    it would end over (D-35, D-62)
+                    or the outer sea; then trimmed back to the last hex it may land on (canLand: off any
+                    MOUNTAIN, Wall or other color's target it would end over; D-35, D-62)
                     → phase air for that many hops (0: it stays, and lands where it stands)
 otherwise:          phase ground for n hexes (a wander: n = 1, wrecks)
 ```

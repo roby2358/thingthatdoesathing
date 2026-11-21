@@ -1,7 +1,7 @@
 // R-53: a Spring's throw (`overMountains`) passes over mountains and lands on the third hex;
 // it can't come down on a mountain, so it lands on the last hex short of one that it flew
 // over (or doesn't throw), and skids on if that's ice; pieces still stop it (Walls it leaps
-// like mountains, R-67); a Rocket is still stopped by one.
+// like mountains, R-67); a Rocket is still stopped by a mountain.
 'use strict';
 const { check, done } = require('../helpers/check');
 const { flatGame, DIR } = require('../helpers/load');

@@ -608,10 +608,11 @@ const GameEngine = (function () {
             return 'moved';
         }
 
-        // May a flight carrying `piece` come down on `hex`? Not on a mountain or a Wall (only
-        // a flight overMountains / overWalls is ever over one), nor on another color's target.
+        // May a flight carrying `piece` come down on `hex`? Only where a ground step could go:
+        // not on a mountain or a Wall (only a flight overMountains / overWalls is ever over
+        // one, D-62), nor on another color's target.
         canLand(piece, hex) {
-            return hex.terrain !== TERRAIN.MOUNTAIN && !this.wallAt(hex) && !this.wrongTarget(piece, hex);
+            return this.groundOpen(piece, hex);
         }
 
         // Could `piece` stand on `hex` once it's there: no Wall, no other piece.
@@ -1033,8 +1034,8 @@ const GameEngine = (function () {
         }
 
         // An airborne piece stopped by a piece comes down on the hex it's over. Over a
-        // mountain, a Wall or another color's target, a flight drops back next hop to the last hex it
-        // flew over that it may land on, or where it started (D-35). A shot over a hex that
+        // mountain, a Wall or another color's target, a flight drops back next hop to the last
+        // hex it flew over that it may land on, or where it started (D-35). A shot over a hex that
         // can't take it (a mountain, another color's target, a Wall, another piece) crashes.
         comeDownHere(m, run) {
             const hex = this.hexOf(m.piece);
