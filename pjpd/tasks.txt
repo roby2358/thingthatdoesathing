@@ -1,14 +1,5 @@
 Priority:   49
 Status: ToDo
-ID: own-deploy-kfi7
-Created: 2026-11-17T02:44:22Z
-Updated: 2026-11-17T02:44:22Z
-
-Prepare the move to its own repo and a Cloudflare deploy at ttdat.yuwakisa.com.
-The game will leave yuwakisaweb for its own repo and be served over HTTPS at ttdat.yuwakisa.com on Cloudflare. The AI part: write the deploy config for serving dist/ (from the ship-bundle recipe) as Cloudflare static assets (a wrangler.jsonc with an assets directory; leave room for a Worker + D1 binding later for telemetry, but don't add one), a `just deploy` recipe that runs the ship build then `wrangler deploy`, a LICENSE file for the new repo (MIT, same holder as the yuwakisaweb LICENSE, unless told otherwise), a README "Deploy" section listing the steps the user must do by hand (create the repo, move the folder with history if wanted, create the Cloudflare project, add the ttdat.yuwakisa.com custom domain, wrangler login), and how a patch reaches each target (own site: just deploy; itch.io and Newgrounds: upload the new zip). Note in SHIP.md's Targets table how to deploy each target. Also note the old copy at yuwakisa.com/thingthatdoesathing/ should redirect or be removed after the move (the user decides when). Don't run wrangler or touch any account. SHIP.md items: WEB-1, LEGAL-7, OPS-3, OPS-4, X-2. Done when the config, recipe, LICENSE and README section exist and `just cc-test` passes.
-----
-Priority:   49
-Status: ToDo
 ID: credits-55gy
 Created: 2026-11-17T02:44:41Z
 Updated: 2026-11-17T02:44:41Z
