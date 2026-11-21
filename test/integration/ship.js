@@ -52,7 +52,7 @@ try {
 
     const html = files.get('index.html').toString('utf8');
     const refs = [...html.matchAll(/\b(?:src|href)="(?![a-z]+:|\/\/|#)([^"]+)"/g)].map(m => m[1]);
-    check('the page names its scripts and stylesheet', refs.some(r => r.startsWith('index.css')) && refs.some(r => r.startsWith('gameengine.js')));
+    check('the page names its scripts and stylesheet', refs.some(r => r.startsWith('index.css')) && refs.some(r => r.startsWith('gameengine.js')) && refs.some(r => r.startsWith('crash.js')));
     check('every local URL carries ?v=<version>', refs.every(r => r.endsWith('?v=' + version)));
     check('every file the page names is in the zip, exact case', refs.every(r => files.has(r.split('?')[0])));
     check('the zip holds nothing the page does not load', names.length === refs.length + 1);

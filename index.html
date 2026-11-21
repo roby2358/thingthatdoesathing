@@ -198,9 +198,22 @@
             <p id="sorry-copied" class="sorry-copied hidden">Link copied</p>
         </div>
     </div>
+    <!-- The crash screen (D-63): crash.js shows it on an uncaught error or unhandled rejection,
+    once, with plain DOM only (it works even if no other script loaded). Nothing else closes it. -->
+    <div id="crash-panel" class="hidden">
+        <div class="panel crash-card">
+            <h1>Thing Factory hit a bug and stopped.</h1>
+            <p class="crash-details selectable"><span id="crash-message"></span><br><span id="crash-build"></span></p>
+            <div class="crash-actions">
+                <button id="crash-reload" class="btn primary" type="button" title="Load the page again">Reload</button>
+                <button id="crash-fresh" class="btn" type="button" title="Drop the saved game, in case it's what broke, and load the page again">Start fresh</button>
+            </div>
+        </div>
+    </div>
     <!-- Plain script includes (globals), not ES modules: the page runs on a double-click
-    (D-9). Order = dependency order:
-    artifacts → display artifacts → libs → piece/board → state → engine → ui → bootstrap. -->
+    (D-9). The crash screen first, so it catches an error in any script after it (D-63), then
+    dependency order: artifacts → display artifacts → libs → piece/board → state → engine → ui → bootstrap. -->
+    <script src="crash.js"></script>
     <script src="artifacts.js"></script>
     <script src="displayartifacts.js"></script>
     <script src="rando.js"></script>

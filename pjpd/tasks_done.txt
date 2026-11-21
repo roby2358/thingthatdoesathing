@@ -161,6 +161,15 @@ Done when: crateCap gives 2/3/4/5 for small/medium/large/huge, the cap still gro
 ----
 Priority:   70
 Status: Done
+ID: crash-screen-zruz
+Created: 2026-11-17T02:44:52Z
+Updated: 2026-11-21T08:02:01Z
+
+Show a "something broke" screen with Reload and Start fresh when an uncaught error happens.
+Today an uncaught error leaves a frozen canvas. Done looks like: window 'error' and 'unhandledrejection' handlers (installed first thing in index.js) show a plain overlay: one line saying the game hit a bug, the error message and the version/seed for a bug report (selectable text), a Reload button, and a Start fresh button that removes only this game's saved-run key (try/catch) and reloads, in case the save is the cause. Shown once; later errors don't stack overlays. SHIP.md item: ERR-3. Done when `just cc-test` passes, with a uiboot check that a thrown error shows the overlay.
+----
+Priority:   70
+Status: Done
 ID: slide-trans-4pqk
 Created: 2026-11-17T19:31:37Z
 Updated: 2026-11-17T19:37:14Z

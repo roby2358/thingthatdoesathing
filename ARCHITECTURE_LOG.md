@@ -2,6 +2,9 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-21 — Crash screen (D-63)
+Before, an uncaught error left a frozen canvas. Now a new `crash.js`, loaded before every other script, installs window `error` and `unhandledrejection` handlers (the task set them in index.js; loading them first means an error while a later script loads is caught too, D-63 call 6); the first one shows `#crash-panel` (index.html, styled in index.css over everything, the sorry page included): "Thing Factory hit a bug and stopped.", the error and the version/seed (selectable), Reload, and Start fresh, which removes only the new `GameDisplayArtifacts.SAVE_KEY` (`'thingfactory.run'`, for save-resume) and reloads. Later errors don't stack or replace it. It reads index.js's `state`/`ui` and `SAVE_KEY` only at crash time, in try/catch (a literal key before displayartifacts.js loads). uiboot checks it (an error thrown from the Wait button, a boot that throws, a script that throws as it loads, a rejection, the sorry page, storage that throws); new U-34; SHIP ERR-3 done.
+
 ### 2026-11-21 — Stale text
 The README's Bomb paragraph and U-31 still described a 3-boom Bomb; they now follow `wipes` (5). The big crate's hover name had "worth 10" typed in; the hover now adds " — worth N" from `PIECES` (`pieceName`), and doesnumbers.js checks no piece name has a number in it.
 

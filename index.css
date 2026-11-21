@@ -321,17 +321,18 @@ kbd {
 #intro-panel .tgt { color: #ff6600; }      /* TARGET_COLOR */
 #intro-panel { width: min(420px, calc(100vw - 32px)); }
 
-/* The sorry page for phones and tablets (D-41): the only thing on the page, a centered card
-   that scrolls if a landscape phone is too short for it. */
-body.touch-only > :not(#sorry-panel) { display: none !important; }
-#sorry-panel {
+/* The sorry page for phones and tablets (D-41) and the crash screen (D-63) share one layout: a
+   full-window layer holding a centered card that scrolls if the window (a landscape phone) is
+   too short for it. On a phone the sorry page is the only thing on the page, bar a crash. */
+body.touch-only > :not(#sorry-panel):not(#crash-panel) { display: none !important; }
+#sorry-panel, #crash-panel {
     position: fixed;
     inset: 0;
     display: flex;
     padding: 16px;
     overflow-y: auto;
 }
-.sorry-card {
+.sorry-card, .crash-card {
     margin: auto;
     width: min(420px, 100%);
     padding: 24px 22px;
@@ -342,8 +343,15 @@ body.touch-only > :not(#sorry-panel) { display: none !important; }
 #sorry-picture canvas { display: block; margin: 0 auto; }
 .sorry-card p { color: var(--text-dim); margin-bottom: 12px; }
 .sorry-card .sorry-note { color: var(--text); margin-bottom: 12px; }
-.sorry-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.sorry-actions, .crash-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .sorry-card p.sorry-copied { margin: 12px 0 0; }
+
+/* The crash screen (D-63): dims everything, the sorry page included; the error and the
+   version/seed can be selected for a bug report. */
+#crash-panel { background: rgba(0, 0, 0, 0.6); z-index: 100; }
+.crash-card { width: min(460px, 100%); }
+.crash-card h1 { font-size: 20px; font-weight: 700; margin-bottom: 12px; }
+.crash-card .crash-details { font-size: 13px; overflow-wrap: anywhere; margin-bottom: 16px; }
 
 /* The hand: three cards along the bottom, then the Discard spot. */
 #hand {

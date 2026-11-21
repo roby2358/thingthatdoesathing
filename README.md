@@ -83,6 +83,7 @@ that comes onto a target dies there, so they can't camp it.
 - `M` / Sound (top left, by Help): turn all sound on or off; remembered in this browser, works any time (not while an overlay is open)
 - Help (top left): five pages, the keys legend in two (B and on is the second), then the special cards (picking a Pusher's or Puller's crate color, the Mover, the Bomb), then every Thing and tool card (its picture, name and what it does, the same line its card shows on hover), then the world (crates, big crates, gremlins, ice, open water, milestones); `<` `>` or ← → turn the pages, any other key or a click closes it. It opens on the keys, also once when the first game opens; ticks hold while it's open
 - About (top left, by Help; also a link on the intro): who made it, how it was made (with AI), the version and the board's seed (selectable, for bug reports), and a privacy page; `<` `>` or ← → turn the pages, any other key or a click closes it; ticks hold while it's open
+- If the game hits a bug, a card says so over everything, with the error and the version and seed (selectable, for a bug report), Reload, and Start fresh (drops any saved game, in case it's what broke, and reloads; the sound setting stays)
 - New Game: pick a board size (click or `1`–`4`); Esc keeps the current game
 
 ## Deploy

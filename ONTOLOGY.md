@@ -182,6 +182,7 @@ in one command (`bomb`, D-48).
 | `queue` | `TickQueue` — one held command (the latest wins) that came in during `anim`: X / Discard, a card's × or Shift+number, a board click with a card picked, `D`, `B`; it runs when the animation ends, re-checking its own guards; picking or putting back a card and a new game clear it (D-49, D-50). |
 | `running` | bool — Go/Pause. While true, the client calls `wait()` `RUN_GAP_MS` after each animation ends, and holds while a card is picked, a hex is selected or an overlay is open. [D] |
 | `sound` | `GameSound`, `Math.random` only; muted by the Sound button or `M`, remembered in `localStorage` (D-53). |
+| (crash screen) | Not GameUI state: `crash.js`, loaded before every other script, owns it, so it works if GameUI never booted or a script failed to load (D-63). Its window `error` / `unhandledrejection` handlers show `#crash-panel` once (`crashed`): the error, the version (`<html data-version>` or "dev") and, with a board, the seed, selectable; Go stops and keys stop reaching the game; Reload reloads; Start fresh removes only `localStorage[SAVE_KEY]` (`'thingfactory.run'`, the saved run's key, unused until save-resume) and reloads. |
 
 ---
 

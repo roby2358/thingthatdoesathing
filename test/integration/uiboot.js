@@ -4,7 +4,7 @@
 // and requestAnimationFrame, then drives the UI through clicks and keys: pick a board size
 // from the intro, pick each card, turn the ghost, place, select and rotate, remove the selected Thing with D, wait, run tick animations to completion,
 // play to the first milestone (checking that no two pieces are ever drawn on one hex at a hop,
-// D-38), drive the color picker (D-32), the Mover's pick-up and carry (D-47), the Bomb's booms (D-48), the map-scale buttons (D-40), the Help and About pagers (D-60, D-61, D-59), and the sorry page a phone gets (D-41). Catches runtime errors in rendering and input wiring without a
+// D-38), drive the color picker (D-32), the Mover's pick-up and carry (D-47), the Bomb's booms (D-48), the map-scale buttons (D-40), the Help and About pagers (D-60, D-61, D-59), the sorry page a phone gets (D-41), and the crash screen (D-63). Catches runtime errors in rendering and input wiring without a
 // browser. It can't judge how anything looks; that stays manual (U-rows).
 'use strict';
 
@@ -97,7 +97,8 @@ const SilentAudio = class {
 };
 ctx.window.AudioContext = ctx.AudioContext = SilentAudio;
 
-const pageSource = scripts.map(f => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n;\n');
+const sourceOf = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+const pageSource = scripts.map(sourceOf).join('\n;\n');
 let error = null;
 try {
     const src = pageSource + '\n;globalThis.__ui = ui;';
@@ -1125,7 +1126,9 @@ run('New Game asks for a size, then resets', () => {
 });
 // D-41: a fresh page per pointer kind, each with its own stub DOM. `media` is what
 // window.matchMedia reports for the touch-only query, or undefined for no matchMedia at all.
-function bootPointer(media, nav) {
+// `opts.win` adds to the stub window; `opts.patch` is `{ before, src }`: source run just before the script `before` (D-63);
+// a throw out of the page is kept as `thrown`, as a browser would report it to window 'error'.
+function bootPointer(media, nav, opts = {}) {
     const pageEls = {};
     const listeners = {};
     const page = {
@@ -1134,7 +1137,7 @@ function bootPointer(media, nav) {
         body: fakeEl('body'),
         documentElement: fakeEl('html'),
     };
-    const win = { location: { href: 'https://example.test/thing' }, innerWidth: 390, innerHeight: 844, getSelection: () => ({ toString: () => '' }), addEventListener: (t, fn) => (listeners[t] ||= []).push(fn), AudioContext: SilentAudio };
+    const win = { location: { href: 'https://example.test/thing' }, innerWidth: 390, innerHeight: 844, getSelection: () => ({ toString: () => '' }), addEventListener: (t, fn) => (listeners[t] ||= []).push(fn), AudioContext: SilentAudio, ...opts.win };
     const asked = [];
     if (media !== undefined) win.matchMedia = q => { asked.push(q); return { matches: media, media: q }; };
     const pageCtx = vm.createContext({
@@ -1143,8 +1146,14 @@ function bootPointer(media, nav) {
         setTimeout: fakeSetTimeout, clearTimeout: fakeClearTimeout, AudioContext: SilentAudio,
     });
     if (nav) pageCtx.navigator = nav;
-    vm.runInContext(pageSource + '\n;globalThis.__boot = { get ui() { return ui; }, get state() { return state; }, get engine() { return engine; } };', pageCtx, { filename: 'page.js' });
-    return { boot: pageCtx.__boot, els: pageEls, body: page.body, listeners, asked };
+    const boot = '\n;globalThis.__boot = { get ui() { return ui; }, get state() { return state; }, get engine() { return engine; } };';
+    const src = opts.patch === undefined ? pageSource
+        : scripts.map(f => (f === opts.patch.before ? opts.patch.src + '\n;\n' : '') + sourceOf(f)).join('\n;\n');
+    let thrown = null;
+    try { vm.runInContext(src + boot, pageCtx, { filename: 'page.js' }); } catch (e) { thrown = e; }
+    if (thrown && opts.patch === undefined) throw thrown;
+    if (thrown) vm.runInContext(boot, pageCtx);
+    return { boot: pageCtx.__boot, els: pageEls, body: page.body, listeners, asked, thrown, ctx: pageCtx };
 }
 run('a coarse pointer with no hover gets the sorry page: no intro, no game, no input (D-41)', () => {
     const p = bootPointer(true);
@@ -1154,7 +1163,8 @@ run('a coarse pointer with no hover gets the sorry page: no intro, no game, no i
     if (!p.body.classList.set.has('touch-only')) throw new Error('the body must hide every other panel (intro included)');
     if (p.els['sorry-picture'].children.length !== 1) throw new Error('the sorry page draws one Belt');
     if (p.els['intro-sizes']?.children.length) throw new Error('the intro size buttons must not be built');
-    if (Object.keys(p.listeners).length) throw new Error('a touch-only page must not listen: ' + Object.keys(p.listeners));
+    const input = Object.keys(p.listeners).filter(t => t !== 'error' && t !== 'unhandledrejection');   // the crash screen's (D-63)
+    if (input.length) throw new Error('a touch-only page must not listen: ' + input);
 });
 run('the sorry page has Try it anyway (boots the game) and Copy link (share, else clipboard + note) (D-41)', () => {
     const p = bootPointer(true);
@@ -1190,5 +1200,85 @@ run('a fine pointer, or no matchMedia at all, boots the game on the intro as bef
         if (p.body.classList.set.has('touch-only') || p.els['sorry-picture']) throw new Error('matchMedia ' + media + ': no sorry page');
         if (!p.listeners.keydown) throw new Error('matchMedia ' + media + ': input must be wired');
     }
+});
+// D-63: the crash screen. An uncaught error (window 'error') or an unhandled rejection shows
+// #crash-panel once, with the message and version/seed; Reload reloads; Start fresh removes only
+// the saved-run key and reloads. It needs no GameUI.
+function crashPage(media, patch) {
+    const removed = [], reloads = [];
+    const storage = {
+        removeItem: k => removed.push(k),
+        clear: () => { throw new Error('Start fresh must not clear localStorage'); },
+        getItem: () => null, setItem: () => {},
+    };
+    const p = bootPointer(media, undefined, { patch, win: { localStorage: storage, location: { href: 'https://example.test/thing', reload: () => reloads.push(1) } } });
+    // index.html starts the panel hidden; the stub DOM makes elements on first lookup, so nothing
+    // may have looked it up yet, and it starts hidden here.
+    if (p.els['crash-panel']) throw new Error('nothing may touch the crash screen before an error');
+    p.els['crash-panel'] = fakeEl('crash-panel');
+    p.els['crash-panel'].classList.add('hidden');
+    const fire = (type, ev) => (p.listeners[type] || []).forEach(fn => fn(ev));
+    const shown = () => !p.els['crash-panel'].classList.set.has('hidden');
+    return { ...p, removed, reloads, fire, shown };
+}
+run('a thrown error shows the crash screen once, with the message, version and seed; later errors don\'t replace it (D-63)', () => {
+    const p = crashPage(false);
+    if (!p.listeners.error || !p.listeners.unhandledrejection) throw new Error('index.js must listen for error and unhandledrejection');
+    const pui = p.boot.ui;
+    p.els['intro-sizes'].children[0].fire('click');
+    const seed = p.boot.state.seed;
+    p.listeners.keydown.forEach(fn => fn({ key: 'Escape', preventDefault() {} }));   // close Help
+    if (pui.overlay) throw new Error('Help should have closed');
+    pui.running = true;
+    pui.engine.wait = () => { throw new TypeError('wait broke'); };
+    const keyListeners = p.listeners.keydown.length;
+    let thrown = null;
+    try { p.els['end-turn'].fire('click'); } catch (e) { thrown = e; }
+    if (!thrown) throw new Error('the patched wait should have thrown');
+    p.fire('error', { message: 'Uncaught TypeError: wait broke', error: thrown });
+    if (!p.shown()) throw new Error('a thrown error must show the crash screen');
+    if (p.els['crash-message'].textContent !== 'TypeError: wait broke') throw new Error('message: ' + p.els['crash-message'].textContent);
+    if (p.els['crash-build'].textContent !== 'Version dev · Seed ' + seed) throw new Error('build line: ' + p.els['crash-build'].textContent);
+    if (pui.running) throw new Error('Go must stop behind the crash screen');
+    p.fire('error', { message: 'Script error.', error: null });
+    p.fire('unhandledrejection', { reason: new Error('later') });
+    if (p.els['crash-message'].textContent !== 'TypeError: wait broke') throw new Error('a later error must not replace the first');
+    if (p.els['crash-reload'].listeners.click.length !== 1 || p.listeners.keydown.length !== keyListeners + 1) throw new Error('the crash screen must be wired once');
+    let stopped = false;
+    p.listeners.keydown[keyListeners]({ key: ' ', stopImmediatePropagation: () => { stopped = true; } });
+    if (!stopped) throw new Error('keys must stop reaching the game behind the crash screen');
+    p.els['crash-reload'].fire('click');
+    if (p.reloads.length !== 1 || p.removed.length) throw new Error('Reload must reload and remove nothing');
+    p.els['crash-fresh'].fire('click');
+    const key = vm.runInContext('GameDisplayArtifacts.SAVE_KEY', p.ctx);
+    if (p.reloads.length !== 2 || p.removed.length !== 1 || p.removed[0] !== key) throw new Error('Start fresh must remove only ' + key + ': ' + JSON.stringify(p.removed));
+    if (key === 'thingfactory.muted' || !key.startsWith('thingfactory.')) throw new Error('the save key must be its own thingfactory.* key');
+});
+run('the crash screen works with no GameUI: a boot that throws, a script that throws as it loads, a rejection, the sorry page, no storage (D-63)', () => {
+    const b = crashPage(false, { before: 'index.js', src: 'GameUI.prototype.start = function () { throw new Error("boot broke"); };' });
+    if (!b.thrown) throw new Error('the patched boot should have thrown');
+    b.fire('error', { message: 'Uncaught Error: boot broke', error: b.thrown });
+    if (!b.shown() || b.els['crash-message'].textContent !== 'Error: boot broke' || b.els['crash-build'].textContent !== 'Version dev') throw new Error('a boot failure must show the crash screen with no seed');
+    // A script that throws as it loads, before displayartifacts.js and index.js: Start fresh
+    // still removes the saved-run key.
+    const l = crashPage(false, { before: 'displayartifacts.js', src: 'throw new Error("load broke");' });
+    if (!l.thrown || l.listeners.keydown) throw new Error('the patched load should have thrown before anything wired input');
+    l.fire('error', { message: 'Uncaught Error: load broke', error: l.thrown });
+    if (!l.shown() || l.els['crash-message'].textContent !== 'Error: load broke' || l.els['crash-build'].textContent !== 'Version dev') throw new Error('a load failure must show the crash screen with no seed');
+    l.els['crash-fresh'].fire('click');
+    const savedKey = vm.runInContext('GameDisplayArtifacts.SAVE_KEY', crashPage(false, undefined).ctx);
+    if (l.reloads.length !== 1 || l.removed.join() !== savedKey) throw new Error('Start fresh before displayartifacts.js must remove ' + savedKey + ': ' + JSON.stringify(l.removed));
+    const r = crashPage(false);
+    r.fire('unhandledrejection', { reason: 'nope' });
+    if (!r.shown() || r.els['crash-message'].textContent !== 'nope') throw new Error('an unhandled rejection must show the crash screen');
+    const s = crashPage(true);
+    if (s.boot.ui) throw new Error('the sorry page builds no UI');
+    s.fire('error', { message: 'Script error.', error: null });
+    if (!s.shown() || s.els['crash-message'].textContent !== 'Script error.') throw new Error('the crash screen must show over the sorry page');
+    const n = bootPointer(false, undefined, { win: { location: { reload() { n.reloaded = true; } } } });
+    Object.defineProperty(n.ctx.window, 'localStorage', { get() { throw new Error('denied'); } });
+    n.listeners.error.forEach(fn => fn({ message: 'x', error: new Error('x') }));
+    n.els['crash-fresh'].fire('click');
+    if (!n.reloaded) throw new Error('Start fresh must still reload when storage throws');
 });
 done();

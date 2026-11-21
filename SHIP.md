@@ -10,9 +10,13 @@ what would check it.
 
 | Tier | Ready? | Open items (this tier and below) |
 |---|---|---|
-| T1 Jam-plus | no | 16 |
-| T2 Solid hobby | no | 65 |
-| T3 Commercial-grade | no | 80 |
+| T1 Jam-plus | no | 10 |
+| T2 Solid hobby | no | 52 |
+| T3 Commercial-grade | no | 67 |
+
+Counted 2026-11-21 from the item rows: every distinct Id in the By area tables plus X-1 and X-2
+(listed only under Blocking), open when its status is missing, partial or unverified (done and n/a
+are closed); each tier's count adds the tiers below it. Open: T1 10, T2 42, T3 15.
 
 **Cut line:** T2 Solid hobby
 
@@ -57,7 +61,7 @@ it needs the author: it gets no pjpd task.
 | PORT-2 | Keyboard focus in the frame | T1 | partial | the intro click focuses the frame; no "click to resume" after focus is lost | portal-frame-aqns |
 | PORT-7 | Honest device flags | T1 | missing | no listings yet | listing-r8fn |
 | INP-1 | Game keys vs browser keys | T1 | done | gameui.js onKeyDown returns early on Ctrl/Alt/Meta (D-57); uiboot check | |
-| AUD-2 | Mute, one action away, persisted | T1 | missing | no mute | mute-button-twa8 |
+| AUD-2 | Mute, one action away, persisted | T1 | done | the Sound button (top left) and `M` toggle mute (`GameSound.setMuted`), remembered in localStorage `thingfactory.muted` with try/catch (D-53); uiboot check | mute-button-twa8 |
 | PRIV-1 | Telemetry decision recorded | T1 | partial | direction recorded; schema and notice open | you (telemetry-v54s) |
 | ONB-1 | A stranger makes a first move unaided | T1 | unverified | needs a cold play by someone new | you |
 | ERR-1 | Clean console on a normal run | T1 | unverified | uiboot.js plays clean on a stub DOM; needs a real-browser console check | you |
@@ -72,7 +76,7 @@ it needs the author: it gets no pjpd task.
 | A11Y-2 | Color is never the only signal | T2 | partial | the four crate colors differ by color only | color-shapes-r5qq |
 | MOB-8 | HiDPI and zoom crisp | T2 | partial | gameui.js:420 has no devicePixelRatio | hidpi-678j |
 | MOB-7 | Small desktop window | T2 | unverified | check at 1280x720 and 960x600 | portal-frame-aqns |
-| ERR-3 | Visible, recoverable crash | T2 | missing | no error handlers | crash-screen-zruz |
+| ERR-3 | Visible, recoverable crash | T2 | done | crash.js (loaded first) installs window error/unhandledrejection handlers that show a crash card once: the error, version/seed (selectable), Reload, Start fresh (removes only `SAVE_KEY`) (D-63); uiboot check | crash-screen-zruz |
 | LOAD-3 | Updates reach players | T2 | done | every script/stylesheet URL stamped ?v=<commit> | |
 | MENU-7 | Auto-pause when hidden | T2 | partial | Go keeps ticking from setTimeout in a background tab (gameui.js:812) | hidden-pause-y9wi |
 | LOAD-5 | Doesn't spin when idle | T2 | partial | redraws only on change; Go runs while hidden | hidden-pause-y9wi |
@@ -155,7 +159,7 @@ are T1 as well.
 | Id | Item | Tier | Status | Evidence | Task |
 |---|---|---|---|---|---|
 | AUD-1 | Audio from a gesture | T1 | done | sound.js creates the AudioContext on the first cue, inside a click or keypress | |
-| AUD-2 | Mute | T1 | missing | | mute-button-twa8 |
+| AUD-2 | Mute | T1 | done | see above (D-53) | mute-button-twa8 |
 | AUD-3 | Has sound | T2 | done | sound.js cues on place, wait, splat, milestone | |
 | AUD-4 | Volume | T2 | missing | | settings-rrcw |
 | AUD-5 | Not sound alone | T2 | done | every cue pairs with an animation or banner | |
@@ -220,7 +224,7 @@ are T1 as well.
 |---|---|---|---|---|---|
 | ERR-1 | Clean console | T1 | unverified | | you |
 | ERR-2 | No soft-locks | T1 | done | Wait and Discard are always legal; Esc always leaves a pick mode; smoke.js plays random commands | |
-| ERR-3 | Crash screen | T2 | missing | | crash-screen-zruz |
+| ERR-3 | Crash screen | T2 | done | D-63; uiboot check | crash-screen-zruz |
 | ERR-4 | Debug off | T2 | done | no `console.*`, no cheat keys | |
 | ERR-5 | Disconnect | T2 | n/a | no server yet; telemetry must fail silently (PRIV-4) | |
 | ERR-6 | Long-session stability | T3 | unverified | | |
@@ -278,7 +282,7 @@ are T1 as well.
 |---|---|---|---|---|---|
 | WEB-1 | HTTPS stable URL | T1 | partial | | you |
 | WEB-2 | Only the game deployed | T1 | done | | |
-| WEB-3 | Title, description, favicon | T2 | partial | | meta-tags-dagy |
+| WEB-3 | Title, description, favicon | T2 | done | see above | meta-tags-dagy |
 | WEB-4 | Link previews | T2 | done | | |
 | WEB-5 | Capsule and screenshots | T2 | partial | | you |
 | WEB-6 | Pitch | T2 | missing | | listing-r8fn |

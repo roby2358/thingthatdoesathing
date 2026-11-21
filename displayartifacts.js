@@ -56,6 +56,11 @@ const GameDisplayArtifacts = (function () {
         // the sorry page, with a way past it, instead of the intro.
         TOUCH_ONLY_QUERY: '(pointer: coarse) and (hover: none) and (not (any-pointer: fine))',
         SORRY_PICTURE_PX: 64,        // the Belt drawn on the sorry page
+        // The localStorage key of this game's saved run (none is written yet; save-resume will
+        // use it). The crash screen's Start fresh removes only this key (D-63), never the mute
+        // setting ('thingfactory.muted', sound.js) or anything else; crash.js keeps a copy of the
+        // key for a crash before this file loads.
+        SAVE_KEY: 'thingfactory.run',
         HELP_CARD_PX: 32,            // each card's tile on Help's Things page (D-60)
         HELP_PIECE_SCALE: 1.4,       // a piece in a World picture, times its board size against the hex, so a gremlin's label still draws (D-61)
         HELP_LADDER_SHOWN: 7,        // milestones Help's World page lists before "and on" (D-61)

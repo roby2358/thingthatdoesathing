@@ -12,6 +12,7 @@
 // The sorry page offers "Try it anyway", which builds the game then, as on a desktop.
 const touchOnly = typeof window.matchMedia === 'function' &&
     window.matchMedia(GameDisplayArtifacts.TOUCH_ONLY_QUERY).matches;
+// Top-level, so crash.js can read the board's seed and stop Go when it shows (D-63).
 let state = null, engine = null, ui = null;
 function boot() {
     state = new GameState();

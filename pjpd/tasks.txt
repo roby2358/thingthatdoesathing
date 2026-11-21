@@ -1,14 +1,5 @@
 Priority:   49
 Status: ToDo
-ID: crash-screen-zruz
-Created: 2026-11-17T02:44:52Z
-Updated: 2026-11-17T02:44:52Z
-
-Show a "something broke" screen with Reload and Start fresh when an uncaught error happens.
-Today an uncaught error leaves a frozen canvas. Done looks like: window 'error' and 'unhandledrejection' handlers (installed first thing in index.js) show a plain overlay: one line saying the game hit a bug, the error message and the version/seed for a bug report (selectable text), a Reload button, and a Start fresh button that removes only this game's saved-run key (try/catch) and reloads, in case the save is the cause. Shown once; later errors don't stack overlays. SHIP.md item: ERR-3. Done when `just cc-test` passes, with a uiboot check that a thrown error shows the overlay.
-----
-Priority:   49
-Status: ToDo
 ID: run-stats-m6pe
 Created: 2026-11-17T02:45:14Z
 Updated: 2026-11-17T02:45:14Z
@@ -25,6 +16,15 @@ Updated: 2026-11-17T02:45:19Z
 Move player-facing text into one keyed string table with whole-sentence templates.
 English only for now, but the text is scattered: index.html panels, THING_LOOK names and verb lines, gameui.js literals (banners, hover bar, card text, news), and some sentences are built by concatenation. Done looks like: a STRINGS table in displayartifacts.js keyed by id, with named-slot templates ("{n} more booms; Esc ends it") filled by one small format helper; gameui.js and the static panels read from it (static HTML text set at boot from the table); no player-facing sentence assembled with +. Behavior and wording unchanged. SHIP.md items: LOC-2, LOC-3. Done when `just cc-test` passes and a grep finds no player-facing string literals left in gameui.js outside the table.
 ----
+Priority:   49
+Status: ToDo
+ID: portal-frame-aqns
+Created: 2026-11-17T02:44:31Z
+Updated: 2026-11-17T02:44:31Z
+
+Make the game behave in a portal iframe: fit a declared 1280x720 frame and regain key focus.
+On itch.io and Newgrounds the game runs in an iframe at a size we declare (use 1280x720) and gets no keys until clicked. Done looks like: the HUD, tally, hand, Go button and every overlay (intro, help, New Game, news, color picker, sorry) fit at 1280x720 and at a smaller 960x600 with nothing clipped or overlapping (adjust index.css with sizes that shrink, not hardcoded widths); a mousedown on the canvas or panels calls window.focus(); when the window loses focus mid-game (window blur) a small "Click to resume keys" note shows over the board until the next click. No scrollbars on the page at any size. SHIP.md items: PORT-2, PORT-3, MOB-7. Done when `just cc-test` passes (layout itself is checked by the user in a browser).
+----
 Priority:   48
 Status: ToDo
 ID: settings-rrcw
@@ -33,6 +33,15 @@ Updated: 2026-11-17T02:44:46Z
 
 Add a Settings panel: volume, animation speed, reduced motion, fullscreen, saved apart from the run.
 There's no settings screen. Done looks like: a "Settings" button in the top button row opens an overlay (OVERLAY_KEYS pattern) with: sound on/off (the same flag as the mute button) and a volume slider (GameSound gets setVolume); animation speed (normal / fast / instant, scaling HOP_MS and RUN_GAP_MS in the UI only); reduced motion (skips bursts and fades; defaults on when prefers-reduced-motion matches); a fullscreen toggle (requestFullscreen on the document, label follows fullscreenchange; hidden if the API is missing); and the "help seen" flag so the keys legend shows once per browser, not every load (still reachable from Help). Settings persist in localStorage under their own namespaced key (e.g. "ttdat.settings.v1"), separate from the saved run, with try/catch and defaults when storage fails; New Game never resets them. Client-only; the engine never sees settings. SHIP.md items: SET-1, SET-2, SET-3, SET-4, AUD-4, SAVE-6, ONB-9, PORT-4. Done when `just cc-test` passes, with a uiboot check that a setting survives a UI reboot on the stub DOM.
+----
+Priority:   46
+Status: ToDo
+ID: listing-r8fn
+Created: 2026-11-17T02:44:35Z
+Updated: 2026-11-17T02:44:35Z
+
+Draft the itch.io and Newgrounds listings, the pitch and the AI disclosure in SHIP-LISTING.md.
+Write SHIP-LISTING.md in the game folder with: a one-paragraph pitch (what it is, what you do, how long a session is) reused for the page, both portals and the link preview; a short tagline; genre and tags; input method (mouse and keyboard, desktop only: "mobile friendly" stays OFF on both portals); session length (endless, play in short sittings); content rating notes (cartoon splats, no gore); the declared frame size 1280x720 with fullscreen enabled; the AI disclosure statement (the one in SHIP.md Decisions: code, design, art and sound made with Claude via Claude Code; procedural art and synthesized sound, no generated images or samples) worded for each portal's AI field; and a checklist of the images the user must capture from real play (capsule 630x500 for itch.io, 3+ screenshots at 1280x720, Newgrounds icon sizes per their current upload page). Check each portal's current upload docs and cite the URLs. SHIP.md items: PORT-7, PORT-8, PORT-9, WEB-6. Done when SHIP-LISTING.md exists with every section filled.
 ----
 Priority:   45
 Status: ToDo
@@ -65,23 +74,14 @@ Designer's rule:
 
 Docs: ONTOLOGY (state fields, newGame contract, which randomness belongs to which seed, the h+1 fallback), CRITERIA rows (same words + size = same board; different run seeds = same board, different spawns/hand; invalid words → ok:false; a seed that fails to generate falls through to h+1 deterministically, testable by stubbing or finding a failing seed; tests in the test/R-n dirs), RATIONALE new D-n, ARCHITECTURE_LOG, README (sharing a board), CLAUDE.md (GameState fields, the newGame signature, L5 overlay field, the knownGoodSeed mention). Agent calls go in pjpd/decisions.md. `just cc-test` green; cc-sim numbers unchanged in spirit (seeds shift, but the medians should be close).
 ----
-Priority:   40
+Priority:   45
 Status: ToDo
-ID: portal-frame-aqns
-Created: 2026-11-17T02:44:31Z
-Updated: 2026-11-17T02:44:31Z
+ID: hidpi-678j
+Created: 2026-11-17T02:44:55Z
+Updated: 2026-11-17T02:44:55Z
 
-Make the game behave in a portal iframe: fit a declared 1280x720 frame and regain key focus.
-On itch.io and Newgrounds the game runs in an iframe at a size we declare (use 1280x720) and gets no keys until clicked. Done looks like: the HUD, tally, hand, Go button and every overlay (intro, help, New Game, news, color picker, sorry) fit at 1280x720 and at a smaller 960x600 with nothing clipped or overlapping (adjust index.css with sizes that shrink, not hardcoded widths); a mousedown on the canvas or panels calls window.focus(); when the window loses focus mid-game (window blur) a small "Click to resume keys" note shows over the board until the next click. No scrollbars on the page at any size. SHIP.md items: PORT-2, PORT-3, MOB-7. Done when `just cc-test` passes (layout itself is checked by the user in a browser).
-----
-Priority:   40
-Status: ToDo
-ID: listing-r8fn
-Created: 2026-11-17T02:44:35Z
-Updated: 2026-11-17T02:44:35Z
-
-Draft the itch.io and Newgrounds listings, the pitch and the AI disclosure in SHIP-LISTING.md.
-Write SHIP-LISTING.md in the game folder with: a one-paragraph pitch (what it is, what you do, how long a session is) reused for the page, both portals and the link preview; a short tagline; genre and tags; input method (mouse and keyboard, desktop only: "mobile friendly" stays OFF on both portals); session length (endless, play in short sittings); content rating notes (cartoon splats, no gore); the declared frame size 1280x720 with fullscreen enabled; the AI disclosure statement (the one in SHIP.md Decisions: code, design, art and sound made with Claude via Claude Code; procedural art and synthesized sound, no generated images or samples) worded for each portal's AI field; and a checklist of the images the user must capture from real play (capsule 630x500 for itch.io, 3+ screenshots at 1280x720, Newgrounds icon sizes per their current upload page). Check each portal's current upload docs and cite the URLs. SHIP.md items: PORT-7, PORT-8, PORT-9, WEB-6. Done when SHIP-LISTING.md exists with every section filled.
+Scale the canvas backing store by devicePixelRatio so the board is crisp on HiDPI screens.
+Today resize() sets canvas.width/height to window.innerWidth/innerHeight (gameui.js), so the board is blurry on retina displays and at browser zoom. Done looks like: the backing store is innerWidth*dpr by innerHeight*dpr with CSS size at innerWidth/innerHeight; render() folds dpr into its one setTransform; hexToScreen/screenToHex and the color picker placement stay in CSS pixels so clicks land correctly; MIN_TEXT_PX readability is judged in CSS pixels; the hand card canvases get the same treatment. Re-check on a matchMedia resolution change or resize. SHIP.md item: MOB-8. Done when `just cc-test` passes.
 ----
 Priority:   40
 Status: ToDo
@@ -93,15 +93,6 @@ Hm, talk about if we want to do this one, or if we want the game to idle-run whe
 
 Stop Go when the tab is hidden, so the game doesn't tick on while nobody watches.
 Today Go keeps ticking from setTimeout (gameui.js scheduleRun) while the tab is in the background. Done looks like: on document visibilitychange to hidden, the UI calls setRunning(false) (Go shows as stopped; the tick in flight finishes); nothing restarts on its own when the tab comes back. Burst/animation frames already stop with requestAnimationFrame. Add a uiboot check with a stubbed visibilitychange. SHIP.md items: MENU-7, LOAD-5. Done when `just cc-test` passes.
-----
-Priority:   40
-Status: ToDo
-ID: hidpi-678j
-Created: 2026-11-17T02:44:55Z
-Updated: 2026-11-17T02:44:55Z
-
-Scale the canvas backing store by devicePixelRatio so the board is crisp on HiDPI screens.
-Today resize() sets canvas.width/height to window.innerWidth/innerHeight (gameui.js), so the board is blurry on retina displays and at browser zoom. Done looks like: the backing store is innerWidth*dpr by innerHeight*dpr with CSS size at innerWidth/innerHeight; render() folds dpr into its one setTransform; hexToScreen/screenToHex and the color picker placement stay in CSS pixels so clicks land correctly; MIN_TEXT_PX readability is judged in CSS pixels; the hand card canvases get the same treatment. Re-check on a matchMedia resolution change or resize. SHIP.md item: MOB-8. Done when `just cc-test` passes.
 ----
 Priority:   40
 Status: ToDo
