@@ -9,7 +9,7 @@ later optional login and achievements. Nothing is sent yet; the engine stays hea
 
 ### 2026-11-21 — About panel (D-59)
 An About button in the top bar, and an About link on the intro, open a two-page overlay:
-credits (author and yuwakisa.com, the AI disclosure, tools, version and seed) and privacy
+credits (made by Yuwakisa and yuwakisa.com, a Credits list (Wrangler: Rob Young), the AI disclosure, tools, version and seed) and privacy
 (the planned telemetry, telemetry-v54s, described as running; settings kept in the browser).
 < > and ← → flip pages; clicks on links, buttons and the version/seed text keep it open, any
 other click or key closes it, back to the intro if it came from there. The version is

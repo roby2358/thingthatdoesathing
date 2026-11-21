@@ -106,8 +106,8 @@ const GameDisplayArtifacts = (function () {
         // empty until the game's GitHub Issues page is up (it'll point there); the feedback
         // line isn't shown while it's empty.
         ABOUT: {
-            author: 'Rob Young',
-            studio: 'Yuwakisa',
+            author: 'Yuwakisa',
+            credits: [['Wrangler', 'Rob Young']],   // [role, name] rows under Credits
             homeUrl: 'https://yuwakisa.com',
             homeLabel: 'yuwakisa.com',
             feedbackUrl: '',

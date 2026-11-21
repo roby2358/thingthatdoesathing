@@ -220,6 +220,8 @@ html, body {
 .about-card p { color: var(--text-dim); text-align: left; margin-bottom: 8px; }
 .about-card p.about-by, .about-card p.about-version { text-align: center; color: var(--text); }
 .about-card p.continue { text-align: center; }
+.about-card p.about-credit { color: var(--text); }
+.about-credit span { color: var(--text-dim); margin-right: 6px; }
 .selectable { user-select: text; cursor: text; font-variant-numeric: tabular-nums; color: var(--text); }
 .about-nav { display: flex; justify-content: center; align-items: center; gap: 12px; margin: 14px 0 10px; }
 .about-nav .btn { min-width: 36px; font-weight: 700; }

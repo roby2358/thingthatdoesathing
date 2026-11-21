@@ -531,10 +531,12 @@ const GameUI = (function () {
             this.closeAbout();
         }
 
-        // The About panel's fixed parts: the author, the way back, and the feedback line only
+        // The About panel's fixed parts: the author, the credits, the way back, and the feedback line only
         // once there's somewhere for it to go.
         buildAbout() {
-            document.getElementById('about-author').textContent = `${ABOUT.author} (${ABOUT.studio})`;
+            document.getElementById('about-author').textContent = ABOUT.author;
+            document.getElementById('about-credits').innerHTML = ABOUT.credits
+                .map(([role, name]) => `<p class="about-credit"><span>${role}</span> ${name}</p>`).join('');
             const home = document.getElementById('about-home');
             home.textContent = ABOUT.homeLabel;
             externalLink(home, ABOUT.homeUrl);
