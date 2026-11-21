@@ -259,6 +259,37 @@ Done when: just cc-test passes; the About privacy page in a browser shows the th
 ----
 Priority:   75
 Status: Done
+ID: telemetryrpt-7erk
+Created: 2026-11-21T08:33:51Z
+Updated: 2026-11-21T09:54:24Z
+
+A telemetry report: `just telemetry-report [local-d1] [days]` prints plain-text tables of what Thing Factory players do, for tuning. Modelled on starreach's tools/telemetry_report/ and its ONTOLOGY "Telemetry report" and RATIONALE D-54. Build on telemetrydb-hgs4 (the D1 tables games, events, milestones and crashes, worker/telemetry_schema.sql) and telemetry-q77g (the recorder), which come first.
+
+Settled design:
+- Plain Node JS, no npm: tools/telemetry_report.js plus a tools/telemetry_report/ folder (records, figures, render) if it grows. It reads and never writes.
+- Sources:
+  - No argument: the production D1, via four read-only SELECTs (one per table) through yuwakisacloud's `wrangler d1 execute ttdat-telemetry --remote --env production --json`. Refused before wrangler runs if wrangler.jsonc still holds the PUT-THE-DATABASE-ID-HERE placeholder.
+  - `local-d1`: wrangler dev's local database, via the same queries with --local.
+  - A number argument, in either order, limits it to games started in that many days. A game's events and milestones go with it.
+  - Anything else prints the usage and fails.
+- The heading gives the source, the period, the counts of games, events, milestones and crashes, the versions and rules versions seen, and how many games are signed in. With several rules_versions, every section is printed once per rules version, lowest first.
+- Sections:
+  - Games: started per UTC day; by board size; by version.
+  - Milestones: per board size, for each milestone count (10, 20, 50, …): how many games reached it, and the turn reached (least, median, mean, most); also delivered/lost/ex-gremlins/trapped at that milestone (median).
+  - Commands: per command, count and refused, most first; place and discard broken out by card kind; discards by how ('pick' vs 'slot').
+  - Bomb: hexes per bomb (distribution).
+  - Sessions: games per random player_id (a page load; signed_in 0 rows); a game's real length, first to last record, with and without long pauses (LONG_PAUSE_SECONDS 300); turns per game at its last record.
+  - Clients: top User-Agents bucketed to browser family and OS (a small regex table; the rest are "other"); window sizes bucketed to 100 px; device pixel ratios.
+  - Crashes: count per version; the most common messages (numbers replaced by N, as starreach's refusals), with how many distinct games each hit; crashes with no game.
+  - Players: distinct signed-in player hashes (from rows of any table with signed_in 1, since identity is per batch) and those seen on more than one UTC day; games that switched identity mid-game (shows "no signed-in games" until the sign-in task lands).
+- The figures are pure functions over plain records, so the tests feed fixtures.
+- A just recipe: `telemetry-report *args`.
+- Docs: an ONTOLOGY "Telemetry report" section (invocations, sections, LONG_PAUSE_SECONDS), RATIONALE D-n, a CRITERIA R-row owning test/R-n/ (fixture records → expected tables; usage errors; the placeholder refusal without running wrangler), ARCHITECTURE_LOG, CLAUDE.md, README.
+
+Done when: just cc-test passes with the new rows, and `just telemetry-report local-d1` after a local wrangler dev game (from the telemetry task's U-row) prints every section.
+----
+Priority:   75
+Status: Done
 ID: crate-start-gtz5
 Created: 2026-11-17T09:05:23Z
 Updated: 2026-11-17T18:59:12Z

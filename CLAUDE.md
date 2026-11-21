@@ -45,6 +45,15 @@ yuwakisacloud's wrangler; it refuses while `env.production`'s D1 id is the place
 serves the ship build with the Worker on :8787, `just d1-production` creates production's
 database (designer's go-ahead only); README "Deploy" has the steps.
 
+`just telemetry-report [local-d1] [days]` (`tools/telemetry_report.js` + `tools/telemetry_report/`:
+`records.js` four read-only SELECTs through `$WRANGLER d1 execute --json`, rows → camelCase records;
+`figures.js` pure sums over records; `render.js` the tables; plain Node, D-66) prints the telemetry
+report: production's D1 by default (refused before wrangler runs while `wrangler.jsonc` holds
+`PUT-THE-DATABASE-ID-HERE`), `local-d1` for wrangler dev's; a number limits it to games started in
+that many days. Sections Games, Milestones, Commands, Bomb, Sessions (`LONG_PAUSE_SECONDS` 300),
+Clients, Crashes, Players, once per rules version when there are several. R-70 tests it on fixtures
+and end to end with a fake wrangler over node:sqlite.
+
 ## Architecture
 
 ### What actually runs

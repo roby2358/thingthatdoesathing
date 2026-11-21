@@ -679,11 +679,11 @@ The client reads state, calls commands and queries, never writes state, never ca
 
 ---
 
-## §8 Telemetry [D; D-64, D-65]
+## §8 Telemetry [D; D-64, D-65, D-66]
 *Serves:* tuning §6 from real play (how far games get, how fast, what players build), and bugs
-players never report. Two halves: the browser recorder (`telemetry.js`, `GameTelemetry`, D-65),
+players never report. Two halves, and a report: the browser recorder (`telemetry.js`, `GameTelemetry`, D-65),
 which makes the records and sends them in batches, and the server side (D-64): the ttdat
-Worker's `POST /t` and its D1 database. The engine knows nothing of telemetry; GameUI hands the
+Worker's `POST /t` and its D1 database; `just telemetry-report` reads that database back as tables (D-66). The engine knows nothing of telemetry; GameUI hands the
 recorder each new game and each committed command.
 
 ### Recorder — `GameTelemetry` (telemetry.js) [D-65]
@@ -791,9 +791,42 @@ or any header but its length; Cloudflare observability is off.
 - Every row carries `player_id` and `signed_in`; no foreign keys; no IP column. Indexes: games by
   start time, events by time and by command, crashes by time and by version.
 
+### Telemetry report — `just telemetry-report` (tools/telemetry_report.js) [D-66]
+*Serves:* tuning §6 from what the tables hold, as plain text a designer reads in a terminal.
+Plain Node, no npm: `tools/telemetry_report.js` (the CLI) and `tools/telemetry_report/`
+(`records.js` rows → records, `figures.js` pure sums, `render.js` tables). It reads and never writes.
+```
+just telemetry-report [local-d1] [days]          # node tools/telemetry_report.js wrangler.jsonc …, WRANGLER = yuwakisacloud's
+  args: at most one local-d1 and one whole number ≥ 1, in either order; anything else → the usage, exit 1
+  source: no name → production: refused (exit 1, wrangler never run) while wrangler.jsonc holds
+            PUT-THE-DATABASE-ID-HERE; else wrangler d1 execute ttdat-telemetry --remote --env production --json
+          local-d1 → the same with --local (wrangler dev's database under .wrangler/)
+  read:   four SELECTs, one per table: every game (so an older game's events in the period drop with it,
+          not as left out); events, milestones, crashes with unix_seconds ≥ since
+          (since = now − days × 86400, or 0); rows → records (camelCase, signedIn bool, an event's args
+          = its non-NULL arg columns + rest.args)
+  period: the games started ≥ since, their events and milestones; events and milestones whose game has
+          no games row are left out (counted in the heading); crashes by their own time
+  print:  heading (source, period, counts of games / events / milestones / crashes, versions and
+          rules versions seen with their game counts, signed-in games), then the sections; with
+          several rules versions every section once per rules version, lowest first (a crash goes
+          with its game; crashes with no game in the report get a last block of their own)
+```
+Sections, in order (a table with no rows prints `(none)`):
+- **Games** — started per UTC day; by board size (`MAP_SIZES` order, read from artifacts.js); by version (games, first and last day).
+- **Milestones** — per board size, per milestone count reached: games, share of that size's games, the turn reached (least, median, mean, most), and the median delivered / lost / ex-gremlins / trapped then.
+- **Commands** — per command, count and refused, most first; place and discard by card kind; discards by `how` (`pick` / `slot`).
+- **Bomb** — accepted bombs by hexes per bomb.
+- **Sessions** — games per random `player_id` (a page load: `signed_in` 0 games rows); a game's real length, first to last record (its start, events, milestones), and the same without gaps of `LONG_PAUSE_SECONDS` or more, with the count of those long pauses; turns at its last record (games with no event or milestone counted apart).
+- **Clients** — per game: the User-Agent bucketed to "browser / OS" by a small regex table (Edge, Opera, Samsung Internet, Firefox, Chrome, Safari; Windows, iOS, Android, ChromeOS, macOS, Linux; else "other", none "unknown"); window sizes rounded down to `WINDOW_BUCKET_PX`; device pixel ratios.
+- **Crashes** — per version; messages with numbers as N, most first, with distinct games hit; crashes with no game, and with a game not in the report.
+- **Players** — distinct signed-in `player_id`s (rows of any table with `signed_in` 1: identity is per batch) and those seen on more than one UTC day, or "no signed-in games"; games whose rows carry more than one identity (switched mid-game).
+
 ### Numbers [T]
 | Name | Value | Meaning |
 |---|---|---|
+| `LONG_PAUSE_SECONDS` | 300 | the report: a gap this long or longer between a game's records is a long pause, left out of its active length (D-66) |
+| `WINDOW_BUCKET_PX` | 100 | the report: window sizes are rounded down to this many px each way (D-66) |
 | `TELEMETRY_FORMAT` | 1 | the batch format this build sends and reads |
 | `MAX_BODY_BYTES` | 64 KB | the largest batch body |
 | `MAX_RECORDS` | 200 | records per batch, all four lists together |

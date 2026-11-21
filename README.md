@@ -137,3 +137,11 @@ again) gives it its tables, then `just dev-worker` serves the build with the Wor
 http://localhost:8787, and `../yuwakisacloud/node_modules/.bin/wrangler d1 execute ttdat-telemetry
 --local --command "SELECT * FROM games"` shows what arrived. Production's database is made
 once with `just d1-production` (step 3 above).
+
+`just telemetry-report` prints what players do as plain-text tables, for tuning: games per day,
+board size and version; per board size, the turn each milestone was reached; commands and
+refusals, places and discards by card; bomb sizes; sessions and game lengths; browsers, window
+sizes and pixel ratios; crashes; signed-in players. It reads production's database (and refuses
+while the placeholder id is still in `wrangler.jsonc`); `just telemetry-report local-d1` reads
+the local one, and a number limits it to games started in that many days
+(`just telemetry-report local-d1 7`). It only reads.
