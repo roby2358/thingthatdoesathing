@@ -333,6 +333,17 @@ Done when: just cc-test passes with the new rows and the uiboot test.
 ----
 Priority:   70
 Status: Done
+ID: prodtables-3xzh
+Created: 2026-11-21T17:56:01Z
+Updated: 2026-11-21T18:12:15Z
+
+Recreate production's telemetry events and milestones tables before the first deploy (user-run: agents may not touch production D1).
+Production's ttdat-telemetry database got its tables on 2026-11-21 from the old worker/telemetry_schema.sql. Since then events and milestones gained four INTEGER NOT NULL columns (delivered_red, delivered_green, delivered_blue, delivered_yellow) and their rest column became nullable. The schema file uses CREATE TABLE IF NOT EXISTS with no ALTER migrations, so rerunning just d1-production leaves the old tables as they are, and a deployed Worker would fail every event and milestone insert (logged and dropped).
+Steps (user, with a wrangler login): confirm the tables are empty (nothing has been deployed), drop events and milestones in production (e.g. wrangler d1 execute ttdat-telemetry --remote --env production --command "DROP TABLE events; DROP TABLE milestones;"), then run just d1-production to recreate them from the current schema.
+Done when: in production, PRAGMA table_info('events') and ('milestones') list the four delivered_<color> columns and rest is nullable, before just deploy is run.
+----
+Priority:   70
+Status: Done
 ID: eventseq-r3vx
 Created: 2026-11-21T17:18:06Z
 Updated: 2026-11-21T17:41:40Z
