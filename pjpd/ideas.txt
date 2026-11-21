@@ -128,6 +128,13 @@ TODO move this to an idea and let's talk about it
 Give each crate color a shape mark so color isn't the only signal.
 The four crate colors (and their sources, targets and colored Pushers/Pullers) differ only by color, which colorblind players can't tell apart. Done looks like: each CRATE_COLORS entry gets a distinct small glyph in displayartifacts.js (e.g. circle, triangle, square, diamond) drawn on its crates, on its source's plus and target's rings, on Pusher/Puller Things and cards of that color, and in the color picker swatches and the tally's per-color rows; readable at 1x zoom, skipped below MIN_TEXT_PX like on-map text. Client-only. SHIP.md item: A11Y-2. Done when `just cc-test` passes.
 ----
+Score:   45
+ID: sessionsall-3mjy
+Created: 2026-11-21T19:22:07Z
+Updated: 2026-11-21T19:22:07Z
+
+The report's Sessions section ("games per page load (random player ID, not signed in)") counts only games whose games row is signed out, grouped by the random per-load player ID. A game that starts signed in (Sign in from the board-size panel before the first game) has the account hash as its player, so it isn't counted: the first production game (2026-11-21, e9c6a64) started signed in, signed out at turn ~400, and the section printed "0 page loads". Open questions: a signed-in game has no per-load ID to group by (the hash spans loads and days), so what counts as a session for it: group signed-in games by hash plus a time gap (the report's LONG_PAUSE_SECONDS?), or print signed-in games as their own line ("games started signed in: N") beside the per-load table, or have the recorder send its per-load random ID on every batch even when signed in (a new field, more data per row, and a privacy-page line, since it would tie loads to an account)? Also whether "switched identity mid-game" should say which way (signed in → out, out → in).
+----
 Score:   40
 ID: zoom-lod-t65a
 Created: 2026-11-12T08:52:10Z
