@@ -4,7 +4,7 @@
 // and requestAnimationFrame, then drives the UI through clicks and keys: pick a board size
 // from the intro, pick each card, turn the ghost, place, select and rotate, remove the selected Thing with D, wait, run tick animations to completion,
 // play to the first milestone (checking that no two pieces are ever drawn on one hex at a hop,
-// D-38), drive the color picker (D-32), the Mover's pick-up and carry (D-47), the Bomb's booms (D-48), the map-scale buttons (D-40), and the sorry page a phone gets (D-41). Catches runtime errors in rendering and input wiring without a
+// D-38), drive the color picker (D-32), the Mover's pick-up and carry (D-47), the Bomb's booms (D-48), the map-scale buttons (D-40), the About panel (D-59), and the sorry page a phone gets (D-41). Catches runtime errors in rendering and input wiring without a
 // browser. It can't judge how anything looks; that stays manual (U-rows).
 'use strict';
 
@@ -31,8 +31,9 @@ function fakeEl(tag) {
         listeners: {},
         classList: { set: new Set(), toggle(c, on) { on ? this.set.add(c) : this.set.delete(c); }, add(c) { this.set.add(c); }, remove(c) { this.set.delete(c); } },
         addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); },
-        fire(type, ev = {}) { for (const fn of this.listeners[type] || []) fn({ preventDefault() {}, ...ev }); },
+        fire(type, ev = {}) { for (const fn of this.listeners[type] || []) fn({ preventDefault() {}, target: this, ...ev }); },
         appendChild(c) { this.children.push(c); return c; },
+        closest: () => null,
         getContext: () => fakeCtx(),
         querySelector(sel) {
             this._q ||= {};
@@ -47,7 +48,9 @@ const els = {};
 const document = {
     getElementById: id => (els[id] ||= fakeEl(id)),
     createElement: tag => fakeEl(tag),
+    documentElement: fakeEl('html'),
 };
+let selectedText = '';   // what window.getSelection() holds
 let rafQueue = [];
 let clock = 0;
 // The page rolls each board's seed with Math.random; seed that too, so every run plays the
@@ -76,6 +79,7 @@ const ctx = vm.createContext({
     console, document, Math: seededMath, JSON, Number, String, Array, Map, Set, Object, Proxy, parseInt, Float64Array,
     window: {
         innerWidth: 1280, innerHeight: 720,
+        getSelection: () => ({ toString: () => selectedText }),
         addEventListener: (t, fn) => (windowListeners[t] ||= []).push(fn),
     },
     performance: { now: () => clock },
@@ -511,6 +515,60 @@ run('Help shows the keys and holds Go; closing it lets Go pick up again', () => 
     advance(1000);
     if (s.turn === held || !ui.running) throw new Error('Go did not pick up after Help closed');
     els.go.fire('click'); settle();
+});
+run('About opens over the game and holds Go; < > and the arrow keys turn its pages; links, buttons and the version stay; another key or a click closes (D-59)', () => {
+    els['new-game'].fire('click'); key('1');
+    const s = ui.state;
+    const shown = id => !els[id].classList.set.has('hidden');
+    const page = () => [0, 1].filter(i => shown('about-page-' + i)).join();
+    els.go.fire('click');
+    advance(1000);
+    els.about.fire('click');
+    if (ui.overlay !== 'about' || !shown('about-panel')) throw new Error('About did not open');
+    if (page() !== '0' || !els['about-prev'].disabled || els['about-next'].disabled) throw new Error('About must open on the credits page, got ' + page());
+    if (els['about-version'].textContent !== 'dev') throw new Error('an unstamped page must read dev, got ' + els['about-version'].textContent);
+    if (!shown('about-seed-part') || els['about-seed'].textContent !== String(s.seed)) throw new Error('the seed must show beside the version');
+    const home = els['about-home'];
+    if (home.href !== 'https://yuwakisa.com' || home.target !== '_blank' || home.rel !== 'noopener' || home.textContent !== 'yuwakisa.com') throw new Error('the way back must open yuwakisa.com in a new tab');
+    if (shown('about-feedback-line')) throw new Error('the feedback line must stay hidden while its URL is empty');
+    settle(); advance(500);
+    const held = s.turn;
+    advance(2000);
+    if (s.turn !== held) throw new Error('ticked while About was open');
+    els['about-next'].fire('click');
+    if (ui.overlay !== 'about' || page() !== '1' || els['about-prev'].disabled || !els['about-next'].disabled) throw new Error('> must turn to the privacy page');
+    if (els['about-count'].textContent !== '2 / 2') throw new Error('page count: ' + els['about-count'].textContent);
+    els['about-prev'].fire('click');
+    if (ui.overlay !== 'about' || page() !== '0') throw new Error('< must turn back to the credits');
+    key('ArrowRight');
+    if (ui.overlay !== 'about' || page() !== '1') throw new Error('→ must turn to the privacy page');
+    key('ArrowRight');
+    if (ui.overlay !== 'about' || page() !== '1') throw new Error('→ on the last page must stay put');
+    key('ArrowLeft');
+    if (ui.overlay !== 'about' || page() !== '0') throw new Error('← must turn back');
+    els['about-panel'].fire('click', { target: { closest: () => home } });
+    if (ui.overlay !== 'about') throw new Error('a click on a link, a button or the version must not close About');
+    selectedText = 'dev';
+    els['about-panel'].fire('click');
+    selectedText = '';
+    if (ui.overlay !== 'about') throw new Error('a click that ends a text selection must not close About');
+    key('q');
+    if (ui.overlay || shown('about-panel')) throw new Error('another key must close About');
+    advance(1000);
+    if (s.turn === held || !ui.running) throw new Error('Go did not pick up after About closed');
+    els.go.fire('click'); settle();
+    els.about.fire('click');
+    els['about-panel'].fire('click');
+    if (ui.overlay) throw new Error('a click elsewhere on the panel must close About');
+    document.documentElement.dataset.version = 'abc1234';
+    try {
+        els.about.fire('click');
+        if (els['about-version'].textContent !== 'abc1234') throw new Error('a stamped build must show its version');
+        els['about-panel'].fire('click');
+        if (ui.overlay) throw new Error('a click must close About');
+    } finally {
+        delete document.documentElement.dataset.version;
+    }
 });
 run('the Sound button and M flip the muted flag', () => {
     const before = ui.sound.isMuted();
@@ -975,8 +1033,9 @@ function bootPointer(media, nav) {
         getElementById: id => (pageEls[id] ||= fakeEl(id)),
         createElement: tag => fakeEl(tag),
         body: fakeEl('body'),
+        documentElement: fakeEl('html'),
     };
-    const win = { location: { href: 'https://example.test/thing' }, innerWidth: 390, innerHeight: 844, addEventListener: (t, fn) => (listeners[t] ||= []).push(fn), AudioContext: SilentAudio };
+    const win = { location: { href: 'https://example.test/thing' }, innerWidth: 390, innerHeight: 844, getSelection: () => ({ toString: () => '' }), addEventListener: (t, fn) => (listeners[t] ||= []).push(fn), AudioContext: SilentAudio };
     const asked = [];
     if (media !== undefined) win.matchMedia = q => { asked.push(q); return { matches: media, media: q }; };
     const pageCtx = vm.createContext({
@@ -1013,6 +1072,17 @@ run('the sorry page has Try it anyway (boots the game) and Copy link (share, els
     c.els['sorry-copy'].fire('click');
     if (written[0] !== 'https://example.test/thing') throw new Error('clipboard not written');
     if (c.els['sorry-copied'].classList.set.has('hidden')) throw new Error('no copied note');
+});
+run('the intro has an About link with no seed yet; closing About goes back to the intro (D-59)', () => {
+    const p = bootPointer(false);
+    const pui = p.boot.ui;
+    p.els['intro-about'].fire('click');
+    if (pui.overlay !== 'about' || p.els['about-panel'].classList.set.has('hidden')) throw new Error('the intro link must open About');
+    if (!p.els['about-seed-part'].classList.set.has('hidden')) throw new Error('no board yet, so no seed');
+    p.listeners.keydown.forEach(fn => fn({ key: 'ArrowRight', preventDefault() {} }));
+    if (pui.overlay !== 'about' || p.els['about-page-1'].classList.set.has('hidden')) throw new Error('→ must turn the page over the intro too');
+    p.listeners.keydown.forEach(fn => fn({ key: 'Escape', preventDefault() {} }));
+    if (pui.overlay !== 'intro' || p.els['intro-panel'].classList.set.has('hidden') || pui.state.hexes) throw new Error('closing About must go back to the intro');
 });
 run('a fine pointer, or no matchMedia at all, boots the game on the intro as before', () => {
     for (const media of [false, undefined]) {

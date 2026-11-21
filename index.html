@@ -24,6 +24,7 @@
                 <button id="new-game" class="btn">New Game</button>
                 <button id="sound" class="btn" title="Turn all sound on or off (M)">Sound: on</button>
                 <button id="help" class="btn" title="Show the keys; ticks hold while it's open">Help</button>
+                <button id="about" class="btn" title="Credits, version and privacy; ticks hold while it's open">About</button>
             </span>
         </div>
         <div id="zoom" class="panel" title="Map scale"><span class="zoom-label">Map</span><span class="buttons" id="zoom-buttons"></span></div>
@@ -64,6 +65,7 @@
             ticks the world once, so build where it counts.</p>
         <p class="pick-size">Pick a board to begin</p>
         <div class="sizes" id="intro-sizes"></div>
+        <button id="intro-about" class="link" type="button">About</button>
     </div>
     <div id="help-panel" class="hidden">
         <div class="panel help-card">
@@ -89,8 +91,44 @@
                 <dt><kbd>Enter</kbd> / Go</dt><dd>keep ticking; again to finish this tick and stop</dd>
                 <dt>Drag</dt><dd>pan the board</dd>
                 <dt>Map 1 · 2 · ∞</dt><dd>buttons (no keys): the board at full or 1/2 size, or all of it above the hand</dd>
+                <dt>About</dt><dd>credits, version and privacy; <kbd>←</kbd> <kbd>→</kbd> turn its pages</dd>
             </dl>
             <p class="continue">Click or press any key to play</p>
+        </div>
+    </div>
+    <!-- About (D-59): two pages, credits then privacy. A click on a link, a button or the
+    version/seed text keeps it open; any other click or key closes it, ← → turn the pages. -->
+    <div id="about-panel" class="hidden">
+        <div class="panel help-card about-card">
+            <div id="about-page-0">
+                <h1>Thing Factory</h1>
+                <p class="about-by">Made by <span id="about-author"></span> · <a id="about-home"></a></p>
+                <h2>Made with AI</h2>
+                <p>Built with AI, start to finish, and that's the point. The code, the design docs,
+                    the board art and the bleeps were all made in conversation with Claude
+                    (Anthropic) in Claude Code, one human steering and a lot of machine building.
+                    Nothing is a generated image or a sample: the art is drawn by code on a canvas
+                    and the sound is synthesized live.</p>
+                <h2>Tools</h2>
+                <p>Plain JavaScript in your browser: no third-party code or libraries, no image or
+                    sound files. The text is in your system's fonts, and the 🗑 is your system's emoji.</p>
+                <p id="about-feedback-line" class="hidden">Found a bug or have an idea? <a id="about-feedback">Tell me</a></p>
+                <p class="about-version">Version <span id="about-version" class="selectable">dev</span><span id="about-seed-part"> · Seed <span id="about-seed" class="selectable"></span></span></p>
+            </div>
+            <div id="about-page-1" class="hidden">
+                <h1>Privacy</h1>
+                <p>While you play, the game sends your moves, the board size, the seed and the game
+                    version to our own server. They're used only to tune the game.</p>
+                <p>They're tied to a random ID made fresh each session. No cookies, no account, no
+                    IP addresses kept, no personal data.</p>
+                <p>Your browser keeps your settings (like mute). Map saves are planned.</p>
+            </div>
+            <div class="about-nav">
+                <button id="about-prev" class="btn" type="button" title="Previous page (←)">&lt;</button>
+                <span id="about-count">1 / 2</span>
+                <button id="about-next" class="btn" type="button" title="Next page (→)">&gt;</button>
+            </div>
+            <p class="continue">Click or press any key to close</p>
         </div>
     </div>
     <div id="size-panel" class="panel hidden">

@@ -12,7 +12,7 @@ const GameUI = (function () {
         HEX_SIZE, COUNTER_SIZE, HOP_MS, RUN_GAP_MS, MILESTONE_MS, NOTICE_MS, REASONS, TERRAIN_COLORS, TERRAIN_NAMES, THING_LOOK,
         PIECE_LOOK, CRATE_SHADES, BIG_CRATE_SCALE, COLOR_INK, SPLAT_BLOTS, SOURCE_COLOR, PORT_NEUTRAL_MARK, PORT_OUTLINE,
         PORT_MARK_WIDTH, PORT_RING_RADII, PORT_PLUS_REACH, PORT_OUTLINE_WIDTH, BG_COLOR, UI_FONT, REACH_COLOR, MAP_SIZE_NOTES,
-        COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES
+        COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES, ABOUT
     } = GameDisplayArtifacts;
     const { TERRAIN, THINGS, WHITE, HAND_SIZE, MAP_SIZES, aims, cardOf, nextMilestone } = GameArtifacts;
     const SIZE_KEYS = Object.keys(MAP_SIZES);
@@ -30,17 +30,31 @@ const GameUI = (function () {
         drawThing(c.getContext('2d'), px / 2, px / 2, px * 5 / 12, kind, WHITE, aims(kind) ? 0 : null, 1);
         return c;
     }
-    const OVERLAY_PANELS = { intro: 'intro-panel', size: 'size-panel', news: 'news-panel', help: 'help-panel', color: 'color-panel' };   // L5 overlay → its panel
+    const OVERLAY_PANELS = { intro: 'intro-panel', size: 'size-panel', news: 'news-panel', help: 'help-panel', color: 'color-panel', about: 'about-panel' };   // L5 overlay → its panel
     // L5: what a key does on each overlay. The size pickers take their number keys (and Esc
     // when a game is behind); the news panel (new colors) and the keys legend close
-    // on any key; the color picker takes its swatch numbers and Esc.
+    // on any key; the color picker takes its swatch numbers and Esc; About turns its pages on
+    // ← → and closes on any other key (D-59).
     const OVERLAY_KEYS = {
         intro: (ui, e) => ui.sizeKey(e),
         size: (ui, e) => ui.sizeKey(e),
         news: ui => ui.dismissOverlay(),
         help: ui => ui.dismissOverlay(),
         color: (ui, e) => ui.colorKey(e),
+        about: (ui, e) => ui.aboutKey(e),
     };
+    // About (D-59): its pages (#about-page-0…), and what a click on the panel may land on
+    // without closing it: a link, the < > buttons, the version and seed text.
+    const ABOUT_PAGES = 2;
+    const ABOUT_STAYS = 'a, button, .selectable';
+    // The build's version, stamped on <html data-version> by tools/ship.js; "dev" unstamped.
+    const gameVersion = () => document.documentElement.dataset.version || 'dev';
+    // Every external link leaves the page (and a portal's frame) in a new tab.
+    function externalLink(a, url) {
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+    }
 
     const DRAG_THRESHOLD = 4;
 
@@ -399,7 +413,9 @@ const GameUI = (function () {
             this.picked = null;      // L1.2 { slot, card, mode, legal: Set<key>, kind, color, from, booms } — the card in play (PICK_MODES; kind/color: what a ghost draws; from: a carried Thing's hex; booms: the hexes a Bomb has blown up, D-48)
             this.choosing = null;    // L5 { q, r, colors } — the color picker's hex and swatches, while it's open (D-32)
             this.facing = 0;         // ghost facing; remembered between placements
-            this.overlay = null;     // L5 'intro' | 'size' (board-size pickers) | 'news' (a color opened) | 'help' (the keys) | 'color' (the color picker, D-32) | null
+            this.overlay = null;     // L5 'intro' | 'size' (board-size pickers) | 'news' (a color opened) | 'help' (the keys) | 'color' (the color picker, D-32) | 'about' (credits and privacy, D-59) | null
+            this.aboutPage = 0;      // the About page showing (D-59)
+            this.aboutFrom = null;   // the overlay About opened over ('intro'), to go back to; null over the game
             this.hoveredHex = null;  // L1.3
             this.selected = null;    // {q, r} — a clicked hex: highlighted, holds Go; a second click turns its mover
             this.bursts = [];        // [{ q, r, thing, piece, t0 }] — Bomb booms bursting now, outside any tick (D-48)
@@ -471,6 +487,64 @@ const GameUI = (function () {
         showHelp() {
             if (this.overlay) return;
             this.showOverlay('help');
+        }
+
+        // About (D-59): credits, then privacy, flipped by < > or ← →. Over the game it holds Go
+        // like Help; from the intro's link it goes back to the intro when it closes. The seed
+        // shows only when there's a board.
+        showAbout() {
+            if (this.overlay && this.overlay !== 'intro') return;
+            this.aboutFrom = this.overlay;
+            document.getElementById('about-version').textContent = gameVersion();
+            const board = !!this.state.hexes;
+            document.getElementById('about-seed-part').classList.toggle('hidden', !board);
+            if (board) document.getElementById('about-seed').textContent = String(this.state.seed);
+            this.showAboutPage(0);
+            this.showOverlay('about');
+        }
+
+        showAboutPage(page) {
+            this.aboutPage = Math.max(0, Math.min(ABOUT_PAGES - 1, page));
+            for (let i = 0; i < ABOUT_PAGES; i++) document.getElementById('about-page-' + i).classList.toggle('hidden', i !== this.aboutPage);
+            document.getElementById('about-prev').disabled = this.aboutPage === 0;
+            document.getElementById('about-next').disabled = this.aboutPage === ABOUT_PAGES - 1;
+            document.getElementById('about-count').textContent = `${this.aboutPage + 1} / ${ABOUT_PAGES}`;
+        }
+
+        closeAbout() {
+            const back = this.aboutFrom;
+            this.aboutFrom = null;
+            if (back) this.showOverlay(back);
+            else this.dismissOverlay();
+        }
+
+        aboutKey(e) {
+            if (e.key === 'ArrowLeft') this.showAboutPage(this.aboutPage - 1);
+            else if (e.key === 'ArrowRight') this.showAboutPage(this.aboutPage + 1);
+            else this.closeAbout();
+        }
+
+        // A click on the About panel closes it, unless it landed on a link, a page button or
+        // the version/seed text, or it ended a text selection (copying the version).
+        onAboutClick(e) {
+            if (e.target.closest(ABOUT_STAYS) || window.getSelection().toString()) return;
+            this.closeAbout();
+        }
+
+        // The About panel's fixed parts: the author, the way back, and the feedback line only
+        // once there's somewhere for it to go.
+        buildAbout() {
+            document.getElementById('about-author').textContent = `${ABOUT.author} (${ABOUT.studio})`;
+            const home = document.getElementById('about-home');
+            home.textContent = ABOUT.homeLabel;
+            externalLink(home, ABOUT.homeUrl);
+            document.getElementById('about-feedback-line').classList.toggle('hidden', !ABOUT.feedbackUrl);
+            if (ABOUT.feedbackUrl) externalLink(document.getElementById('about-feedback'), ABOUT.feedbackUrl);
+            document.getElementById('about').addEventListener('click', () => this.showAbout());
+            document.getElementById('intro-about').addEventListener('click', () => this.showAbout());
+            document.getElementById('about-panel').addEventListener('click', e => this.onAboutClick(e));
+            document.getElementById('about-prev').addEventListener('click', () => this.showAboutPage(this.aboutPage - 1));
+            document.getElementById('about-next').addEventListener('click', () => this.showAboutPage(this.aboutPage + 1));
         }
 
         resize() {
@@ -1638,6 +1712,7 @@ const GameUI = (function () {
             document.getElementById('sound').addEventListener('click', () => this.toggleMute());
             this.showMute();
             document.getElementById('help-panel').addEventListener('click', () => this.dismissOverlay());
+            this.buildAbout();
             const colorPanel = document.getElementById('color-panel');
             colorPanel.addEventListener('click', () => this.closeColorPicker());
             colorPanel.addEventListener('contextmenu', e => { e.preventDefault(); this.closeColorPicker(); });

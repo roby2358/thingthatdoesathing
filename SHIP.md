@@ -11,15 +11,15 @@ what would check it.
 | Tier | Ready? | Open items (this tier and below) |
 |---|---|---|
 | T1 Jam-plus | no | 16 |
-| T2 Solid hobby | no | 70 |
-| T3 Commercial-grade | no | 85 |
+| T2 Solid hobby | no | 65 |
+| T3 Commercial-grade | no | 80 |
 
 **Cut line:** T2 Solid hobby
 
 ## Decisions
 
 - **Devices:** desktop only (mouse and keyboard). Phones and tablets get the sorry screen (D-41).
-- **Telemetry:** direction chosen, details `open`. Log basically every action to Cloudflare D1 behind a small Worker at ttdat.yuwakisa.com. The schema, privacy notice, opt-in or out, retention and portal CORS still need brainstorming (idea telemetry-v54s).
+- **Telemetry:** direction chosen, details `open`. Log basically every action to Cloudflare D1 behind a small Worker at ttdat.yuwakisa.com. The schema, privacy notice, opt-in or out, retention and portal CORS still need brainstorming (idea telemetry-v54s). The About panel's privacy page (D-59) already describes the planned telemetry as if it were running: moves, board size, seed and version sent to "our own server" (no hostname named), tied to a random per-session ID, no cookies, account, IP addresses or personal data, no retention period stated. Nothing is sent yet; whatever ships must keep that page true, or the page changes with it.
 - **Languages:** English only. The string table should still be made ready for more (LOC-2).
 - **Hosting:** the game moves to its own repo and is served at https://ttdat.yuwakisa.com on Cloudflare. Also on itch.io and Newgrounds.
 - **Monetization:** none; the game is free.
@@ -84,12 +84,12 @@ it needs the author: it gets no pjpd task.
 | SAVE-6 | Settings saved apart from progress | T2 | missing | nothing saved | settings-rrcw |
 | ONB-9 | Hints don't nag returning players | T2 | partial | the keys legend shows after every intro | settings-rrcw |
 | PORT-4 | Fullscreen in the frame | T2 | missing | no toggle | settings-rrcw |
-| LEGAL-4 | Credits screen | T2 | missing | none | credits-55gy |
-| LEGAL-5 | AI disclosure in game | T2 | missing | drafted above, not in game | credits-55gy |
-| OPS-2 | Version visible | T2 | missing | none | credits-55gy |
-| OPS-1 | Feedback channel | T2 | missing | none | credits-55gy |
-| PRIV-3 | What is stored is stated | T2 | missing | none | credits-55gy |
-| WEB-7 | A way back | T2 | missing | no link to yuwakisa.com | credits-55gy |
+| LEGAL-4 | Credits screen | T2 | done | About button (top bar) and the intro's About link open the About panel: author, yuwakisa.com, tools (D-59) | |
+| LEGAL-5 | AI disclosure in game | T2 | done | the Decisions draft, on the About panel's first page (D-59) | |
+| OPS-2 | Version visible | T2 | done | About shows `<html data-version>` ("dev" unstamped) beside the seed, both selectable (D-59); uiboot check | |
+| OPS-1 | Feedback channel | T2 | missing | feedback link hidden until the GitHub Issues page exists (`ABOUT.feedbackUrl` is empty; the line shows once it is set) | you |
+| PRIV-3 | What is stored is stated | T2 | done | About's privacy page: settings kept in the browser, map saves planned, and the planned telemetry (D-59) | |
+| WEB-7 | A way back | T2 | done | About links yuwakisa.com, new tab (D-59) | |
 | MENU-6 | End payoff | T2 | partial | endless; milestone banners only; New Game drops the run unseen | run-stats-m6pe |
 | SAVE-7 | Player can wipe data | T2 | missing | nothing to wipe yet | wipe-data-mw24 |
 | WEB-3 | Title, description, favicon | T2 | done | tags in index.html (D-56) | meta-tags-dagy |
@@ -282,7 +282,7 @@ are T1 as well.
 | WEB-4 | Link previews | T2 | done | | |
 | WEB-5 | Capsule and screenshots | T2 | partial | | you |
 | WEB-6 | Pitch | T2 | missing | | listing-r8fn |
-| WEB-7 | Way back | T2 | missing | | credits-55gy |
+| WEB-7 | Way back | T2 | done | see above | |
 | WEB-8 | Clip or GIF | T3 | missing | | |
 | WEB-9 | Old URLs | T3 | partial | the move leaves yuwakisa.com/thingthatdoesathing/ (X-2) | you |
 | WEB-10 | Embedding policy | T3 | missing | | |
@@ -294,8 +294,8 @@ are T1 as well.
 | LEGAL-1 | Provenance inventory | T1 | done | see Provenance | |
 | LEGAL-2 | Third-party licenses | T1 | done | no third-party code, fonts or media | |
 | LEGAL-3 | AI tool terms | T1 | done | Claude via Claude Code; Anthropic's terms give the user the outputs | |
-| LEGAL-4 | Credits screen | T2 | missing | | credits-55gy |
-| LEGAL-5 | AI disclosure | T2 | missing | | credits-55gy |
+| LEGAL-4 | Credits screen | T2 | done | see above | |
+| LEGAL-5 | AI disclosure | T2 | done | see above | |
 | LEGAL-6 | Name is its own | T2 | unverified | | you |
 | LEGAL-7 | Repo license | T2 | done | LICENSE (MIT) | |
 | LEGAL-8 | Content notes | T3 | n/a | cartoon splats only | |
@@ -306,7 +306,7 @@ are T1 as well.
 |---|---|---|---|---|---|
 | PRIV-1 | Telemetry decision | T1 | partial | | you (telemetry-v54s) |
 | PRIV-2 | No uncovered tracking | T1 | done | no scripts, beacons or fetches | |
-| PRIV-3 | What's stored is stated | T2 | missing | | credits-55gy |
+| PRIV-3 | What's stored is stated | T2 | done | see above | |
 | PRIV-4 | Telemetry hygiene | T2 | n/a | not built; requirements are in telemetry-v54s | |
 | PRIV-5 | Server data | T2 | n/a | not built; D1 telemetry will need it | |
 
@@ -314,8 +314,8 @@ are T1 as well.
 
 | Id | Item | Tier | Status | Evidence | Task |
 |---|---|---|---|---|---|
-| OPS-1 | Feedback channel | T2 | missing | | credits-55gy |
-| OPS-2 | Version visible | T2 | missing | | credits-55gy |
+| OPS-1 | Feedback channel | T2 | missing | see above | you |
+| OPS-2 | Version visible | T2 | done | see above | |
 | OPS-3 | Tagged deploy | T2 | done | | |
 | OPS-4 | Patch path | T2 | partial | | save-resume-tbe3 |
 | OPS-5 | Changelog | T3 | partial | ARCHITECTURE_LOG.md is for developers, not players | |
@@ -342,7 +342,7 @@ Portal docs checked 2026-11-17:
 | PORT-2 | Keyboard focus | T1 | partial | | portal-frame-aqns |
 | PORT-3 | Fits the frame | T1 | partial | | portal-frame-aqns |
 | PORT-4 | Fullscreen | T2 | missing | | settings-rrcw |
-| PORT-5 | Links leave the frame | T2 | n/a | no external links yet; the credits task requires `target="_blank"` | credits-55gy |
+| PORT-5 | Links leave the frame | T2 | done | every external link goes through `externalLink()` in gameui.js: `target="_blank" rel="noopener"` (D-59) | |
 | PORT-6 | Server CORS | T2 | n/a | until telemetry exists; the D1 Worker must allow the portal CDN origins | |
 | PORT-7 | Device flags | T1 | missing | | listing-r8fn |
 | PORT-8 | Listing complete | T2 | missing | | listing-r8fn |
@@ -353,11 +353,11 @@ Portal docs checked 2026-11-17:
 
 | Asset | Kind | Source | License / terms | In credits? |
 |---|---|---|---|---|
-| Game code (all .js, .html, .css) | code | written with Claude in Claude Code; hex.js, rando.js and colortheory.js come from the author's own Hex & Counters base | MIT (LICENSE) | no (credits-55gy) |
-| Board, Things, crates, cards | art | drawn procedurally on a canvas by the game code | same as the code | no |
-| Sound cues | audio | synthesized live with Web Audio (sound.js); no samples | same as the code | no |
-| UI font | font | system font stack (system-ui, Segoe UI, Roboto) | the player's own fonts; nothing shipped | n/a |
-| 🗑 on the Discard spot | emoji | the player's system emoji font | nothing shipped | n/a |
+| Game code (all .js, .html, .css) | code | written with Claude in Claude Code; hex.js, rando.js and colortheory.js come from the author's own Hex & Counters base | MIT (LICENSE) | yes: About names the author and Claude in Claude Code (D-59) |
+| Board, Things, crates, cards | art | drawn procedurally on a canvas by the game code | same as the code | yes: About says the art is drawn by code |
+| Sound cues | audio | synthesized live with Web Audio (sound.js); no samples | same as the code | yes: About says the sound is synthesized live |
+| UI font | font | system font stack (system-ui, Segoe UI, Roboto) | the player's own fonts; nothing shipped | yes: About says system fonts |
+| 🗑 on the Discard spot | emoji | the player's system emoji font | nothing shipped | yes: About names the 🗑 as the system emoji |
 
 ## Unverified
 

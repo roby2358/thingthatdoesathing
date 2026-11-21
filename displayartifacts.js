@@ -102,6 +102,16 @@ const GameDisplayArtifacts = (function () {
             bigcrate: { name: 'Big crate — worth 10' },
             gremlin: { name: 'Gremlin — wanders' },
         },
+        // The About panel (D-59): who made it and where the way back goes. feedbackUrl stays
+        // empty until the game's GitHub Issues page is up (it'll point there); the feedback
+        // line isn't shown while it's empty.
+        ABOUT: {
+            author: 'Rob Young',
+            studio: 'Yuwakisa',
+            homeUrl: 'https://yuwakisa.com',
+            homeLabel: 'yuwakisa.com',
+            feedbackUrl: '',
+        },
         CRATE_SHADES,                // built above: top / left / right faces, plus `light`
         BIG_CRATE_SCALE: 1.5,        // a big crate is drawn this much bigger than a crate (D-34)
         SPLAT_BLOTS: 8,              // drops in a splat burst

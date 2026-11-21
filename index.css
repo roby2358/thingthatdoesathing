@@ -184,8 +184,8 @@ html, body {
 #milestone-cards { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; font-size: 14px; }
 #milestone-cards .mcard { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
 
-/* News panel (new colors, with any cards unlocked alongside) and the keys legend: dim the board and wait for a click or any key. */
-#news-panel, #help-panel {
+/* News panel (new colors, with any cards unlocked alongside), the keys legend and About: dim the board and wait for a click or any key. */
+#news-panel, #help-panel, #about-panel {
     position: fixed;
     inset: 0;
     display: flex;
@@ -213,7 +213,21 @@ html, body {
 }
 .help-card h1 { font-size: 22px; font-weight: 700; letter-spacing: 0.02em; margin-bottom: 12px; }
 .help-card .keys { margin-bottom: 14px; }
-#news-panel .continue, #help-panel .continue { color: var(--text); font-size: 13px; opacity: 0.8; }
+/* About (D-59): credits and privacy, two pages flipped by < >. Links, the buttons and the
+   version/seed text don't close it; the version and seed can be selected for bug reports. */
+.about-card { width: min(480px, calc(100vw - 32px)); cursor: default; }
+.about-card h2 { font-size: 14px; font-weight: 700; margin: 12px 0 4px; }
+.about-card p { color: var(--text-dim); text-align: left; margin-bottom: 8px; }
+.about-card p.about-by, .about-card p.about-version { text-align: center; color: var(--text); }
+.about-card p.continue { text-align: center; }
+.selectable { user-select: text; cursor: text; font-variant-numeric: tabular-nums; color: var(--text); }
+.about-nav { display: flex; justify-content: center; align-items: center; gap: 12px; margin: 14px 0 10px; }
+.about-nav .btn { min-width: 36px; font-weight: 700; }
+.about-nav .btn:disabled { opacity: 0.35; cursor: default; }
+#about-count { color: var(--text-dim); font-size: 13px; font-variant-numeric: tabular-nums; }
+.about-card a { color: var(--accent); }
+.link { font: inherit; font-size: 13px; color: var(--accent); background: none; border: none; text-decoration: underline; cursor: pointer; margin-top: 10px; }
+#news-panel .continue, #help-panel .continue, #about-panel .continue { color: var(--text); font-size: 13px; opacity: 0.8; }
 
 /* The color picker (D-32): a clear backdrop that cancels on a click, and a square of swatches
    beside the hex. COLOR_PICKER_PX is its outer size. */

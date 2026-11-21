@@ -395,6 +395,15 @@ Thing Factory: add a Slide card, a placeable Thing that acts like ice. A piece t
 ----
 Priority:   49
 Status: Done
+ID: credits-55gy
+Created: 2026-11-17T02:44:41Z
+Updated: 2026-11-21T02:57:15Z
+
+Add an About panel: credits, AI disclosure, version, feedback link, privacy note, way back.
+There's no credits or about screen. Done looks like: an "About" button in the top button row (and a link on the intro) opens an overlay (same pattern as Help, an OVERLAY_KEYS entry, closes on click or any key) with: the author (Rob Young / Yuwakisa) and a link to yuwakisa.com; the AI disclosure from SHIP.md Decisions, stated plainly and proudly; tools and libraries (none third-party; system fonts; the 🗑 emoji from the system font); the version (the commit hash the ship build stamps; fall back to "dev" when unstamped) next to the board's seed, both selectable for bug reports; a feedback link (the itch.io page comments, filled in once the page exists; a placeholder constant until then, not shown when empty); and a one-line privacy note that says what the browser keeps (the saved run and settings) and what leaves it (nothing, until telemetry is decided; update when it is). Every external link opens with target="_blank" rel="noopener". SHIP.md items: LEGAL-4, LEGAL-5, WEB-7, OPS-1, OPS-2, PRIV-3, PORT-5. Done when `just cc-test` passes, with a uiboot check that the panel opens and closes.
+----
+Priority:   49
+Status: Done
 ID: own-deploy-kfi7
 Created: 2026-11-17T02:44:22Z
 Updated: 2026-11-21T01:19:23Z

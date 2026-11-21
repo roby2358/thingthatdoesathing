@@ -82,6 +82,7 @@ that comes onto a target dies there, so they can't camp it.
 - Top right: crates delivered toward the next milestone (and per color, once there are two), Ex-gremlins (gremlins done in), Trapped (gremlins a Trap caught), and crates lost
 - `M` / Sound (top left, by Help): turn all sound on or off; remembered in this browser, works any time (not while an overlay is open)
 - Help (top left): the keys legend, also shown once when the first game opens; ticks hold while it's open
+- About (top left, by Help; also a link on the intro): who made it, how it was made (with AI), the version and the board's seed (selectable, for bug reports), and a privacy page; `<` `>` or ← → turn the pages, any other key or a click closes it; ticks hold while it's open
 - New Game: pick a board size (click or `1`–`4`); Esc keeps the current game
 
 ## Deploy

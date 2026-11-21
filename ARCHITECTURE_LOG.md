@@ -2,6 +2,21 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-21 — A network layer is no longer a non-goal
+ONTOLOGY's non-goals dropped "A network layer": the game is working toward telemetry
+(telemetry-v54s), whose planned collection the privacy page (D-59) already describes, and
+later optional login and achievements. Nothing is sent yet; the engine stays headless and never sends.
+
+### 2026-11-21 — About panel (D-59)
+An About button in the top bar, and an About link on the intro, open a two-page overlay:
+credits (author and yuwakisa.com, the AI disclosure, tools, version and seed) and privacy
+(the planned telemetry, telemetry-v54s, described as running; settings kept in the browser).
+< > and ← → flip pages; clicks on links, buttons and the version/seed text keep it open, any
+other click or key closes it, back to the intro if it came from there. The version is
+`<html data-version>`, "dev" unstamped. The feedback link is an empty `ABOUT.feedbackUrl` and
+stays hidden until the GitHub Issues page exists. Help lists About. U-33 is its manual check; U-14 notes the intro's About link. Before this there was no
+credits screen and no in-game version.
+
 ### 2026-11-21 — Unlisted screencap key (D-58)
 P saves the board as PNGs named by use (window, og 1200x630, capsule 630x500, shot 1280x720) for the listings and
 the link preview, each painted fresh at its size with the screen's center and zoom. `render()`
