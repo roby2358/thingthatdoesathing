@@ -235,6 +235,28 @@ DESIGN (settled by the user):
 
 DONE WHEN: ONTOLOGY/CRITERIA/RATIONALE/ARCHITECTURE_LOG reconciled (new D-n for lockstep; D-24, D-33, D-35, D-36, D-37 updated); new CRITERIA rows + tests for: back-to-front Belt train moves together, Rocket skid past a crate carried off the same tick, packed ring rotates, swap fails, same-hex tie goes to placement order, mid-air collision destroys both, an invariant check that no two pieces share a hex at any hop (engine + uiboot); existing tests updated where seeded outcomes shift; `just cc-test` green; `just cc-sim 200 small` and `just cc-sim-to 100 small 5` run and compared to before in the log.
 ----
+Priority:   78
+Status: Done
+ID: privacydocs-ntj5
+Created: 2026-11-21T08:36:52Z
+Updated: 2026-11-21T09:40:46Z
+
+The player-facing and release docs for telemetry: the About privacy page, README and SHIP.md. Build on telemetry-q77g (the browser recorder) and telemetrydb-hgs4 (the Worker and D1), which come first, so the text describes what was actually built. Read what they shipped and correct any wording below that no longer matches. The design docs (ONTOLOGY, CRITERIA, RATIONALE, ARCHITECTURE_LOG, CLAUDE.md) are not in scope here: those tasks keep them in step with their code.
+
+Settled design:
+- index.html About page 1 (Privacy). Keep it terse and in the current voice.
+  - The first line becomes "While you play, the game sends your moves, the board size, the seed, the game version, your browser type and window size to our own server. They're used only to tune the game."
+  - The ID line becomes "They're tied to a random ID made fresh each time you open the game. No cookies, no account, no IP addresses kept, no personal data."
+  - Add one line: "Your browser's Global Privacy Control setting turns it off."
+  - Keep "Your browser keeps your settings (like mute). Map saves are planned."
+  - No hostname. Don't call the data anonymous.
+- If uiboot.js or any test checks the privacy text, update it to match.
+- README: the About bullet says the privacy page lists what's sent; add a short "Telemetry" paragraph under Deploy covering what is recorded, that only ship builds send, GPC, and the D1 database and its just recipes (point to CLAUDE.md for the details).
+- SHIP.md: mark the privacy/telemetry items these tasks close (PRIV-*, OPS-* as they apply) done, with evidence pointing at the tasks' R-rows and the U-row. Recount the tier totals.
+- Not here: sign-in wording (bskysignin-5sap adds its own line).
+
+Done when: just cc-test passes; the About privacy page in a browser shows the three lines above; and README and SHIP.md match what telemetry-q77g and telemetrydb-hgs4 shipped.
+----
 Priority:   75
 Status: Done
 ID: crate-start-gtz5

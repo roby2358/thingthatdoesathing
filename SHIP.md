@@ -10,20 +10,20 @@ what would check it.
 
 | Tier | Ready? | Open items (this tier and below) |
 |---|---|---|
-| T1 Jam-plus | no | 10 |
+| T1 Jam-plus | no | 9 |
 | T2 Solid hobby | no | 52 |
 | T3 Commercial-grade | no | 67 |
 
 Counted 2026-11-21 from the item rows: every distinct Id in the By area tables plus X-1 and X-2
 (listed only under Blocking), open when its status is missing, partial or unverified (done and n/a
-are closed); each tier's count adds the tiers below it. Open: T1 10, T2 42, T3 15.
+are closed); each tier's count adds the tiers below it. Open: T1 9, T2 43, T3 15.
 
 **Cut line:** T2 Solid hobby
 
 ## Decisions
 
 - **Devices:** desktop only (mouse and keyboard). Phones and tablets get the sorry screen (D-41).
-- **Telemetry:** direction chosen, details `open`. Log basically every action to Cloudflare D1 behind a small Worker at ttdat.yuwakisa.com. The schema, privacy notice, opt-in or out, retention and portal CORS still need brainstorming (idea telemetry-v54s). The About panel's privacy page (D-59) already describes the planned telemetry as if it were running: moves, board size, seed and version sent to "our own server" (no hostname named), tied to a hashed ID, no cookies, account, IP addresses or personal data, no retention period stated. Nothing is sent yet; whatever ships must keep that page true, or the page changes with it.
+- **Telemetry:** built (D-64, D-65). A ship build served over http(s), the portal builds included, records every command but waits and rotations, each game's seed, size, version, rules version, browser type and window size, and each milestone, and batches them to `POST /t` on the ttdat Worker, which writes them to the `ttdat-telemetry` D1 database without reading or storing an IP. Notice only, no consent prompt: Global Privacy Control turns it off, and nothing is sent before a board is picked. Identity is a random ID per page load, kept only in memory. The About panel's privacy page (D-59) says what is sent, the random ID, no cookies, account, IP addresses or personal data, and that GPC turns it off; it names no hostname and never calls the data anonymous. No retention period yet (PRIV-5). Nothing arrives until production's D1 exists and the game is deployed (WEB-1).
 - **Languages:** English only. The string table should still be made ready for more (LOC-2).
 - **Hosting:** the game moves to its own repo and is served at https://ttdat.yuwakisa.com on Cloudflare. Also on itch.io and Newgrounds.
 - **Monetization:** none; the game is free.
@@ -62,7 +62,7 @@ it needs the author: it gets no pjpd task.
 | PORT-7 | Honest device flags | T1 | missing | no listings yet | listing-r8fn |
 | INP-1 | Game keys vs browser keys | T1 | done | gameui.js onKeyDown returns early on Ctrl/Alt/Meta (D-57); uiboot check | |
 | AUD-2 | Mute, one action away, persisted | T1 | done | the Sound button (top left) and `M` toggle mute (`GameSound.setMuted`), remembered in localStorage `thingfactory.muted` with try/catch (D-53); uiboot check | mute-button-twa8 |
-| PRIV-1 | Telemetry decision recorded | T1 | partial | direction recorded; schema and notice open | you (telemetry-v54s) |
+| PRIV-1 | Telemetry decision recorded | T1 | done | Decisions: built as D-64 (Worker and D1, R-68, U-35) and D-65 (recorder: ship builds only, nothing under GPC, R-69, U-36); the notice is the About privacy page | telemetrydb-hgs4, telemetry-q77g |
 | ONB-1 | A stranger makes a first move unaided | T1 | unverified | needs a cold play by someone new | you |
 | ERR-1 | Clean console on a normal run | T1 | unverified | uiboot.js plays clean on a stub DOM; needs a real-browser console check | you |
 | LOAD-1 | Works on the real host from a clean profile | T1 | unverified | host not up; all paths relative and lowercase | you, after the first deploy |
@@ -92,7 +92,7 @@ it needs the author: it gets no pjpd task.
 | LEGAL-5 | AI disclosure in game | T2 | done | the Decisions draft, on the About panel's first page (D-59) | |
 | OPS-2 | Version visible | T2 | done | About shows `<html data-version>` ("dev" unstamped) beside the seed, both selectable (D-59); uiboot check | |
 | OPS-1 | Feedback channel | T2 | missing | feedback link hidden until the GitHub Issues page exists (`ABOUT.feedbackUrl` is empty; the line shows once it is set) | you |
-| PRIV-3 | What is stored is stated | T2 | done | About's privacy page: settings kept in the browser, map saves planned, and the planned telemetry (D-59) | |
+| PRIV-3 | What is stored is stated | T2 | done | About's privacy page: what telemetry sends (moves, board size, seed, version, browser type, window size), the random per-load ID, no cookies, account, IP addresses or personal data, GPC turns it off, settings kept in the browser, map saves planned (D-59, D-65, U-33) | privacydocs-ntj5 |
 | WEB-7 | A way back | T2 | done | About links yuwakisa.com, new tab (D-59) | |
 | MENU-6 | End payoff | T2 | partial | endless; milestone banners only; New Game drops the run unseen | run-stats-m6pe |
 | SAVE-7 | Player can wipe data | T2 | missing | nothing to wipe yet | wipe-data-mw24 |
@@ -226,7 +226,7 @@ are T1 as well.
 | ERR-2 | No soft-locks | T1 | done | Wait and Discard are always legal; Esc always leaves a pick mode; smoke.js plays random commands | |
 | ERR-3 | Crash screen | T2 | done | D-63; uiboot check | crash-screen-zruz |
 | ERR-4 | Debug off | T2 | done | no `console.*`, no cheat keys | |
-| ERR-5 | Disconnect | T2 | n/a | no server yet; telemetry must fail silently (PRIV-4) | |
+| ERR-5 | Disconnect | T2 | done | the game needs no server; a telemetry send that fails or throws is dropped silently, never retried or shown (D-65, R-69) | telemetry-q77g |
 | ERR-6 | Long-session stability | T3 | unverified | | |
 | ERR-7 | Missing capability | T3 | missing | no `<noscript>` | |
 
@@ -239,7 +239,7 @@ are T1 as well.
 | LOAD-3 | Updates reach players | T2 | done | | |
 | LOAD-4 | Frame rate | T2 | unverified | | you |
 | LOAD-5 | Idle | T2 | partial | | hidden-pause-y9wi |
-| LOAD-6 | No third-party hosts | T2 | done | no network requests in code; system font stack (index.css:15) | |
+| LOAD-6 | No third-party hosts | T2 | done | the only request is telemetry to the game's own ttdat.yuwakisa.com (D-65); system font stack (index.css:15) | |
 | LOAD-7 | Payload | T3 | done | about 208 KB of JS, HTML and CSS; no images or audio files | |
 | LOAD-8 | Chrome and Firefox | T2 | unverified | | you |
 | LOAD-9 | Safari | T3 | unverified | | |
@@ -308,11 +308,11 @@ are T1 as well.
 
 | Id | Item | Tier | Status | Evidence | Task |
 |---|---|---|---|---|---|
-| PRIV-1 | Telemetry decision | T1 | partial | | you (telemetry-v54s) |
-| PRIV-2 | No uncovered tracking | T1 | done | no scripts, beacons or fetches | |
-| PRIV-3 | What's stored is stated | T2 | done | see above | |
-| PRIV-4 | Telemetry hygiene | T2 | n/a | not built; requirements are in telemetry-v54s | |
-| PRIV-5 | Server data | T2 | n/a | server side built (D-64: no IP read or stored, observability off); retention not stated; nothing sends yet | |
+| PRIV-1 | Telemetry decision | T1 | done | see above | telemetrydb-hgs4, telemetry-q77g |
+| PRIV-2 | No uncovered tracking | T1 | done | the one fetch/beacon is telemetry.js, stated on the privacy page; no third-party scripts, cookies or stored IDs (D-65, R-69) | telemetry-q77g |
+| PRIV-3 | What's stored is stated | T2 | done | see above | privacydocs-ntj5 |
+| PRIV-4 | Telemetry hygiene | T2 | done | ship builds over http(s) only, nothing before a board is picked, nothing under Global Privacy Control, a random per-load ID in memory only, `credentials: 'omit'`, failures swallowed (D-65, R-69, U-36) | telemetry-q77g |
+| PRIV-5 | Server data | T2 | partial | no IP read or stored, observability off, every batch checked whole (D-64, R-68, U-35); no retention period chosen or stated, no rate limit yet | idea retention-uhu7; ratelimit-27qf |
 
 ### OPS
 
@@ -347,7 +347,7 @@ Portal docs checked 2026-11-17:
 | PORT-3 | Fits the frame | T1 | partial | | portal-frame-aqns |
 | PORT-4 | Fullscreen | T2 | missing | | settings-rrcw |
 | PORT-5 | Links leave the frame | T2 | done | every external link goes through `externalLink()` in gameui.js: `target="_blank" rel="noopener"` (D-59) | |
-| PORT-6 | Server CORS | T2 | n/a | `POST /t` answers `Access-Control-Allow-Origin: *` and takes text/plain (no preflight), D-64; check from a portal once the recorder sends | |
+| PORT-6 | Server CORS | T2 | done | `POST /t` answers `Access-Control-Allow-Origin: *` and takes text/plain (no preflight) (D-64, R-68); portal builds post to the absolute live endpoint with `credentials: 'omit'` (D-65, R-69); a real portal check rides with PORT-10 | |
 | PORT-7 | Device flags | T1 | missing | | listing-r8fn |
 | PORT-8 | Listing complete | T2 | missing | | listing-r8fn |
 | PORT-9 | AI disclosure field | T2 | missing | | listing-r8fn |

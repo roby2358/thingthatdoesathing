@@ -82,7 +82,7 @@ that comes onto a target dies there, so they can't camp it.
 - Top right: crates delivered toward the next milestone (and per color, once there are two), Ex-gremlins (gremlins done in), Trapped (gremlins a Trap caught), and crates lost
 - `M` / Sound (top left, by Help): turn all sound on or off; remembered in this browser, works any time (not while an overlay is open)
 - Help (top left): five pages, the keys legend in two (B and on is the second), then the special cards (picking a Pusher's or Puller's crate color, the Mover, the Bomb), then every Thing and tool card (its picture, name and what it does, the same line its card shows on hover), then the world (crates, big crates, gremlins, ice, open water, milestones); `<` `>` or ← → turn the pages, any other key or a click closes it. It opens on the keys, also once when the first game opens; ticks hold while it's open
-- About (top left, by Help; also a link on the intro): who made it, how it was made (with AI), the version and the board's seed (selectable, for bug reports), and a privacy page; `<` `>` or ← → turn the pages, any other key or a click closes it; ticks hold while it's open
+- About (top left, by Help; also a link on the intro): who made it, how it was made (with AI), the version and the board's seed (selectable, for bug reports), and a privacy page that lists what the game sends and says Global Privacy Control turns it off; `<` `>` or ← → turn the pages, any other key or a click closes it; ticks hold while it's open
 - If the game hits a bug, a card says so over everything, with the error and the version and seed (selectable, for a bug report), Reload, and Start fresh (drops any saved game, in case it's what broke, and reloads; the sound setting stays)
 - New Game: pick a board size (click or `1`–`4`); Esc keeps the current game
 
@@ -104,11 +104,6 @@ one. It refuses while production's D1 id is still the placeholder (see below); `
 Commit before you ship: the build's version is the commit hash, marked `-dirty` when there are
 uncommitted changes.
 
-Locally, telemetry goes to a D1 database in `.wrangler/`: `just d1-local` once (safe to run
-again) gives it its tables, then `just dev-worker` serves the build with the Worker at
-http://localhost:8787, and `../yuwakisacloud/node_modules/.bin/wrangler d1 execute ttdat-telemetry
---local --command "SELECT * FROM games"` shows what arrived.
-
 By hand, once:
 
 1. In `../yuwakisacloud`: `just bootstrap` (installs wrangler), then `just login` (or
@@ -123,3 +118,22 @@ By hand, once:
 5. Check https://ttdat.yuwakisa.com in a clean browser profile.
 6. When you're ready, retire the old copy at yuwakisa.com/thingthatdoesathing/: remove it from
    yuwakisaweb, or replace it with a redirect page to https://ttdat.yuwakisa.com/.
+
+### Telemetry
+
+Once a board is picked, the game records each game (seed, board size, version, rules version,
+browser type and window size) and every command but waits and rotations (with whether it was
+accepted and the tally after its tick), plus each milestone, and sends them in batches to
+`POST /t` on ttdat.yuwakisa.com, the portal builds included, under a random ID made fresh for
+each page load. Only ship builds served over http(s) send (`<html data-version>` set: not the
+dev page, not `file://`), a browser with Global Privacy Control on sends nothing, and a send
+that fails is dropped silently. The Worker checks each batch and writes it to the
+`ttdat-telemetry` D1 database (tables `games`, `events`, `milestones`, `crashes`;
+`worker/telemetry_schema.sql`), never reading or storing an IP. The About panel's privacy page
+says this to players. CLAUDE.md (`telemetry.js`, `worker/`) has the details.
+
+Locally, telemetry goes to a D1 database in `.wrangler/`: `just d1-local` once (safe to run
+again) gives it its tables, then `just dev-worker` serves the build with the Worker at
+http://localhost:8787, and `../yuwakisacloud/node_modules/.bin/wrangler d1 execute ttdat-telemetry
+--local --command "SELECT * FROM games"` shows what arrived. Production's database is made
+once with `just d1-production` (step 3 above).

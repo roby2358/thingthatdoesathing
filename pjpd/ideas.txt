@@ -161,6 +161,13 @@ Updated: 2026-11-17T02:45:39Z
 
 Telemetry: learn how real players play Thing Factory, beyond what the sim bot shows. Direction from the user (ship audit, 2026-11-17): log basically every action, stored in Cloudflare D1 behind a small Worker at ttdat.yuwakisa.com (the data is cheap). Still to brainstorm and settle: the event schema (per command: kind, slot/card, hex, facing, color, turn, ok, plus milestone/unlock/open events; per session: size, seed, version, start/stop); batching (buffer N events or T seconds, flush with navigator.sendBeacon on pagehide) so it never slows a tick; an anonymous per-session random id, no cookies, no personal data, no free text, no IPs stored; a privacy note in the game and on the portals (SHIP.md PRIV-3/PRIV-4) and whether it's opt-in, opt-out or notice-only; CORS for the itch.io and Newgrounds game-hosting CDN origins (PORT-6) and silent failure when blocked or offline or on file://; retention and a way to delete; rate limiting on the Worker; and what questions the data must answer (where players stop, which cards get discarded, turns per milestone per size, Mover/Bomb use) so the schema serves them. The engine stays headless and never sends anything; the UI collects from the existing { ok, events } results. Ties to the leaderboard, bsky-login and productize ideas.
 ----
+Score:   40
+ID: retention-uhu7
+Created: 2026-11-21T09:35:38Z
+Updated: 2026-11-21T09:35:38Z
+
+Telemetry retention: decide how long the ttdat-telemetry D1 rows (games, events, milestones, crashes) are kept, and how old rows get deleted (a `just` recipe run by hand, or a Worker cron). Then state the period on the About privacy page and close SHIP.md PRIV-5. Today nothing is ever deleted and no period is stated; the privacy page (D-59) was written without one on purpose. A design call for the author: weigh what the tuning report needs (long trends across rules versions) against keeping as little as possible, and D1's free-plan storage.
+----
 Score:   35
 ID: undo-preview-k9rq
 Created: 2026-11-17T02:45:34Z
