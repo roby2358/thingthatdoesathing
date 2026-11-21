@@ -583,7 +583,7 @@ The count only drops when the whole shore is walled off or full.
 
 ## §6 Numbers [T]
 
-The code constant in `GameArtifacts` is the single source. A change to any rule, or to a number here that play depends on, bumps `RULES_VERSION` by one in the same change (the Telemetry section, D-65).
+The code constant in `GameArtifacts` is the single source. `RULES_VERSION` stays 1 through development, rule changes included: the game record's `version` (the commit hash) tells builds apart; it changes only for a drastic, breaking rules change, at the designer's call (the Telemetry section, D-65).
 
 | Name | Value | Unit |
 |---|---|---|
@@ -946,7 +946,7 @@ Sections, in order (a table with no rows prints `(none)`):
 | `TELEMETRY_RATE_LIMIT` | 1000 per 10 s | `POST /t` requests per `CF-Connecting-IP` before 429: about 100 a second, a flood tripwire (worker/telemetry.js, enforced by wrangler.jsonc's `TELEMETRY_LIMIT` binding in both environments; the period must be 10 or 60, D-70) |
 | `TELEMETRY_ORIGINS` | ttdat.yuwakisa.com, html-classic.itch.zone, uploads.ungrounded.net (https) | the Origins a browser may post from; others 403 (worker/telemetry.js; wrangler dev adds http://localhost:8787 by `TELEMETRY_DEV_ORIGINS`, D-70) |
 | `TELEMETRY_BACKOFF_MS` | 300000 | after a 429 or 403 the recorder records and sends nothing for this long (`GameDisplayArtifacts`, D-70) |
-| `RULES_VERSION` | 2 | `GameArtifacts`: the rules a game ran under, on its game record. Bumped by hand, by one, in the same change as any rule change or any change to a Numbers-table value play depends on (D-65) |
+| `RULES_VERSION` | 1 | `GameArtifacts`: the rules a game ran under, on its game record. Hardly ever changes: only for a drastic, breaking rules change, at the designer's call; ordinary rule and tuning changes keep it (the commit hash tells builds apart) (D-65) |
 
 ---
 

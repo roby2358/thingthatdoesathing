@@ -179,7 +179,7 @@ in `hexToScreen` / `screenToHex`.
   and plays to the first milestone by simulated clicks, then drives Go/Pause; `test/coverage.js` fails if CRITERIA and the `R-n` dirs disagree.
 - Every engine command returns `{ ok, ... }`; `ok:false` means illegal and nothing changed
   (`Rando` included). `ok:true` carries the tick's `events`.
-- `GameArtifacts.RULES_VERSION` names the rules a telemetry game ran under (D-65): bump it by hand, by one, in the same change as any rule change or any change to a tuning number play depends on (ONTOLOGY Numbers).
+- `GameArtifacts.RULES_VERSION` names the rules a telemetry game ran under (D-65): it stays 1 through development, rule changes included (the commit hash in `version` tells builds apart); it changes only for a drastic, breaking rules change, and only when the designer says so.
 - Color values are 0–1 floats except when converting to `#rrggbb` strings for canvas.
 - Terrain types come from `GameArtifacts.TERRAIN`; movement from `GameArtifacts.MOVEMENT_COST`.
   Colors/labels/geometry come from `GameDisplayArtifacts` (client-only — the engine never reads it).

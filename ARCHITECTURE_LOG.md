@@ -2,6 +2,9 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-21 — RULES_VERSION back to 1, and it stays 1 through development (D-65)
+Before, `RULES_VERSION` was to be bumped by one with every rule or tuning change, and D-73 took it to 2. Now it stays 1 while the game is in development, rule changes included: the game record's `version` (the commit hash) already tells builds apart, and it changes only for a drastic, breaking rules change, at the designer's call. `artifacts.js`, R-69's check, ONTOLOGY (Numbers and the note above the table), CLAUDE.md, D-65 and D-73 follow. Production games recorded under 2 between the D-73 deploy and this one carry `rulesVersion` 2.
+
 ### 2026-11-21 — Walls stop a Spring's throw again (D-73, superseding D-62)
 Before, a Spring's throw passed over Walls as it does mountains (`THINGS` flag `overWalls`, D-62). Now a Wall ends every flight on the hex before it, the Spring's too, as it did before D-62; only the Cannon's `clears` hexes pass over Walls (D-36), and the Spring still clears up to 2 mountains (D-35). `overWalls` is gone from `THINGS`, the push `how`, `wanderOf` and `flightLength`; `canLand` stays `groundOpen`. `RULES_VERSION` 1 → 2 (R-69's check follows). The Spring's verb line is back to "leaping over lakes and mountains in between"; README's row says "a Wall stops it"; DYNAMICS, CLAUDE.md, ONTOLOGY (`overWalls` row removed, `blocks`, invariant, Motion, Flights, Tick) follow. R-67 rewritten in place (test now `test/R-67/wall_stops_spring.js`); R-7's and R-53's rows lose their Wall-leap wording; R-12, R-15 and R-53 fire a Spring at a Wall again. `cc-sim 200 small` unchanged.
 
