@@ -54,7 +54,7 @@
       // replaces the placeholder below; run again, the recipe applies the schema. `just deploy`
       // refuses while the placeholder is here.
       "d1_databases": [
-        { "binding": "TELEMETRY", "database_name": "ttdat-telemetry", "database_id": "PUT-THE-DATABASE-ID-HERE" }
+        { "binding": "TELEMETRY", "database_name": "ttdat-telemetry", "database_id": "4d457ff8-1ae2-4520-97fa-96b35045bf90" }
       ],
       "services": [{ "binding": "AUTH_SERVICE", "service": "auth" }],
       "ratelimits": [
