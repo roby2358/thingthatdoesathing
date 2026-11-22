@@ -8,7 +8,9 @@
 -- database. Every statement is safe to run again. There is no migration history: a change to a
 -- table that exists is made by hand, and said to the designer. A local database made before a
 -- table changed is recreated instead with just local-d1-clear (deletes .wrangler/state/v3/d1). No
--- foreign keys: a game's events, milestones and crashes are kept whether or not its games row arrived.
+-- foreign keys: a game's events, milestones, crashes and goal rows are kept whether or not its games row arrived.
+-- The goal tables (D-77) are new tables, so rerunning the schema adds them to a database that lacks
+-- them (production's at the designer's go, before a Worker that writes them is deployed).
 
 -- One row per game, from the first batch that carries its game record (the browser resends the
 -- record in every batch of that game; INSERT OR IGNORE keeps the first): who started it.
@@ -109,3 +111,36 @@ CREATE TABLE IF NOT EXISTS crashes (
 -- Crashes per day, and per build.
 CREATE INDEX IF NOT EXISTS crashes_by_time ON crashes (unix_seconds);
 CREATE INDEX IF NOT EXISTS crashes_by_version ON crashes (version);
+
+-- One row per goal set dealt (D-77): a new game's set 0 ('start'), New goals with goals of the last
+-- set unmet ('reroll'), New goals after a set all met ('next'). INSERT OR IGNORE: kept once.
+CREATE TABLE IF NOT EXISTS goal_sets (
+  game_key TEXT NOT NULL,
+  set_no INTEGER NOT NULL,                 -- 0 for a game's first set, +1 per New goals
+  player_id TEXT NOT NULL,
+  signed_in INTEGER NOT NULL,
+  how TEXT NOT NULL,                       -- 'start', 'reroll' or 'next'
+  turn INTEGER NOT NULL,                   -- the turn it was dealt on
+  unix_seconds INTEGER NOT NULL,
+  counter1 TEXT NOT NULL,                  -- the three goals in the set's order: a goal counter key
+  amount1 INTEGER NOT NULL,                -- (GameArtifacts.COUNTERS) and the amount asked
+  counter2 TEXT NOT NULL,
+  amount2 INTEGER NOT NULL,
+  counter3 TEXT NOT NULL,
+  amount3 INTEGER NOT NULL,
+  PRIMARY KEY (game_key, set_no)
+);
+
+-- One row per goal met (D-77). INSERT OR IGNORE: a goal met sent twice is kept once.
+CREATE TABLE IF NOT EXISTS goals_met (
+  game_key TEXT NOT NULL,
+  set_no INTEGER NOT NULL,
+  idx INTEGER NOT NULL,                    -- the goal's place in its set: 0, 1 or 2
+  player_id TEXT NOT NULL,
+  signed_in INTEGER NOT NULL,
+  counter TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  turn INTEGER NOT NULL,                   -- the turn after the tick that met it
+  unix_seconds INTEGER NOT NULL,
+  PRIMARY KEY (game_key, set_no, idx)
+);

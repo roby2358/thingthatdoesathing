@@ -129,8 +129,15 @@ function playersSection({ players }) {
     return section('Players (signed in)', ...lines, `  games that switched identity mid-game: ${players.switched}`);
 }
 
+function goalsSection({ goals }) {
+    const how = goals.byHow.length === 0 ? '' : ' (' + goals.byHow.map(r => `${r.how} ${r.sets}`).join(', ') + ')';
+    return section(`Goals: ${plural(goals.sets, 'set', 'sets')} dealt${how}, ${goals.done} done`,
+        table(['counter', 'dealt', 're-rolled away', 'met', 'median turns to met'],
+            goals.perCounter.map(r => [r.counter, r.dealt, r.rerolled, r.met, r.medianTurns === null ? '-' : formatNumber(r.medianTurns)])));
+}
+
 /** The sections, in the report's order. */
-const SECTIONS = [gamesSection, milestonesSection, commandsSection, bombSection, sessionsSection, clientsSection, crashesSection, playersSection];
+const SECTIONS = [gamesSection, milestonesSection, commandsSection, bombSection, sessionsSection, clientsSection, crashesSection, playersSection, goalsSection];
 
 function sections(play, sizeOrder) {
     const f = figures(play, sizeOrder);
@@ -172,14 +179,14 @@ function sizeLine(size) {
 /** The Volume section (D-72): `volume` from volumeFigures, `size` from sizeFromD1. */
 function volumeSection(volume, size) {
     const limit = D1_FREE_ROWS_WRITTEN_PER_DAY;
-    const rows = volume.perDay.map(d => [d.day, d.games, d.events, d.milestones, d.crashes, d.total,
+    const rows = volume.perDay.map(d => [d.day, d.games, d.events, d.milestones, d.crashes, d.goalSets, d.goalsMet, d.total,
         percent(d.total, limit), d.warn ? '*' : '']);
     const busiest = volume.busiest === null
         ? '  busiest day: none (no rows written in the period)'
         : warned(volume.busiest.warn, `busiest day ${volume.busiest.day} ${volume.busiest.total} rows = ${percent(volume.busiest.total, limit)} of the free plan's daily writes`);
     return [
         `Volume: rows written per day (UTC), against the D1 free plan's ${limit} rows written per day`,
-        table(['day', 'games', 'events', 'milestones', 'crashes', 'total', 'of limit', ''], rows),
+        table(['day', 'games', 'events', 'milestones', 'crashes', 'goal sets', 'goals met', 'total', 'of limit', ''], rows),
         `  * at or over ${percent(WARN_SHARE, 1)} of the daily limit`,
         busiest,
         '  not counted: index writes (D1 counts another row written for each indexed column a write touches) and',

@@ -2,7 +2,7 @@
 // worker/telemetry.js, D-68). The Worker is imported as plain JS and handed a stub verifier in
 // place of the vendored auth-client's verifyAccessToken; D1 is node:sqlite with the schema.
 //   - a valid token for this client with the play scope → every row of the batch (games, events,
-//     milestones, crashes) has player_id = SHA-256 hex of PLAYER_SALT + sub and signed_in 1;
+//     milestones, crashes, goal_sets, goals_met) has player_id = SHA-256 hex of PLAYER_SALT + sub and signed_in 1;
 //     neither the token nor sub is in any bind or log line
 //   - the verifier is asked for AUTH_ISSUER and TTDAT_CLIENT_ID, and its fetcher goes through
 //     the AUTH_SERVICE binding
@@ -48,8 +48,11 @@ const SNAP = { turn: 3, delivered: 0, lost: 0, exGremlins: 0, trapped: 0, things
 const BATCH = { format: 1, player: 'random-player', games: [GAME],
     events: [{ gameKey: 'g1', seq: 0, unixSeconds: 1763700001, command: 'place', accepted: true, ...SNAP, args: { kind: 'BELT', q: 1, r: 1, facing: 0 } }],
     milestones: [{ gameKey: 'g1', milestone: 10, unixSeconds: 1763700002, ...SNAP }],
-    crashes: [{ unixSeconds: 1763700003, message: 'oops' }] };
-const TABLES = ['games', 'events', 'milestones', 'crashes'];
+    crashes: [{ unixSeconds: 1763700003, message: 'oops' }],
+    goalSets: [{ gameKey: 'g1', set: 0, how: 'start', turn: 1, unixSeconds: 1763700000,
+        goals: [{ counter: 'placed', amount: 5 }, { counter: 'trapped', amount: 5 }, { counter: 'bombs', amount: 5 }] }],
+    goalsMet: [{ gameKey: 'g1', set: 0, index: 0, counter: 'placed', amount: 5, turn: 3, unixSeconds: 1763700001, met: true }] };
+const TABLES = ['games', 'events', 'milestones', 'crashes', 'goal_sets', 'goals_met'];
 
 // The stub verifier: by token, what verifyAccessToken would answer.
 const calls = [];

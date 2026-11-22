@@ -1,7 +1,7 @@
 // tools/telemetry_report.js — `just telemetry-report [days]` (production) and `just telemetry-local [days]`
 // (wrangler dev's D1, which passes local-d1): prints the telemetry
 // report (ONTOLOGY "Telemetry report", D-66) as plain text, for tuning. It reads the ttdat-telemetry
-// D1 database (D-64) through wrangler, with four read-only SELECTs and a `d1 info` for its size
+// D1 database (D-64) through wrangler, with six read-only SELECTs (one per table, the goal tables D-77) and a `d1 info` for its size
 // (the Volume section, D-72), and never writes: production's when no source is named (refused
 // before wrangler runs while wrangler.jsonc still holds the placeholder id), wrangler dev's local
 // one with `local-d1`. A number limits it to games started

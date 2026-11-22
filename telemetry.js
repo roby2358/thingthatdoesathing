@@ -29,6 +29,11 @@
 //
 // crash.js (D-71) sends its own crash batch; beforeCrash() hands it the identity and game key
 // after sending the queue by beacon.
+//
+// Goals (D-77): GameUI hands the recorder each goal set dealt (goalSet: the new game's set 0,
+// and every New goals) and command() turns each `goal` event of a tick into a goal-met record.
+// Both go in the batch as their own lists, goalSets and goalsMet, under the same rules as the
+// rest (they count toward TELEMETRY_FLUSH_RECORDS and are dropped while backing off).
 const GameTelemetry = (function () {
     const { TELEMETRY_FORMAT, TELEMETRY_ENDPOINT, TELEMETRY_FLUSH_MS, TELEMETRY_FLUSH_RECORDS, TELEMETRY_BACKOFF_MS } = GameDisplayArtifacts;
     const { RULES_VERSION, CRATE_COLORS } = GameArtifacts;
@@ -43,6 +48,8 @@ const GameTelemetry = (function () {
     let eventSeq = 0;          // the seq the game's next event record gets: 0, 1, 2, … per game
     let events = [];
     let milestones = [];
+    let goalSets = [];         // goal sets dealt (D-77)
+    let goalsMet = [];         // goals met (D-77)
     let timer = null;
     let listening = false;
     let quietUntil = 0;        // Date.now() before which nothing is recorded or sent (D-70)
@@ -64,8 +71,7 @@ const GameTelemetry = (function () {
     // The Worker said 429 or 403: drop the queue and keep quiet for TELEMETRY_BACKOFF_MS.
     function backOff() {
         quietUntil = Date.now() + TELEMETRY_BACKOFF_MS;
-        events = [];
-        milestones = [];
+        emptyQueue();
         clearTimeout(timer);
         timer = null;
     }
@@ -95,10 +101,19 @@ const GameTelemetry = (function () {
         };
     }
 
+    function emptyQueue() {
+        events = [];
+        milestones = [];
+        goalSets = [];
+        goalsMet = [];
+    }
+
+    const queued = () => events.length + milestones.length + goalSets.length + goalsMet.length;
+
     // The batch the queue makes now, or null if there's nothing to send.
     function batch() {
-        if (!game || (!gameUnsent && events.length === 0 && milestones.length === 0)) return null;
-        const b = { format: TELEMETRY_FORMAT, player, games: [game], events, milestones };
+        if (!game || (!gameUnsent && queued() === 0)) return null;
+        const b = { format: TELEMETRY_FORMAT, player, games: [game], events, milestones, goalSets, goalsMet };
         if (token) b.token = token;
         return b;
     }
@@ -109,8 +124,7 @@ const GameTelemetry = (function () {
         timer = null;
         const b = batch();
         if (!b) return;
-        events = [];
-        milestones = [];
+        emptyQueue();
         if (quiet()) return;           // backing off: the queue is dropped
         gameUnsent = false;
         try {
@@ -120,6 +134,12 @@ const GameTelemetry = (function () {
                 .then(res => { if (res.status === 429 || res.status === 403) backOff(); })
                 .catch(() => {});
         } catch (e) { /* dropped */ }
+    }
+
+    // Enough queued: send now; else make sure the timer runs.
+    function queuedEnough() {
+        if (queued() >= TELEMETRY_FLUSH_RECORDS) flush('fetch');
+        else schedule();
     }
 
     function schedule() {
@@ -169,10 +189,24 @@ const GameTelemetry = (function () {
                 if (!game || quiet()) return;
                 const now = unixSeconds(), snap = snapshot(state), gameKey = game.gameKey;
                 if (RECORDED.has(command)) events.push({ gameKey, seq: eventSeq++, unixSeconds: now, command, accepted: res.ok, ...snap, args });
-                if (res.ok) for (const e of res.events)
+                if (res.ok) for (const e of res.events) {
                     if (e.type === 'milestone') milestones.push({ gameKey, milestone: e.count, unixSeconds: now, ...snap });
-                if (events.length + milestones.length >= TELEMETRY_FLUSH_RECORDS) flush('fetch');
-                else schedule();
+                    else if (e.type === 'goal') goalsMet.push({ gameKey, set: state.goals.set, index: e.index, counter: e.counter,
+                        amount: e.amount, turn: state.turn, unixSeconds: now, met: true });
+                }
+                queuedEnough();
+            });
+        },
+
+        // A goal set just dealt (D-77): `how` is 'start' (a new game's set 0), 'reroll' (New goals
+        // with goals of the last set unmet) or 'next' (New goals after a set was all met); `state`
+        // the board with the new set in state.goals.
+        goalSet(how, state) {
+            guarded(() => {
+                if (!game || quiet()) return;
+                goalSets.push({ gameKey: game.gameKey, set: state.goals.set, how, turn: state.turn, unixSeconds: unixSeconds(),
+                    goals: state.goals.list.map(g => ({ counter: g.counter, amount: g.amount })) });
+                queuedEnough();
             });
         },
 

@@ -1,6 +1,6 @@
 // tools/telemetry_report/figures.js — the telemetry report's sums (ONTOLOGY "Telemetry report",
 // D-66): every figure the report prints, worked out from plain records alone (records.js's
-// shapes: games, events, milestones, crashes). Pure functions: nothing here knows where the
+// shapes: games, events, milestones, crashes, goal sets and goals met). Pure functions: nothing here knows where the
 // records came from or how a figure is printed, so the tests feed fixtures.
 'use strict';
 
@@ -110,6 +110,8 @@ function inPeriod(play, since) {
             events: play.events.filter(e => kept.has(e.gameKey)),
             milestones: play.milestones.filter(m => kept.has(m.gameKey)),
             crashes: play.crashes.filter(c => c.unixSeconds >= since),
+            goalSets: play.goalSets.filter(s => kept.has(s.gameKey)),
+            goalsMet: play.goalsMet.filter(m => kept.has(m.gameKey)),
         },
         leftOut: {
             events: play.events.filter(e => !known.has(e.gameKey)).length,
@@ -128,7 +130,8 @@ function byRulesVersion(play) {
         const mine = r => keys.has(r.gameKey);
         return {
             rulesVersion,
-            play: { games, events: play.events.filter(mine), milestones: play.milestones.filter(mine), crashes: play.crashes.filter(mine) },
+            play: { games, events: play.events.filter(mine), milestones: play.milestones.filter(mine), crashes: play.crashes.filter(mine),
+                goalSets: play.goalSets.filter(mine), goalsMet: play.goalsMet.filter(mine) },
         };
     });
     return { versions, unattached: play.crashes.filter(c => !all.has(c.gameKey)) };
@@ -258,6 +261,43 @@ function playerFigures(play) {
     };
 }
 
+/** Goals (D-77), per goal counter: times dealt, times re-rolled away (unmet in a set that a
+ *  'reroll' set followed), times met, and the median turns from its set's deal to the goal met
+ *  (goals met whose set record is known). Most dealt first. Then the sets dealt, by how, and the
+ *  sets done (every goal of a known set met). */
+function goalFigures(play) {
+    const sets = play.goalSets, met = play.goalsMet;
+    const setKey = (gameKey, set) => gameKey + '|' + set;
+    const setOf = new Map(sets.map(s => [setKey(s.gameKey, s.set), s]));
+    const metKeys = new Set(met.map(m => setKey(m.gameKey, m.set) + '|' + m.index));
+    const rows = new Map();
+    const row = counter => {
+        if (!rows.has(counter)) rows.set(counter, { counter, dealt: 0, rerolled: 0, met: 0, turns: [] });
+        return rows.get(counter);
+    };
+    let done = 0;
+    for (const s of sets) {
+        const next = setOf.get(setKey(s.gameKey, s.set + 1));
+        const unmet = s.goals.filter((g, i) => !metKeys.has(setKey(s.gameKey, s.set) + '|' + i));
+        for (const g of s.goals) row(g.counter).dealt++;
+        if (next && next.how === 'reroll') for (const g of unmet) row(g.counter).rerolled++;
+        if (unmet.length === 0) done++;
+    }
+    for (const m of met) {
+        const r = row(m.counter);
+        r.met++;
+        const s = setOf.get(setKey(m.gameKey, m.set));
+        if (s) r.turns.push(m.turn - s.turn);
+    }
+    return {
+        perCounter: [...rows.values()].sort((a, b) => b.dealt - a.dealt || a.counter.localeCompare(b.counter))
+            .map(({ turns, ...r }) => ({ ...r, medianTurns: turns.length === 0 ? null : median(turns) })),
+        sets: sets.length,
+        byHow: counted(groupBy(sets, s => s.how), 'how', 'sets'),
+        done,
+    };
+}
+
 /** Every figure of one play. `sizeOrder` is the MAP_SIZES keys in order. */
 function figures(play, sizeOrder) {
     const knownGames = new Set(play.games.map(g => g.gameKey));
@@ -270,10 +310,11 @@ function figures(play, sizeOrder) {
         clients: clientFigures(play),
         crashes: crashFigures(play.crashes, knownGames),
         players: playerFigures(play),
+        goals: goalFigures(play),
     };
 }
 
 module.exports = {
     LONG_PAUSE_SECONDS, SECONDS_PER_DAY, WINDOW_BUCKET_PX, summarize, utcDay, clientOf, screenOf, messageKind,
-    inPeriod, byRulesVersion, figures, crashFigures,
+    inPeriod, byRulesVersion, figures, crashFigures, goalFigures,
 };

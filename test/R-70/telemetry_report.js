@@ -11,7 +11,7 @@
 //   - the period: an old game and its events drop out; events with no game record are left out
 //   - several rules versions: every section once per version, lowest first
 //   - rows → records (signed_in, arg columns, rest, the delivered_<color> columns as deliveredByColor)
-//   - playFromD1: four SELECTs with --local --json; production with the placeholder is refused
+//   - playFromD1: six SELECTs (the goal tables' too, D-77) with --local --json; production with the placeholder is refused
 //     without calling wrangler
 //   - the CLI: usage errors and the placeholder refusal exit 1 without running wrangler; local-d1
 //     end to end, batches written by the real Worker into node:sqlite with the schema, read back by
@@ -89,6 +89,8 @@ function fixture() {
             crash({ id: 2, gameKey: 'g1', message: 'TypeError at line 40' }),
             crash({ id: 3, gameKey: 'g2', version: 'def5678', message: 'other bug' }),
         ],
+        goalSets: [],
+        goalsMet: [],
     };
 }
 
@@ -178,7 +180,7 @@ const text = report(fixture(), HEADING, SIZES);
     check('heading says what was left out', t.includes('left out: 1 event and 1 milestone with no game record') && t.includes('  3 games, 11 events'));
     play.events.push(event('old', 1, 'place', { unixSeconds: T0 }));
     check('an older game\'s event inside the period drops with its game, not left out', fig.inPeriod(play, T0 - DAY).leftOut.events === 1);
-    const none = report({ games: [], events: [], milestones: [], crashes: [crash()] }, HEADING, SIZES);
+    const none = report({ games: [], events: [], milestones: [], crashes: [crash()], goalSets: [], goalsMet: [] }, HEADING, SIZES);
     check('no games: said, crashes still shown', none.includes('No games recorded.') && none.includes('Crashes: 1, per version'));
 }
 
@@ -238,7 +240,7 @@ async function main() {
                 seed: 1, size: 'small', version: 'v', rules_version: 1, user_agent: null, screen: null }]);
             return answer([]);
         }, 'local-d1', { path: 'wrangler.jsonc', text: PLACEHOLDER_CONFIG }, 0);
-        check('four reads, one per table', calls.length === 4 && ['games', 'events', 'milestones', 'crashes'].every((t, i) => calls[i].at(-1).includes('FROM ' + t)));
+        check('six reads, one per table', calls.length === 6 && ['games', 'events', 'milestones', 'crashes', 'goal_sets', 'goals_met'].every((t, i) => calls[i].at(-1).includes('FROM ' + t + ' ')));
         check('local-d1 asks wrangler for --local --json', calls.every(a => a.includes('--local') && a.includes('--json') && a[0] === 'd1' && a[1] === 'execute' && a[2] === 'ttdat-telemetry'));
         check('rows come back as records', play.games.length === 1 && play.games[0].gameKey === 'g');
         let called = false, refusal = null;
@@ -334,7 +336,7 @@ process.stdout.write(JSON.stringify([{ results, success: true, meta: {} }]));
             && r.delivered_blue === 0 && r.delivered_yellow === 0) && msRow.delivered_red === 6 && msRow.delivered_green === 4);
         check('… and not in rest (an event\'s rest is its other args or NULL, a milestone\'s NULL)', evRows[0].rest === null
             && evRows[1].rest === '{"args":{"how":"slot"}}' && evRows[2].rest === '{"args":{"hexes":[{"q":1,"r":1},{"q":2,"r":2},{"q":3,"r":3}]}}' && msRow.rest === null);
-        const back = records.playFromRows({ games: [], events: evRows, milestones: [msRow], crashes: [] });
+        const back = records.playFromRows({ games: [], events: evRows, milestones: [msRow], crashes: [], goalSets: [], goalsMet: [] });
         check('read back as records: deliveredByColor in CRATE_COLORS order', JSON.stringify(back.events[1].deliveredByColor) === '[1,0,0,0]'
             && back.events[1].args.how === 'slot' && JSON.stringify(back.milestones[0].deliveredByColor) === '[6,4,0,0]');
     }
@@ -352,13 +354,13 @@ process.stdout.write(JSON.stringify([{ results, success: true, meta: {} }]));
         && out.includes('Chrome / Windows') && /\n  slot +1\n/.test(out));
     const calls = fs.readFileSync(callLog, 'utf8').trim().split('\n').map(JSON.parse);
     const executes = calls.filter(a => a[1] === 'execute'), infos = calls.filter(a => a[1] === 'info');
-    check('the CLI asked wrangler four read-only SELECTs, --local --json, with the config', executes.length === 4
+    check('the CLI asked wrangler six read-only SELECTs, --local --json, with the config', executes.length === 6
         && executes.every(a => a.includes('--local') && a.includes('--json') && a[a.indexOf('--config') + 1] === config && /^SELECT /.test(a.at(-1))));
-    check('and one d1 info --json for the size, no --env', calls.length === 5 && infos.length === 1 && infos[0][2] === 'ttdat-telemetry'
+    check('and one d1 info --json for the size, no --env', calls.length === 7 && infos.length === 1 && infos[0][2] === 'ttdat-telemetry'
         && infos[0].includes('--json') && infos[0][infos[0].indexOf('--config') + 1] === config && !infos[0].includes('--env'));
     check('local-d1 prints the Volume section last', out.includes('\nVolume: rows written per day (UTC)') && out.indexOf('\nVolume:') > out.indexOf('\nPlayers (signed in)'));
     const oldDay = new Date((now - 10 * DAY) * 1000).toISOString().slice(0, 10);
-    check('local-d1 Volume: the 10-day-old game and its event count on their own day', new RegExp('\\n  ' + oldDay + ' +1 +1 +0 +0 +2 +0%\\n').test(out));
+    check('local-d1 Volume: the 10-day-old game and its event count on their own day', new RegExp('\\n  ' + oldDay + ' +1 +1 +0 +0 +0 +0 +2 +0%\\n').test(out));
     check('local-d1 Volume: the busiest day line', /\n  busiest day \d{4}-\d\d-\d\d \d+ rows = 0% of the free plan's daily writes\n/.test(out));
     check('d1 info failing for the local database: size: unknown (local)', out.trimEnd().endsWith('  size: unknown (local)'));
     const sized = runWith({ FAKE_INFO: JSON.stringify({ uuid: 'x', name: 'ttdat-telemetry', num_tables: 4, database_size: 61440 }) }, config, 'local-d1');

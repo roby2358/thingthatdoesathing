@@ -132,13 +132,13 @@ By hand, once:
 
 Once a board is picked, the game records each game (seed, board size, version, rules version,
 browser type and window size) and every command but waits and rotations (with whether it was
-accepted and the tally after its tick), plus each milestone, and sends them in batches to
+accepted and the tally after its tick), plus each milestone, each goal set dealt and each goal met, and sends them in batches to
 `POST /t` on ttdat.yuwakisa.com, the portal builds included, under a random ID made fresh for
 each page load; a player signed in with Bluesky sends the sign-in's token with each batch, and
 the Worker stamps those rows with a salted hash of the account instead (`signed_in` 1). Only ship builds served over http(s) send (`<html data-version>` set: not the
 dev page, not `file://`), a browser with Global Privacy Control on sends nothing, and a send
 that fails is dropped silently. The Worker checks each batch and writes it to the
-`ttdat-telemetry` D1 database (tables `games`, `events`, `milestones`, `crashes`;
+`ttdat-telemetry` D1 database (tables `games`, `events`, `milestones`, `crashes`, `goal_sets`, `goals_met`;
 `worker/telemetry_schema.sql`), never storing or logging an IP (it is read only as the key of a
 rate limit, 1000 requests per 10 s per IP, and requests from other websites' pages are refused;
 a browser told 429 or 403 sends nothing for 5 minutes). The About panel's privacy page
@@ -151,12 +151,14 @@ http://localhost:8787, and `../yuwakisacloud/node_modules/.bin/wrangler d1 execu
 a table that already exists: `just local-d1-clear` empties the local database (it deletes
 `.wrangler/state/v3/d1` and makes the tables again), which also recreates one made before a table
 changed; stop `just dev-worker` first. Production's database is made
-once with `just d1-production` (step 3 above).
+once with `just d1-production` (step 3 above); rerunning it adds a new table (the goal tables, D-77)
+and must come before deploying a Worker that writes it.
 
 `just telemetry-report` prints what players do as plain-text tables, for tuning: games per day,
 board size and version; per board size, the turn each milestone was reached; commands and
 refusals, places and discards by card; bomb sizes; sessions and game lengths; browsers, window
-sizes and pixel ratios; crashes; signed-in players; and last, Volume: rows written per UTC day
+sizes and pixel ratios; crashes; signed-in players; goals (per goal counter: dealt, re-rolled away, met, median turns
+to meet; sets done); and last, Volume: rows written per UTC day
 against D1's free-plan daily write limit and the database's size against its size limit, with a
 WARNING line once either reaches half. It reads production's database (and refuses
 while the placeholder id is still in `wrangler.jsonc`); `just telemetry-local` reads

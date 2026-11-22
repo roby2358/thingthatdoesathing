@@ -1,6 +1,6 @@
 // R-91: the side panel's New goals (D-76): engine.newGoals(), no tick; the lines show the new
 // set from 0; it works mid-animation (like rotate) and the tick plays on; under an overlay it
-// does nothing; telemetry records nothing for it.
+// does nothing; telemetry gets the new set as a goal-set record (D-77, R-96), no event record.
 'use strict';
 const { check, done } = require('../helpers/check');
 const { liveGame, setCount } = require('../helpers/goals');
@@ -12,7 +12,11 @@ p.els['goals-side-new'].fire('click');
 const g = p.engine.goalStates();
 check('the next set is dealt', p.state.goals.set === 1);
 check('no tick: turn and Rando unchanged', p.state.turn === turn && p.run('Rando.state()') === rng);
-check('nothing for telemetry', JSON.stringify(p.run('GameTelemetry.pending()')) === queued);
+{
+    const before = JSON.parse(queued), now = p.run('GameTelemetry.pending()');
+    check('telemetry: no event record, one goal-set record for set 1 (reroll)', now.events.length === before.events.length &&
+        now.goalSets.length === before.goalSets.length + 1 && now.goalSets.at(-1).set === 1 && now.goalSets.at(-1).how === 'reroll');
+}
 check('the lines show the new set, every count 0',
     p.ui.goalLines.every((l, i) => l.label.textContent.toLowerCase() === g[i].label.toLowerCase() && l.count.textContent === '0 / ' + g[i].amount));
 

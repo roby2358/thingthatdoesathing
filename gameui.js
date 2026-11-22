@@ -711,6 +711,7 @@ const GameUI = (function () {
             const fromIntro = this.overlay === 'intro';
             this.engine.newGame(Math.floor(Math.random() * 0x100000000), size);
             GameTelemetry.startGame({ seed: this.state.seed, size });   // telemetry starts here, never at page load (D-65)
+            GameTelemetry.goalSet('start', this.state);                 // the new game's set 0 (D-77)
             this.picked = null;
             this.choosing = null;
             this.selected = null;
@@ -1539,8 +1540,11 @@ const GameUI = (function () {
         }
 
         // New goals (engine.newGoals(), D-75): no tick, so it works mid-animation, like rotate.
+        // Telemetry gets the new set (D-77): 'next' after a set all met, else 'reroll'.
         dealNewGoals() {
+            const how = this.state.goals.list.every(g => g.met) ? 'next' : 'reroll';
             this.engine.newGoals();
+            GameTelemetry.goalSet(how, this.state);
             this.sound.step();
             this.render();
         }

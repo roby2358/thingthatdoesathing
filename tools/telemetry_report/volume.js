@@ -21,12 +21,14 @@ const D1_FREE_DB_BYTES = 500 * 1000 * 1000;
  *  and the summary line gets a WARNING: prefix. */
 const WARN_SHARE = 0.5;
 
-/** The four tables, with the column whose time puts a row on its day. */
+/** The tables (as records.js's lists), with the column whose time puts a row on its day. */
 const TABLES = [
     ['games', r => r.startedUnixSeconds],
     ['events', r => r.unixSeconds],
     ['milestones', r => r.unixSeconds],
     ['crashes', r => r.unixSeconds],
+    ['goalSets', r => r.unixSeconds],
+    ['goalsMet', r => r.unixSeconds],
 ];
 
 /** Rows written per UTC day over the period: every row read whose own time is at or after
@@ -40,7 +42,7 @@ function volumeFigures(loaded, since) {
             const t = timeOf(row);
             if (!(t >= since)) continue;
             const day = utcDay(t);
-            if (!days.has(day)) days.set(day, { day, games: 0, events: 0, milestones: 0, crashes: 0, total: 0 });
+            if (!days.has(day)) days.set(day, { day, ...Object.fromEntries(TABLES.map(([name]) => [name, 0])), total: 0 });
             const counts = days.get(day);
             counts[table]++;
             counts.total++;

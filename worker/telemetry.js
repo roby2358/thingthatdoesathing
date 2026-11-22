@@ -3,7 +3,8 @@
 // sends it with no CORS preflight, and sendBeacon can carry it):
 //
 //   { format: 1, player: string, token?: string,
-//     games?: [game…], events?: [event…], milestones?: [milestone…], crashes?: [crash…] }
+//     games?: [game…], events?: [event…], milestones?: [milestone…], crashes?: [crash…],
+//     goalSets?: [goal set…], goalsMet?: [goal met…] }            // the goal lists: D-77
 //
 // It is checked whole (at most MAX_BODY_BYTES, at most MAX_RECORDS records, known record
 // types, field types) and answered 204 before anything is written: the rows go to D1 in one
@@ -49,6 +50,14 @@ export const MAX_RECORDS = 200;
 export const KNOWN_COMMANDS = ['place', 'rotate', 'remove', 'blast', 'move', 'scrap', 'bomb', 'discard', 'wait'];
 export const CRASH_MESSAGE_CHARS = 500;     // a crash's message and stack are cut, not refused
 export const CRASH_STACK_CHARS = 2000;
+/** The goal counters a goal record may name (D-77): GameArtifacts.COUNTERS' keys with `goal` true,
+ *  in table order, restated here (the Worker can't load the game's scripts; R-97 checks they match). */
+export const GOAL_COUNTERS = ['cratesDelivered', 'bigDelivered', 'exGremlins', 'trapped', 'placed', 'springThrows',
+    'rocketFlights', 'cannonLobs', 'moved', 'bombs', 'slides', 'mountainsFlown', 'pushes', 'pulls', 'pushesPulls'];
+/** Goals in a set: GameArtifacts.GOALS_PER_GAME (R-97 checks it). */
+export const GOALS_PER_SET = 3;
+/** How a goal set came: a new game's set 0, New goals with goals unmet, New goals after a set all met. */
+export const GOAL_HOWS = ['start', 'reroll', 'next'];
 
 /** The pages allowed to post from a browser: the live site and the itch.io and Newgrounds
  *  builds' frames (D-70). wrangler dev adds http://localhost:8787 through TELEMETRY_DEV_ORIGINS. */
@@ -117,8 +126,8 @@ function refuse(where) {
     return new Response(null, { status: 400, headers: CORS });
 }
 
-function rowCount({ games, events, milestones, crashes }) {
-    return games.length + events.length + milestones.length + crashes.length;
+function rowCount({ games, events, milestones, crashes, goalSets, goalsMet }) {
+    return games.length + events.length + milestones.length + crashes.length + goalSets.length + goalsMet.length;
 }
 
 async function write(db, statements) {
@@ -154,6 +163,14 @@ const CRASH = {
  *  columns are bound: GameArtifacts.CRATE_COLORS, restated here (the Worker can't load the game's
  *  scripts; R-68 checks they match). */
 export const DELIVERED_COLORS = ['red', 'green', 'blue', 'yellow'];
+const GOAL_SET = {
+    gameKey: ['str', true, 64], set: ['int', true], how: ['str', true, 16], turn: ['int', true], unixSeconds: ['int', true],
+};
+const GOAL_MET = {
+    gameKey: ['str', true, 64], set: ['int', true], index: ['int', true], counter: ['str', true, 32], amount: ['int', true],
+    turn: ['int', true], unixSeconds: ['int', true], met: ['bool', true],
+};
+const GOAL = { counter: ['str', true, 32], amount: ['int', true] };
 /** An event's args that have their own columns, in the order INSERT_EVENT binds them; `rest` keeps the others. */
 const ARG_COLUMNS = { kind: ['str', false, 16], q: ['int', false], r: ['int', false], facing: ['int', false], color: ['str', false, 16] };
 
@@ -161,7 +178,7 @@ function readFormat1(batch) {
     const identity = { playerId: field(batch, 'player', ['str', true, 64], 'player'), signedIn: 0 };
     const lists = {};
     let count = 0;
-    for (const name of ['games', 'events', 'milestones', 'crashes']) {
+    for (const name of ['games', 'events', 'milestones', 'crashes', 'goalSets', 'goalsMet']) {
         const list = batch[name] ?? [];
         if (!Array.isArray(list)) throw new BadBatch(name);
         list.forEach((record, i) => { if (!isObject(record)) throw new BadBatch(`${name}[${i}]`); });
@@ -196,7 +213,39 @@ function readFormat1(batch) {
         row.stack = row.stack === null ? null : row.stack.slice(0, CRASH_STACK_CHARS);
         return row;
     });
-    return { identity, games, events, milestones, crashes };
+    const goalSets = lists.goalSets.map((s, i) => {
+        const where = `goalSets[${i}]`;
+        const row = goalPlace(fields(s, GOAL_SET, where), where);
+        if (!GOAL_HOWS.includes(row.how)) throw new BadBatch(where + '.how');
+        if (!Array.isArray(s.goals) || s.goals.length !== GOALS_PER_SET) throw new BadBatch(where + '.goals');
+        row.goals = s.goals.map((g, j) => goal(g, `${where}.goals[${j}]`));
+        return row;
+    });
+    const goalsMet = lists.goalsMet.map((m, i) => {
+        const where = `goalsMet[${i}]`;
+        const row = goalPlace(fields(m, GOAL_MET, where), where);
+        if (row.index < 0 || row.index >= GOALS_PER_SET) throw new BadBatch(where + '.index');
+        if (row.met !== true) throw new BadBatch(where + '.met');
+        goal(row, where);
+        return row;
+    });
+    return { identity, games, events, milestones, crashes, goalSets, goalsMet };
+}
+
+/** A goal record's set (0 on) and turn (1 on, as GameState's), D-77. */
+function goalPlace(row, where) {
+    if (row.set < 0) throw new BadBatch(where + '.set');
+    if (row.turn < 1) throw new BadBatch(where + '.turn');
+    return row;
+}
+
+/** A goal's counter (one of GOAL_COUNTERS) and amount (a whole number ≥ 1), D-77. */
+function goal(record, where) {
+    if (!isObject(record)) throw new BadBatch(where);
+    const g = fields(record, GOAL, where);
+    if (!GOAL_COUNTERS.includes(g.counter)) throw new BadBatch(where + '.counter');
+    if (g.amount < 1) throw new BadBatch(where + '.amount');
+    return g;
 }
 
 /** deliveredByColor: required, the crates delivered to each color's target, an array of
@@ -255,8 +304,19 @@ const INSERT_CRASH = `
     user_agent)
   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`;
 
-/** Every row of a batch as D1 statements, in the order they're written: games, events, milestones, crashes. */
-function statementsFor(db, { identity: { playerId, signedIn }, games, events, milestones, crashes }) {
+/** Goal records (D-77): INSERT OR IGNORE on their natural keys, so a resent one is kept once. */
+const INSERT_GOAL_SET = `
+  INSERT OR IGNORE INTO goal_sets (game_key, set_no, player_id, signed_in, how, turn, unix_seconds,
+    counter1, amount1, counter2, amount2, counter3, amount3)
+  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`;
+
+const INSERT_GOAL_MET = `
+  INSERT OR IGNORE INTO goals_met (game_key, set_no, idx, player_id, signed_in, counter, amount, turn, unix_seconds)
+  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`;
+
+/** Every row of a batch as D1 statements, in the order they're written: games, events, milestones,
+ *  crashes, goal sets, goals met. */
+function statementsFor(db, { identity: { playerId, signedIn }, games, events, milestones, crashes, goalSets, goalsMet }) {
     return [
         ...games.map(g => db.prepare(INSERT_GAME).bind(g.gameKey, playerId, signedIn, g.format, g.startedUnixSeconds,
             g.seed, g.size, g.version, g.rulesVersion, g.userAgent, g.screen)),
@@ -267,5 +327,9 @@ function statementsFor(db, { identity: { playerId, signedIn }, games, events, mi
             m.unixSeconds, m.delivered, m.lost, m.exGremlins, m.trapped, m.things, m.crates, ...m.deliveredByColor, m.rest)),
         ...crashes.map(c => db.prepare(INSERT_CRASH).bind(c.unixSeconds, c.format, c.version, c.gameKey, playerId,
             signedIn, c.seed, c.size, c.turn, c.message, c.stack, c.userAgent)),
+        ...goalSets.map(s => db.prepare(INSERT_GOAL_SET).bind(s.gameKey, s.set, playerId, signedIn, s.how, s.turn, s.unixSeconds,
+            ...s.goals.flatMap(g => [g.counter, g.amount]))),
+        ...goalsMet.map(m => db.prepare(INSERT_GOAL_MET).bind(m.gameKey, m.set, m.index, playerId, signedIn, m.counter, m.amount,
+            m.turn, m.unixSeconds)),
     ];
 }

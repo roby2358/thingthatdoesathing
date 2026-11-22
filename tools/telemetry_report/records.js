@@ -1,6 +1,6 @@
 // tools/telemetry_report/records.js — where the telemetry report's records come from (ONTOLOGY
-// "Telemetry report", D-66): the four tables of the ttdat-telemetry D1 database (D-64), read by
-// four read-only SELECTs through `wrangler d1 execute --json`, turned back into plain records
+// "Telemetry report", D-66): the six tables of the ttdat-telemetry D1 database (D-64; the goal
+// tables D-77), read by six read-only SELECTs through `wrangler d1 execute --json`, turned back into plain records
 // shaped like the ones the browser sends (camelCase, ONTOLOGY "Records"), each with the
 // player_id and signed_in of the batch that wrote it. Nothing here runs a process: the caller
 // hands in a function that runs wrangler.
@@ -29,11 +29,12 @@ function wholeNumber(value) {
     return String(value);
 }
 
-/** The four read-only queries, one per table, for the period from `since` (Unix seconds) on.
+/** The six read-only queries, one per table, for the period from `since` (Unix seconds) on.
  *  Every game is read (the table is small), so an event of a game started before the period
  *  is known as that game's, which figures.inPeriod drops, not as one with no game record. A
  *  game's events and milestones come after its start, so these hold every event and milestone
- *  of the games started in the period. A crash belongs to the period by its own time. */
+ *  of the games started in the period, and the same holds for its goal sets and goals met. A crash
+ *  belongs to the period by its own time. */
 function queries(since) {
     const s = wholeNumber(since);
     return {
@@ -41,6 +42,8 @@ function queries(since) {
         events: `SELECT * FROM events WHERE unix_seconds >= ${s} ORDER BY game_key, seq`,
         milestones: `SELECT * FROM milestones WHERE unix_seconds >= ${s} ORDER BY game_key, milestone`,
         crashes: `SELECT * FROM crashes WHERE unix_seconds >= ${s} ORDER BY unix_seconds, id`,
+        goalSets: `SELECT * FROM goal_sets WHERE unix_seconds >= ${s} ORDER BY game_key, set_no`,
+        goalsMet: `SELECT * FROM goals_met WHERE unix_seconds >= ${s} ORDER BY game_key, set_no, idx`,
     };
 }
 
@@ -110,15 +113,31 @@ function crashFromRow(row) {
     };
 }
 
-/** The records the rows of the four queries hold. */
-function playFromRows({ games, events, milestones, crashes }) {
+/** A goal set record (D-77): its three goals back as a list, in the set's order. */
+function goalSetFromRow(row) {
     return {
-        games: games.map(gameFromRow), events: events.map(eventFromRow),
-        milestones: milestones.map(milestoneFromRow), crashes: crashes.map(crashFromRow),
+        gameKey: row.game_key, set: row.set_no, ...identity(row), how: row.how, turn: row.turn, unixSeconds: row.unix_seconds,
+        goals: [1, 2, 3].map(n => ({ counter: row['counter' + n], amount: row['amount' + n] })),
     };
 }
 
-/** The records of a D1 telemetry database from `since` on, read by four read-only queries
+function goalMetFromRow(row) {
+    return {
+        gameKey: row.game_key, set: row.set_no, index: row.idx, ...identity(row), counter: row.counter, amount: row.amount,
+        turn: row.turn, unixSeconds: row.unix_seconds,
+    };
+}
+
+/** The records the rows of the six queries hold. */
+function playFromRows({ games, events, milestones, crashes, goalSets, goalsMet }) {
+    return {
+        games: games.map(gameFromRow), events: events.map(eventFromRow),
+        milestones: milestones.map(milestoneFromRow), crashes: crashes.map(crashFromRow),
+        goalSets: goalSets.map(goalSetFromRow), goalsMet: goalsMet.map(goalMetFromRow),
+    };
+}
+
+/** The records of a D1 telemetry database from `since` on, read by six read-only queries
  *  through `wrangler(args) → Promise<stdout>`. Production isn't asked while the config still
  *  holds the placeholder id: the database doesn't exist yet. */
 async function playFromD1(wrangler, target, config, since) {
@@ -139,5 +158,5 @@ async function playFromD1(wrangler, target, config, since) {
 
 module.exports = {
     DATABASE, ID_PLACEHOLDER, D1_TARGETS, ReportRefusal, queries, rowsFromWrangler,
-    gameFromRow, eventFromRow, milestoneFromRow, crashFromRow, playFromRows, playFromD1,
+    gameFromRow, eventFromRow, milestoneFromRow, crashFromRow, goalSetFromRow, goalMetFromRow, playFromRows, playFromD1,
 };
