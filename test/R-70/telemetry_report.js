@@ -26,6 +26,7 @@ const { spawnSync } = require('child_process');
 const { pathToFileURL } = require('url');
 const { DatabaseSync } = require('node:sqlite');
 const { check, done } = require('../helpers/check');
+require('../helpers/cloudflare');   // worker/index.js imports 'cloudflare:workers'
 
 const ROOT = path.join(__dirname, '..', '..');
 const TOOL = path.join(ROOT, 'tools', 'telemetry_report.js');

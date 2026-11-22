@@ -981,7 +981,8 @@ One JSON object, sent as `text/plain` (no CORS preflight; `sendBeacon` can carry
 ```
 fetch(request):
   POST /auth/token → the sign-in's code exchange (Sign-in section)
-  path ≠ '/t' or method ≠ POST → 404        # the static assets serve every file before this
+  POST /achievements → a signed-in player's lifetime totals (Achievements server section, D-78)
+  anything but POST /t → 404                # the static assets serve every file before this
   Origin header set and not in TELEMETRY_ORIGINS (nor env.TELEMETRY_DEV_ORIGINS, wrangler dev's
     http://localhost:8787) → 403, nothing written                       # D-70; no Origin goes on
   TELEMETRY_LIMIT.limit({key: CF-Connecting-IP}) says no → 429, nothing written, body never read
@@ -1101,7 +1102,7 @@ Sections, in order (a table with no rows prints `(none)`):
 ## §9 Sign-in [D; D-68]
 *Serves:* knowing a returning player across page loads in telemetry, without making anyone sign
 in; later, saves and achievements build on it. Playing never needs it. For now a sign-in changes
-only telemetry's identity. Thing Factory is a public OAuth client of yuwakisacloud's auth/ (its
+only telemetry's identity (the Worker's achievements endpoint, D-78, has no client yet). Thing Factory is a public OAuth client of yuwakisacloud's auth/ (its
 `/authorize` page offers "Sign in with Bluesky" through bskyoidc): authorization code with PKCE,
 run in the browser (`signin.js`, `GameSignIn`), with two small server halves in the ttdat Worker
 (`worker/auth.js`). auth/ is reached from the Worker only through the `AUTH_SERVICE` service
@@ -1197,3 +1198,48 @@ written. worker/index.js imports the vendored auth-client (TypeScript, bundled b
 | `MAX_TOKEN_CHARS` | 4096 | a longer telemetry token isn't verified |
 | `MAX_EXCHANGE_BYTES` | 4096 | the code exchange's largest form body |
 | `MAX_HANDLE_CHARS` | 253 | a longer `preferred_username` gives no handle (a Bluesky handle is a DNS name) |
+
+## §10 Achievements server [D; D-78]
+*Serves:* achievements (lifetime totals of the counters, measured on the ladder, D-74) that follow
+a signed-in player across devices; accumulation. The server half only: a signed-in player's
+lifetime total per counter lives in the ttdat Worker, one Durable Object per player. No client
+calls it yet; who adds what, and when, is the achievements client's (Counters rule: `rungsReached`
+is counted there). Signed-out players have no server totals.
+
+### PlayerTotals — the Durable Object (worker/player_totals.js), bound as `PLAYER_TOTALS`
+```
+one object per player, named by identityFor's playerId (hex SHA-256 of PLAYER_SALT + sub)
+SQLite-backed (wrangler.jsonc migration tag v1, new_sqlite_classes ['PlayerTotals']; top level and env.production)
+storage: ctx.storage.kv, a key per counter → its lifetime total (a whole number > 0); no key = no total
+totals()        → {totals: {key: n for every key}}
+add(increments) → for each key, n: n > 0 → kv.put(key, (kv.get(key) ?? 0) + n); then totals()
+                  # synchronous, no await: nothing runs between an add's reads and writes, no count lost
+```
+
+### Endpoint — `POST /achievements` (worker/index.js → worker/achievements.js)
+```
+body: {token: string, add?: {counterKey: whole number}}        # JSON, sent as text/plain like /t
+Origin set and not allowed (as /t: TELEMETRY_ORIGINS, TELEMETRY_DEV_ORIGINS) → 403, body never read
+TELEMETRY_LIMIT.limit({key: CF-Connecting-IP}) says no → 429, body never read   # /t's limiter and numbers
+body > MAX_BODY_BYTES, not a JSON object → 400
+add present and: not an object, > MAX_ADD_KEYS keys, a key not in ACHIEVEMENT_COUNTERS,
+  a value not a whole number in 0 … MAX_ADD_VALUE → 400
+identityFor(token) (Sign-in section: issuer, audience TTDAT_CLIENT_ID, PLAY_SCOPE) null → 401
+  # a missing token too
+no PLAYER_TOTALS binding, or the object throws → 503
+stub = PLAYER_TOTALS.get(idFromName(playerId))
+add has keys → stub.add(add), else stub.totals()
+→ 200 {totals}
+every answer: Access-Control-Allow-Origin *, Cache-Control no-store
+```
+`ACHIEVEMENT_COUNTERS` is every `GameArtifacts.COUNTERS` key (perGame or not) in table order,
+restated in the Worker. Nothing here stores or logs the IP (only the limiter's key), the token or
+the `sub`; it writes no telemetry rows. Refusals are logged with the field only.
+
+### Numbers [T]
+| Name | Value | Meaning |
+|---|---|---|
+| `MAX_ADD_KEYS` | 64 | most counter keys one add may carry |
+| `MAX_ADD_VALUE` | 100000 | largest increment one add may carry for a counter |
+
+The body limit is /t's `MAX_BODY_BYTES` (Telemetry numbers), shared.

@@ -11,6 +11,7 @@
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { check, done } = require('../helpers/check');
+require('../helpers/cloudflare');   // worker/index.js imports 'cloudflare:workers'
 
 const ROOT = path.join(__dirname, '..', '..');
 const say = (...a) => process.stdout.write(a.join(' ') + '\n');

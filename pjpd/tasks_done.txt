@@ -610,6 +610,27 @@ Design docs: reconcile ONTOLOGY + CRITERIA (new R-rows own test/R-n/) + RATIONAL
 ----
 Priority:   62
 Status: Done
+ID: achserver-a2az
+Created: 2026-11-22T20:04:21Z
+Updated: 2026-11-22T21:06:34Z
+
+Achievements on the server: lifetime totals per signed-in player in a Durable Object, behind POST /achievements.
+
+Goal: a signed-in player's lifetime totals per counter live server-side, one Durable Object per player, so achievements follow them across devices.
+
+Settled design:
+- worker/: a SQLite-backed Durable Object class PlayerTotals (exported from worker/index.js as the class wrangler needs; keep the default export the fetch handler), one object per player, named by the player hash identityFor already makes (SHA-256 of PLAYER_SALT + sub). It holds a key per counter in its key-value storage. Methods: add(increments) → {totals} (adds each increment, within the object, so concurrent adds never lose a count) and totals() → {totals}.
+- wrangler.jsonc: durable_objects binding PLAYER_TOTALS → PlayerTotals and a migrations entry (tag v1, new_sqlite_classes ['PlayerTotals']), in the top level and env.production.
+- Route POST /achievements, same Origin check (403) and TELEMETRY_LIMIT rate limit (429) as /t, before reading the body. Body {token, add?}: add is {counterKey: whole number}; keys must be in a worker-side ACHIEVEMENT_COUNTERS list (every COUNTERS key, perGame or not), a test keeps it equal to artifacts.js's; each value 0 ≤ n ≤ 100000; at most 64 keys; MAX_BODY_BYTES applies. Invalid body 400. The token must verify (identityFor: audience TTDAT_CLIENT_ID, scope); missing or bad → 401. Then add (if any) and answer 200 {totals: {key: n for every key with a total}}. CORS like /t if /t has it.
+- Never stores or logs the IP or the sub; no telemetry rows here.
+- Not deployed by this task (production needs the migration; designer's go).
+
+Done when: Node tests (R-rows) for routing, origin/limit, body checks, 401, add-and-read through a fake DO namespace, and PlayerTotals itself against a fake storage (adds accumulate, concurrent adds both kept); wrangler deploy --dry-run passes with the new binding; just cc-test passes.
+
+Design docs: reconcile ONTOLOGY + CRITERIA (new R-rows own test/R-n/) + RATIONALE (a D-n for the decisions below) + ARCHITECTURE_LOG + CLAUDE.md in the same change. RULES_VERSION stays 1. Starreach (../starreach, read only, never edit or commit there) has the model this follows: docs/ONTOLOGY.md "Counters", "Goal", "Ladder", "Goal selection", "Goal check", and docs/RATIONALE.md D-43 to D-49; app/src/achievements.ts; public/js/script.js drawAchievements.
+----
+Priority:   62
+Status: Done
 ID: flakysignin-rg9e
 Created: 2026-11-21T10:45:37Z
 Updated: 2026-11-21T10:59:41Z

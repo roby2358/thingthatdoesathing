@@ -101,8 +101,9 @@ Three places run the game, all from the same ship build (`just ship`, see CLAUDE
 
 `just deploy` builds and runs `wrangler deploy --env production` (the `ttdat` Cloudflare Worker,
 `wrangler.jsonc`: the build as static assets, plus `worker/`, which takes telemetry batches at
-`POST /t` into a D1 database and passes the sign-in's code exchange on to auth/ at
-`POST /auth/token`). The Worker's one npm dependency (`cbor-x`, for the vendored auth-client in
+`POST /t` into a D1 database, passes the sign-in's code exchange on to auth/ at
+`POST /auth/token`, and keeps a signed-in player's lifetime counter totals at `POST /achievements`
+in the `PlayerTotals` Durable Object, one per player). The Worker's one npm dependency (`cbor-x`, for the vendored auth-client in
 `worker/vendor/`) installs into `worker/node_modules` with `just worker-deps`
 (`npm ci --ignore-scripts`), which `deploy`, `dev-worker` and `preview` run on their own when it's
 missing. It uses yuwakisacloud's wrangler, so that repo sits next to this
@@ -123,7 +124,11 @@ By hand, once:
 4. The sign-in's client row in auth/ (yuwakisacloud's `auth` D1, not this repo; see "Sign-in"
    below): run the production SQL there once, and deploy auth/ before ttdat if it isn't live.
 5. Here: `just deploy`. The first deploy creates the `ttdat` Worker, the DNS record and the
-   certificate (`custom_domain` in `wrangler.jsonc`); give the certificate a few minutes.
+   certificate (`custom_domain` in `wrangler.jsonc`); give the certificate a few minutes. It also
+   applies `wrangler.jsonc`'s Durable Object migration (tag `v1`, `new_sqlite_classes`
+   `PlayerTotals`), which creates the class the achievements totals live in (D-78); wrangler runs a
+   migration once per tag, and undoing it (renaming or deleting the class) takes a new tag, so the
+   first deploy of a Worker carrying it waits for the designer's go.
 6. Check https://ttdat.yuwakisa.com in a clean browser profile, then sign in with Bluesky once.
 7. When you're ready, retire the old copy at yuwakisa.com/thingthatdoesathing/: remove it from
    yuwakisaweb, or replace it with a redirect page to https://ttdat.yuwakisa.com/.
@@ -164,6 +169,16 @@ WARNING line once either reaches half. It reads production's database (and refus
 while the placeholder id is still in `wrangler.jsonc`); `just telemetry-local` reads
 the local one, and a number limits it to games started in that many days
 (`just telemetry-local 7`). It only reads.
+
+### Achievements
+
+`POST /achievements` (D-78) takes `{token, add?}`, sent as text/plain like `/t`: the sign-in's
+token (missing or not verifying: 401) and an optional `{counterKey: n}` of increments (keys from
+`ACHIEVEMENT_COUNTERS` in `worker/achievements.js`, every `COUNTERS` key; each 0 to 100000; at most
+64; anything else: 400). It adds them in that player's `PlayerTotals` object (named by the salted
+hash of the account, never the account itself) and answers `{totals}`. The same Origin check and
+rate limit as `/t` come first; no IP or account is stored or logged, and it writes no telemetry
+rows. No client calls it yet. Under `just dev-worker` the object lives in `.wrangler/` (U-42).
 
 ### Sign-in
 

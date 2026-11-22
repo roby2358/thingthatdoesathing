@@ -21,6 +21,7 @@ const nodeCrypto = require('crypto');
 const { pathToFileURL } = require('url');
 const { DatabaseSync } = require('node:sqlite');
 const { check, done } = require('../helpers/check');
+require('../helpers/cloudflare');   // worker/index.js imports 'cloudflare:workers'
 
 const ROOT = path.join(__dirname, '..', '..');
 const SCHEMA = fs.readFileSync(path.join(ROOT, 'worker', 'telemetry_schema.sql'), 'utf8');

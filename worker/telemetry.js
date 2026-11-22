@@ -78,13 +78,8 @@ class BadBatch extends Error {
 export async function telemetry(request, env, ctx, verify) {
     if (!originAllowed(request.headers.get('Origin'), env)) return new Response(null, { status: 403, headers: CORS });
     if (!(await underLimit(request, env))) return new Response(null, { status: 429, headers: CORS });
-    const length = Number(request.headers.get('Content-Length'));
-    if (length > MAX_BODY_BYTES) return refuse('body too big');
-    const text = await request.text();
-    if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) return refuse('body too big');
-    let batch;
-    try { batch = JSON.parse(text); } catch { return refuse('not JSON'); }
-    if (!isObject(batch)) return refuse('not an object');
+    const batch = await readJsonObject(request);
+    if (typeof batch === 'string') return refuse(batch);
 
     const read = typeof batch.format === 'number' && Object.hasOwn(READERS, batch.format) ? READERS[batch.format] : null;
     if (!read) {
@@ -101,15 +96,27 @@ export async function telemetry(request, env, ctx, verify) {
     return new Response(null, { status: 204, headers: CORS });
 }
 
-/** No Origin header, or one on the list. */
-function originAllowed(origin, env) {
+/** The request's body as a JSON object of at most MAX_BODY_BYTES, or a string naming what's wrong
+ *  (POST /achievements reads its body this way too, D-78). */
+export async function readJsonObject(request) {
+    if (Number(request.headers.get('Content-Length')) > MAX_BODY_BYTES) return 'body too big';
+    const text = await request.text();
+    if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) return 'body too big';
+    let body;
+    try { body = JSON.parse(text); } catch { return 'not JSON'; }
+    return isObject(body) ? body : 'not an object';
+}
+
+/** No Origin header, or one on the list (POST /achievements uses it too, D-78). */
+export function originAllowed(origin, env) {
     if (origin === null) return true;
     const dev = typeof env.TELEMETRY_DEV_ORIGINS === 'string' ? env.TELEMETRY_DEV_ORIGINS.split(',').map(s => s.trim()) : [];
     return TELEMETRY_ORIGINS.includes(origin) || dev.includes(origin);
 }
 
-/** The rate limiter's verdict for this request's IP; true without a binding or when it fails. */
-async function underLimit(request, env) {
+/** The rate limiter's verdict for this request's IP; true without a binding or when it fails
+ *  (POST /achievements uses it too, D-78). */
+export async function underLimit(request, env) {
     const limiter = env.TELEMETRY_LIMIT;
     if (!limiter) return true;
     try {

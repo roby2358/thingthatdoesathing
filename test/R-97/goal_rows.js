@@ -17,6 +17,7 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 const { DatabaseSync } = require('node:sqlite');
 const { check, done } = require('../helpers/check');
+require('../helpers/cloudflare');   // worker/index.js imports 'cloudflare:workers'
 const { load } = require('../helpers/load');
 
 const ROOT = path.join(__dirname, '..', '..');

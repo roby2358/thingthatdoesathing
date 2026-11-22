@@ -57,17 +57,17 @@ export async function identityFor(token, env, verify, nowSeconds) {
             clock_skew_s: CLOCK_SKEW_S,
         });
         if (!result || result.valid !== true) {
-            console.error('telemetry token not accepted: ' + (result && typeof result.reason === 'string' ? result.reason : 'invalid'));
+            console.error('sign-in token not accepted: ' + (result && typeof result.reason === 'string' ? result.reason : 'invalid'));
             return null;
         }
         const { sub, scope } = result.claims || {};
         if (typeof sub !== 'string' || sub === '' || typeof scope !== 'string' || !scope.split(' ').includes(PLAY_SCOPE)) {
-            console.error('telemetry token not accepted: no ' + PLAY_SCOPE);
+            console.error('sign-in token not accepted: no ' + PLAY_SCOPE);
             return null;
         }
         return { playerId: await playerIdFor(sub), signedIn: 1 };
     } catch (e) {
-        console.error('telemetry token not checked: ' + (e && e.name ? e.name : 'error'));
+        console.error('sign-in token not checked: ' + (e && e.name ? e.name : 'error'));
         return null;
     }
 }

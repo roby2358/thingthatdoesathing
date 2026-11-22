@@ -2,7 +2,8 @@
 // every file; worker/index.js (plain JS, bundled by wrangler with the vendored auth-client and its
 // cbor-x from worker/node_modules, `just worker-deps`) gets only the requests that match none, and
 // answers POST /t (telemetry batches into D1, D-64, rate-limited and Origin-checked, D-70),
-// POST /auth/token (the sign-in's code exchange, D-68) and 404 to anything else.
+// POST /auth/token (the sign-in's code exchange, D-68), POST /achievements (a signed-in player's
+// lifetime totals in the PlayerTotals Durable Object, D-78) and 404 to anything else.
 // `just deploy` runs `just ship` first, so ./dist/web is the current commit's files.
 {
   "name": "ttdat",
@@ -30,6 +31,16 @@
   // numbers. wrangler dev simulates it locally. namespace_id is any integer unused in the account.
   "ratelimits": [
     { "name": "TELEMETRY_LIMIT", "namespace_id": "2701", "simple": { "limit": 1000, "period": 10 } }
+  ],
+
+  // Achievements (D-78): one PlayerTotals Durable Object per signed-in player, named by the player
+  // hash, holding a key per counter. SQLite-backed, so it needs the v1 migration before its first
+  // deploy (restated in env.production, like every binding; a new class gets a new tag).
+  "durable_objects": {
+    "bindings": [{ "name": "PLAYER_TOTALS", "class_name": "PlayerTotals" }]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["PlayerTotals"] }
   ],
   "vars": {
     // wrangler dev's page may post telemetry from its own origin (D-70); production has no such var.
@@ -59,6 +70,12 @@
       "services": [{ "binding": "AUTH_SERVICE", "service": "auth" }],
       "ratelimits": [
         { "name": "TELEMETRY_LIMIT", "namespace_id": "2701", "simple": { "limit": 1000, "period": 10 } }
+      ],
+      "durable_objects": {
+        "bindings": [{ "name": "PLAYER_TOTALS", "class_name": "PlayerTotals" }]
+      },
+      "migrations": [
+        { "tag": "v1", "new_sqlite_classes": ["PlayerTotals"] }
       ],
       "vars": {
         "AUTH_ISSUER": "https://auth.yuwakisa.com",

@@ -22,6 +22,7 @@ const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { check, done } = require('../helpers/check');
+require('../helpers/cloudflare');   // worker/index.js imports 'cloudflare:workers'
 
 const ROOT = path.join(__dirname, '..', '..');
 const IP = '198.51.100.23';
