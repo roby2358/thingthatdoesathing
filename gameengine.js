@@ -9,6 +9,7 @@ const GameEngine = (function () {
     const {
         TERRAIN, THINGS, TOOLS, CARDS, cardOf, UNLOCKS, PIECES, CRATE_COLORS, WHITE, aims, nextMilestone, MAP_SIZES, ENHANCE_CHANCE, HAND_SIZE, IDLE_REDRAW_TICKS, BUMP_ADVANCE, MAX_SLIDE,
         gremlinDice, GREMLIN_DICE_SIDES, crateCap, milestonesReached, bigCrateChance, COUNTERS, COUNTER_READS,
+        GOALS_PER_GAME, rung,
         GEN_MAX_ATTEMPTS, HEIGHTMAP_ROUGHNESS,
         WATER_PCT, MOUNTAIN_PCT, ICE_FRAC, PLACE_SLICE_FRAC, PLACE_SLICE_MIN
     } = GameArtifacts;
@@ -23,6 +24,14 @@ const GameEngine = (function () {
     // Counters a Thing's motion adds 1 to when it moves its piece at least one hex (D-74).
     const MOTION_COUNTS = { SPRING: 'springThrows', ROCKET: 'rocketFlights', CANNON: 'cannonLobs', PUSHER: 'pushes', PULLER: 'pulls' };
     const BIG_CRATE = 'bigcrate';   // the piece kind bigDelivered counts
+    // The seed of goal set `set`'s side stream (D-75): a 32-bit mix of the game's seed and the
+    // set's number (murmur3's finalizer over both), so each set of a game draws differently.
+    const goalSeed = (seed, set) => {
+        let h = (seed ^ Math.imul(set + 1, 0x9E3779B1)) >>> 0;
+        h = Math.imul(h ^ (h >>> 16), 0x85EBCA6B);
+        h = Math.imul(h ^ (h >>> 13), 0xC2B2AE35);
+        return (h ^ (h >>> 16)) >>> 0;
+    };
     // Where each cargo loss is counted: open water, a gremlin's wreck, or anything else (D-74).
     const SUNK = 'cratesSunk', SMASHED = 'cratesSmashed', LOST_OTHER = 'cratesLostOther';
     // A wanderer's own step, as a push; `wrecks` comes from its piece template.
@@ -197,6 +206,7 @@ const GameEngine = (function () {
             s.idleTicks = 0;
             s.counts = GameState.zeroCounts();
             s.phase = 'player';
+            this.dealGoals(0);   // after generation, off the shared stream: play is as it was without goals
             return { ok: true };
         }
 
@@ -212,6 +222,54 @@ const GameEngine = (function () {
         // Add n to a stored counter, at the one place its thing happens. Never touches Rando.
         count(key, n) {
             this.state.counts[key] += n;
+        }
+
+        // ---- Goals (D-75) ----
+        // Deal goal set `set`, counted from counters() now. Its draws come from its own side
+        // stream (Rando.stream), never the shared one: a uniform distinct pick of GOALS_PER_GAME
+        // goal counters (minus the size's goalExcludes), each at a uniform pick of its goalLevels.
+        dealGoals(set) {
+            const s = this.state;
+            const { goalLevels, goalExcludes } = MAP_SIZES[s.size];
+            const rng = Rando.stream(goalSeed(s.seed, set));
+            const offered = COUNTERS.filter(c => c.goal && !goalExcludes.includes(c.key));
+            const list = [];
+            for (let i = 0; i < GOALS_PER_GAME; i++) {
+                const c = offered.splice(Math.floor(rng() * offered.length), 1)[0];
+                const level = goalLevels[Math.floor(rng() * goalLevels.length)];
+                list.push({ counter: c.key, amount: rung(c.scale, level - 1), met: false });
+            }
+            s.goals = { set, base: this.counters(), list };
+        }
+
+        // Each goal as the UI shows it: {counter, label, count (since the set was dealt; keeps
+        // rising after it's met), amount, met}. A query.
+        goalStates() {
+            const now = this.counters();
+            const { base, list } = this.state.goals;
+            return list.map(g => ({ counter: g.counter, label: COUNTERS.find(c => c.key === g.counter).label,
+                count: now[g.counter] - base[g.counter], amount: g.amount, met: g.met }));
+        }
+
+        // The goal check, after every tick: each unmet goal whose count reached its amount is met
+        // for good (goal event, goalsMet + 1); the set's last one met adds goalsDone.
+        checkGoals() {
+            const goals = this.state.goals;
+            const events = [];
+            this.goalStates().forEach((g, index) => {
+                if (g.met || g.count < g.amount) return;
+                goals.list[index].met = true;
+                this.count('goalsMet', 1);
+                events.push({ type: 'goal', index, counter: g.counter, amount: g.amount });
+            });
+            if (events.length && goals.list.every(g => g.met)) events.push({ type: 'goalsDone', set: goals.set });
+            return events;
+        }
+
+        // Deal the next goal set, counting from now (D-75). No tick; never touches Rando.
+        newGoals() {
+            this.dealGoals(this.state.goals.set + 1);
+            return { ok: true, events: [{ type: 'goals', set: this.state.goals.set }] };
         }
 
         // ---- Save and restore (D-67) ----
@@ -1183,6 +1241,7 @@ const GameEngine = (function () {
 
             s.turn++;
             s.phase = 'player';
+            events.push(...this.checkGoals());   // after milestones, last (D-75)
             return { ok: true, events: [...first.events, ...events] };
         }
 

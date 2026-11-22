@@ -6,11 +6,13 @@
 // original would have (D-67). fromJSON only reads: it never touches Rando; the engine's
 // restore() puts the stream back once the state is known good.
 const GameState = (function () {
-    const { MAP_SIZES, TERRAIN, PIECES, CARDS, THINGS, CRATE_COLORS, STORED_COUNTERS } = GameArtifacts;
+    const { MAP_SIZES, TERRAIN, PIECES, CARDS, THINGS, CRATE_COLORS, STORED_COUNTERS, COUNTERS, GOALS_PER_GAME } = GameArtifacts;
     const TALLIES = ['unlocks', 'turn', 'delivered', 'lost', 'exGremlins', 'trapped', 'idleTicks', 'spawnSlot', 'nextId'];
     const TERRAINS = new Set(Object.values(TERRAIN));
     const KINDS = new Set(CARDS);
     const STORED = new Set(STORED_COUNTERS);
+    const PER_GAME = COUNTERS.filter(c => c.perGame).map(c => c.key);   // the keys of counters(), so of goals.base
+    const GOAL_COUNTERS = new Set(COUNTERS.filter(c => c.goal).map(c => c.key));
 
     // A saved game that doesn't hold up throws this; the caller drops the save.
     function need(ok, what) {
@@ -47,6 +49,7 @@ const GameState = (function () {
             this.nextId = 1;
             this.phase = 'player';    // 'player' | 'tick'
             this.counts = GameState.zeroCounts();   // {key: n}, the stored per-game counters (D-74)
+            this.goals = { set: 0, base: {}, list: [] };   // the goal set now (D-75): its number, counters() when dealt, [{counter, amount, met}]
         }
 
         // Every stored counter (GameArtifacts.STORED_COUNTERS) at 0, as a new game has them.
@@ -67,6 +70,7 @@ const GameState = (function () {
                 exGremlins: this.exGremlins, trapped: this.trapped, idleTicks: this.idleTicks,
                 spawnCycle: this.spawnCycle, spawnSlot: this.spawnSlot, nextId: this.nextId, phase: this.phase,
                 counts: this.counts,
+                goals: this.goals,
                 rng: Rando.state(),
             });
         }
@@ -83,6 +87,12 @@ const GameState = (function () {
             need(isRec(data.counts), 'counts');
             need(Object.keys(data.counts).every(k => STORED.has(k)), 'an unknown counter');
             for (const k of STORED_COUNTERS) need(isInt(data.counts[k]) && data.counts[k] >= 0, 'counter ' + k);
+            const g = data.goals;
+            need(isRec(g) && isInt(g.set) && g.set >= 0, 'goals');
+            need(isRec(g.base) && Object.keys(g.base).length === PER_GAME.length &&
+                PER_GAME.every(k => isInt(g.base[k]) && g.base[k] >= 0), 'goals base');
+            need(isList(g.list) && g.list.length === GOALS_PER_GAME && g.list.every(x =>
+                isRec(x) && GOAL_COUNTERS.has(x.counter) && isInt(x.amount) && x.amount > 0 && typeof x.met === 'boolean'), 'goals list');
             need(isList(data.hexes) && data.hexes.length > 0, 'hexes');
             data.hexes.forEach(h => { at(h, 'hex'); need(TERRAINS.has(h.terrain), 'terrain'); });
             need(isList(data.sources) && data.sources.length > 0, 'sources');
@@ -108,6 +118,7 @@ const GameState = (function () {
             s.hand = d.hand;
             for (const k of TALLIES) s[k] = d[k];
             s.counts = d.counts;
+            s.goals = d.goals;
             s.spawnCycle = d.spawnCycle;
             s.phase = d.phase;
             return s;

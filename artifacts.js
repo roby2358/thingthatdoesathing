@@ -130,12 +130,13 @@ const GameArtifacts = (function () {
     // grid side (2^n + 1, at least the board's longer side); `knownGoodSeed` has a
     // source→target path on its first attempt at that size (R-23); `colors` is how many
     // CRATE_COLORS the board can open, one more per milestone (R-38); `crates` is how many crates it holds
-    // at once before any milestone (D-31).
+    // at once before any milestone (D-31); `goalLevels` are the ladder levels a goal's amount may
+    // be, `goalExcludes` the counters never dealt as goals on it (D-75: small goals for small boards).
     const MAP_SIZES = {
-        small:  { cols: 16, rows: 10, heightmap: 33, knownGoodSeed: 1, colors: 1, crates: 2 },
-        medium: { cols: 20, rows: 20, heightmap: 33, knownGoodSeed: 1, colors: 2, crates: 3 },
-        large:  { cols: 30, rows: 30, heightmap: 33, knownGoodSeed: 1, colors: 3, crates: 4 },
-        huge:   { cols: 60, rows: 60, heightmap: 65, knownGoodSeed: 1, colors: 4, crates: 5 },
+        small:  { cols: 16, rows: 10, heightmap: 33, knownGoodSeed: 1, colors: 1, crates: 2, goalLevels: [3],    goalExcludes: ['pushes', 'pulls', 'pushesPulls'] },
+        medium: { cols: 20, rows: 20, heightmap: 33, knownGoodSeed: 1, colors: 2, crates: 3, goalLevels: [3, 4], goalExcludes: [] },
+        large:  { cols: 30, rows: 30, heightmap: 33, knownGoodSeed: 1, colors: 3, crates: 4, goalLevels: [3, 4], goalExcludes: [] },
+        huge:   { cols: 60, rows: 60, heightmap: 65, knownGoodSeed: 1, colors: 4, crates: 5, goalLevels: [4],    goalExcludes: [] },
     };
 
     const GREMLIN_HEXES_PER_DIE = 160;   // one die of gremlins per this many board hexes (the small board's area)
@@ -219,6 +220,11 @@ const GameArtifacts = (function () {
         return { reached, next: rung(scale, i) };
     };
 
+    // Goals (D-75): a game asks GOALS_PER_GAME things of the player at a time, each a distinct
+    // goal counter at a ladder level from its size's goalLevels (small goals for small boards),
+    // never one of its goalExcludes. A new set can be dealt any time.
+    const GOALS_PER_GAME = 3;
+
     // Which rules a game ran under, for telemetry (D-65): the game record carries it, so games
     // under different rules can be told apart. It stays 1 through development (the build's commit hash
     // tells builds apart); it changes only for a drastic, breaking rules change, at the designer's call (D-65).
@@ -264,6 +270,7 @@ const GameArtifacts = (function () {
         rung,
         rungsCrossed,
         standing,
+        GOALS_PER_GAME,
         // Passability for Board: land is enterable, water and mountain are not. Water
         // still *accepts* a pushed piece (it sinks); that's the step rule, not this table.
         MOVEMENT_COST: {

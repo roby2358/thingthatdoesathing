@@ -483,6 +483,29 @@ Thing Factory: fix "Uncaught TypeError: Cannot read properties of null (reading 
 ----
 Priority:   68
 Status: Done
+ID: goalsengine-j9up
+Created: 2026-11-22T20:04:21Z
+Updated: 2026-11-22T20:24:03Z
+
+Goals in the engine: three per game, dealt from a side stream of the seed, measured from when the set was dealt, re-rollable.
+
+Goal: each game asks three session-sized things of the player (rung level 3 or 4 of a counter), so an endless game has something to finish; a new set can be dealt any time.
+
+Settled design (needs the counters task's COUNTERS, counters() and rung()):
+- artifacts.js: GOALS_PER_GAME = 3. Each MAP_SIZES row gets goalLevels (the ladder levels a goal amount may be: small [3], medium [3, 4], large [3, 4], huge [4]) and goalExcludes (counter keys never dealt on that size: small ['pushes', 'pulls', 'pushesPulls']; the others []). "Small goals for small boards."
+- Rando gets Rando.stream(n): an independent mulberry32 generator function seeded with n, which never reads or moves the shared stream.
+- GameState gets goals: {set, base, list}: set is the set's number (0 for the set a new game deals, +1 per new set), base is engine.counters() when the set was dealt, list is GOALS_PER_GAME of {counter, amount, met}. In toJSON/fromJSON (checked: known goal counters, whole amounts, booleans).
+- Dealing set k: rng = Rando.stream(a 32-bit mix of state.seed and k); offered = COUNTERS rows with goal true, minus the size's goalExcludes; repeat GOALS_PER_GAME times: counter = uniform pick from offered, removed from it; level = uniform pick from goalLevels; amount = rung(scale, level − 1); met false. Goals may be unreachable for now (a card not yet unlocked): the player can re-roll. newGame deals set 0 after generation, without moving Rando, so every seeded test plays the same.
+- A goal's count = counters()[counter] − base[counter]. GameEngine.goalStates() returns [{counter, label, count, amount, met}] for the UI.
+- Goal check, after every tick (every ticking command, after milestones): each unmet goal whose count ≥ amount becomes met for good, emits goal{index, counter, amount} and adds 1 to counts.goalsMet; when that made every goal of the set met, a goalsDone{set} event follows. A refused command or rotate checks nothing.
+- GameEngine.newGoals(): no tick, never touches Rando, deals set + 1 with base = counters() now (so every new set, mid-game or after a done set, counts from 0); returns {ok: true, events: [{type: 'goals', set}]}.
+
+Done when: R-rows test the deal (distinct counters, amounts are level-3/4 rungs per size, excluded counters never dealt on small, same seed+set gives the same goals, dealing never moves Rando: a game's play is identical to before goals), counting from base, the goal check events (one per goal, goalsDone after the last, met stays met), newGoals resets counts and leaves the world untouched, save/restore round-trip; just cc-test passes.
+
+Design docs: reconcile ONTOLOGY + CRITERIA (new R-rows own test/R-n/) + RATIONALE (a D-n for the decisions below) + ARCHITECTURE_LOG + CLAUDE.md in the same change. RULES_VERSION stays 1. Starreach (../starreach, read only, never edit or commit there) has the model this follows: docs/ONTOLOGY.md "Counters", "Goal", "Ladder", "Goal selection", "Goal check", and docs/RATIONALE.md D-43 to D-49; app/src/achievements.ts; public/js/script.js drawAchievements.
+----
+Priority:   68
+Status: Done
 ID: dropcmdidx-bqpk
 Created: 2026-11-21T17:18:06Z
 Updated: 2026-11-21T17:48:17Z

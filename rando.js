@@ -6,30 +6,44 @@
 // generator; until seeded, the source is Math.random. The seed itself lives in
 // GameState, and GameEngine re-seeds at the start of each new game.
 const Rando = (function () {
+    // A mulberry32 generator seeded with n: a function returning floats in [0, 1), its
+    // position in its own `a` field (a uint32 after >>> 0).
+    function mulberry32(n) {
+        const next = function () {
+            next.a = (next.a + 0x6D2B79F5) | 0;
+            let t = Math.imul(next.a ^ (next.a >>> 15), 1 | next.a);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+        next.a = n >>> 0;
+        return next;
+    }
+
     let _rng = Math.random;
-    let _a = null;   // mulberry32's state while seeded; null while the source is Math.random
+    let _seeded = null;   // the shared mulberry32 generator while seeded; null while the source is Math.random
 
     class Rando {
         // Install a deterministic PRNG (mulberry32) driven by an integer seed.
         static seed(n) {
-            _a = n >>> 0;
-            _rng = function () {
-                _a = (_a + 0x6D2B79F5) | 0;
-                let t = Math.imul(_a ^ (_a >>> 15), 1 | _a);
-                t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-            };
+            _seeded = mulberry32(n);
+            _rng = _seeded;
         }
 
         // The seeded stream's position, as a uint32 (null while unseeded): a saved game carries
         // it so the restored world draws exactly what the original would have (D-67).
         static state() {
-            return _a === null ? null : _a >>> 0;
+            return _seeded === null ? null : _seeded.a >>> 0;
         }
 
         // Put the seeded stream back at a position state() gave.
         static setState(a) {
             Rando.seed(a);
+        }
+
+        // An independent mulberry32 generator seeded with n: a function returning floats in
+        // [0, 1). It never reads or moves the shared stream (the goals' side stream, D-75).
+        static stream(n) {
+            return mulberry32(n);
         }
 
         // A raw float in [0, 1) from the current source (seeded or Math.random).

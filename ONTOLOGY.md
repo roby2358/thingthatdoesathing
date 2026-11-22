@@ -78,11 +78,12 @@ everything; G-2 beats G-1 (a funny interaction that can't be read is a bug, not 
 | `nextId` | int | Next piece id. |
 | `phase` | `'player' \| 'tick'` | `'tick'` only while a tick resolves inside a command. |
 | `counts` | `{key: int ≥ 0}` | The stored per-game counters, exactly `STORED_COUNTERS`, each 0 in a new game; the ones read from the fields above or derived aren't stored (Counters rule, D-74). [D] |
+| `goals` | `{set, base, list}` | The goal set now (Goals rule, D-75): `set` its number (0 for the one `newGame` deals, +1 per `newGoals`), `base` `counters()` when it was dealt (every `perGame` key), `list` `GOALS_PER_GAME` of `{counter, amount, met}`. [D] |
 
 `toJSON()` gives the whole struct as plain JSON data (`hexes` as a list in Map order, pieces as
 plain records) plus `rng`, the seeded `Rando` stream's position (`Rando.state()`, a uint32);
 `GameState.fromJSON(data)` checks that data and builds a GameState from it, or throws, and never
-touches `Rando`; it refuses data whose `counts` isn't exactly the stored counters with whole numbers ≥ 0 (D-74). The engine's `save()` / `restore(data)` wrap them (D-67).
+touches `Rando`; it refuses data whose `counts` isn't exactly the stored counters with whole numbers ≥ 0 (D-74), or whose `goals` isn't a whole `set` ≥ 0, a `base` of exactly the `perGame` keys as whole numbers ≥ 0 and a `list` of `GOALS_PER_GAME` goals each with a goal counter, a whole `amount` > 0 and a boolean `met` (D-75). The engine's `save()` / `restore(data)` wrap them (D-67).
 
 ### Hex — one map cell (plain object)
 | Field | Type | Notes |
@@ -205,7 +206,8 @@ in one command (`bomb`, D-48).
 - At most one piece per hex, between commands and after every hop of a tick (a Cannon's shot passing over doesn't count, D-36, D-38). No piece on a Wall, on mountain, or on open water (water with no Thing over it), between commands (a Spring's flight passes over a mountain mid-tick, D-35; a Cannon's shot over anything, D-36). [P; every hop D-38]
 - `hand.length === HAND_SIZE` whenever a command returns. [P]
 - `1 <= unlocks <= UNLOCKS.length`, and every card kind (`CARDS`: `THINGS` and `TOOLS`) is in exactly one `UNLOCKS` step. [D]
-- Every command that returns `ok:true` ran exactly one tick and raised `turn` by 1, except `rotate`, which ran none and left everything but that facing alone. [P; rotate D]
+- Every command that returns `ok:true` ran exactly one tick and raised `turn` by 1, except `rotate`, which ran none and left everything but that facing alone, `newGoals`, which ran none and changed only `goals` (D-75), and `restore` (D-67). [P; rotate D]
+- `goals.list` holds `GOALS_PER_GAME` distinct goal counters, none of the size's `goalExcludes`; a met goal stays met until the next set is dealt. Goals never draw from the shared `Rando` stream (D-75). [D]
 - There is no won state: every command stays legal however many crates are delivered. [D]
 - **Engine-side modules never read the DOM, canvas, or `GameDisplayArtifacts`.** [D]
 - **Determinism:** same seed + same commands ⇒ same state and same events. [D]
@@ -243,6 +245,7 @@ spawnCycle = Rando.shuffle(copy of CRATE_COLORS); spawnSlot = 0     # D-43
 sources = [{ends.source, colors: [color]}]; targets = [{ends.target, color, delivered: 0}]
 things = []; pieces = []; a spawnKind() of color on the source; spawnGremlins()   # 1% big (D-45)
 unlocks = 1; hand = HAND_SIZE draws (from UNLOCKS[0]); turn = 1; delivered = lost = exGremlins = trapped = idleTicks = 0
+counts = zeroCounts(); dealGoals(0)          # last, from a side stream: no shared Rando draw (Goals rule, D-75)
 ```
 
 ### Assign terrain [P]
@@ -499,6 +502,7 @@ exGremlins += count of 'gremlin' in gone, less those trapped
 emerge(gone)
 emit the held-back milestone, open, clear, splat and unlock events            # last, after the spawns
 turn += 1; phase = 'player'
+emit checkGoals()                                                # goal, goalsDone: the tick's last events (Goals rule, D-75)
 ```
 Each piece gets at most one motion per tick, a bumped line included (D-33); a piece a Thing
 claimed but couldn't move (a Cannon that didn't fire) has had its motion. A gremlin with
@@ -547,7 +551,7 @@ false only for `rungsReached`, which is lifetime only and counted by the achieve
 | `pulls` | pulls | 10 | yes | a Puller's motion that moved its piece |
 | `pushesPulls` | pushes and pulls | 10 | yes | `pushes + pulls`, derived |
 | `milestones` | milestones | 1 | no | `milestonesReached(delivered)`, derived |
-| `goalsMet` | goals met | 1 | no | stored, 0 until the goals task counts it |
+| `goalsMet` | goals met | 1 | no | the goal check: 1 per goal met (Goals rule, D-75) |
 | `rungsReached` | achievements reached | 1 | no | lifetime only (`perGame` false): the achievements client |
 | `cratesSunk` | crates sunk | 1 | negative | `loseValue` from `sink`: cargo value lost to open water |
 | `cratesSmashed` | crates smashed by gremlins | 1 | negative | `loseValue` from a gremlin's wreck |
@@ -574,6 +578,33 @@ level n = rung(scale, n − 1)
 rungsCrossed(scale, before, after) = every rung r with before < r ≤ after, rising
 standing(scale, total) = {reached: the last rung ≤ total, or null; next: the first rung > total}
 ```
+
+### Goals — `dealGoals(set)`, `goalStates()`, `newGoals()` [D-75]
+*Serves:* an endless game something session-sized to finish; accumulation. A game asks
+`GOALS_PER_GAME` things of the player at a time, each "reach a rung of a counter, counted from
+when the set was dealt". A new set can be dealt any time. Goals change no rule and never touch
+the shared `Rando` stream: a seed plays the same with or without them. [D]
+```
+dealGoals(set):                                  # newGame deals set 0 after generation
+    rng = Rando.stream(goalSeed(seed, set))      # a side stream; goalSeed: a 32-bit mix (murmur3 finalizer) of seed and set
+    offered = COUNTERS rows with goal, minus MAP_SIZES[size].goalExcludes
+    repeat GOALS_PER_GAME times:
+        counter = a uniform pick from offered, removed from it
+        level = a uniform pick from MAP_SIZES[size].goalLevels
+        list += {counter, amount: rung(counter.scale, level − 1), met: false}
+    goals = {set, base: counters(), list}
+count(goal) = counters()[goal.counter] − goals.base[goal.counter]
+goalStates() = [{counter, label, count(goal), amount, met}] in list order   # a query
+checkGoals():                                    # at the end of every tick, after milestones
+    for each goal i in order: if not met and count(goal) ≥ amount:
+        met = true (for good); counts.goalsMet += 1; events += goal{index: i, counter, amount}
+    if any was met now and every goal is met: events += goalsDone{set}
+newGoals(): dealGoals(set + 1); no tick         # → {ok: true, events: [goals{set}]}
+```
+"Small goals for small boards": small deals level 3 only and never `pushes`, `pulls` or
+`pushesPulls` (a small board has one color, so no Pusher or Puller is ever dealt); huge deals
+level 4 only. A goal may be out of reach for now (its card not yet unlocked); the player can
+deal a new set. A refused command or a `rotate` checks nothing. [D; uniform picks P]
 
 ### Commands
 ```
@@ -659,6 +690,9 @@ The code constant in `GameArtifacts` is the single source. `RULES_VERSION` stays
 | `PIECES.bigcrate.value` | 10 | crates a big crate is worth (D-34) [D] |
 | `COUNTERS.*.scale` | 10 cratesDelivered, placed, springThrows, slides, mountainsFlown, pushes, pulls, pushesPulls, discards; 1 the rest | the unit of each counter's ladder (Counters rule, D-74) [T: first guesses, the designer tunes] |
 | `LADDER_STEPS` | 1, 2, 5 | a ladder's rungs: scale × these × 10^k (D-74) [D] |
+| `GOALS_PER_GAME` | 3 | goals in a set (Goals rule, D-75) [D] |
+| `MAP_SIZES.*.goalLevels` | [3] / [3, 4] / [3, 4] / [4] | the ladder levels a goal's amount may be (D-75) [D] |
+| `MAP_SIZES.*.goalExcludes` | `pushes`, `pulls`, `pushesPulls` / none / none / none | counters never dealt as goals on that size (D-75) [D] |
 | `HAND_SIZE` | 3 | cards |
 | `BUMP_ADVANCE` | 2 | hexes a bumped line advances; its bumper follows to one hex behind it (D-33) [D] |
 | `MAX_SLIDE` | 3 | moves from a slick hex (bare ice or a Slide) onto a slick hex one ground motion or skid makes; it stops on the 3rd, so at most 4 slick hexes in a row (D-52) [D] |
@@ -708,7 +742,8 @@ The code constant in `GameArtifacts` is the single source. `RULES_VERSION` stays
 | `bomb(slot, hexes)` | `hand[slot]` is a Bomb; `hexes` 1 to `wipes` distinct board hexes, each holding a Thing or a piece | clear each: its Thing off, its piece destroyed (lost + a crate's value; a gremlin is an ex-gremlin), redraw slot, tick (D-48) | `{ok, events}` |
 | `discard(slot)` | `0 <= slot < HAND_SIZE` | redraw that slot, tick | `{ok, events}` |
 | `wait()` | always | tick | `{ok, events}` |
-| `restore(data)` | `GameState.fromJSON(data)` takes it (a known size, terrain, piece and card kinds, whole-number counters, `counts` holding exactly `STORED_COUNTERS`, each a whole number ≥ 0 (D-74), `phase` `'player'`, `rng` a uint32) | the state becomes `data`'s (the same GameState object), the board is rebuilt over its hexes, `Rando` goes back to `rng`; no tick (D-67) | `{ok, events: []}` |
+| `newGoals()` | always | deal goal set `set + 1`, counted from `counters()` now; no tick, `Rando` untouched (D-75) | `{ok: true, events: [goals{set}]}` |
+| `restore(data)` | `GameState.fromJSON(data)` takes it (a known size, terrain, piece and card kinds, whole-number counters, `counts` holding exactly `STORED_COUNTERS`, each a whole number ≥ 0 (D-74), `goals` as the GameState row says (D-75), `phase` `'player'`, `rng` a uint32) | the state becomes `data`'s (the same GameState object), the board is rebuilt over its hexes, `Rando` goes back to `rng`; no tick (D-67) | `{ok, events: []}` |
 
 Illegal → `{ ok:false }` and nothing changed (hand and `Rando` included).
 
@@ -722,6 +757,7 @@ Illegal → `{ ok:false }` and nothing changed (hand and `Rando` included).
 - `unlockedKinds()`, `drawableKinds()` — the kinds open so far, and the deck the Draw rule uses.
 - `spawnKind()` — `'bigcrate'` or `'crate'` for the next spawn (Tick rule; one `Rando` roll per spawn, D-34, D-45).
 - `counters()` → `{key: n}` — this game's count on every `perGame` `COUNTERS` row (Counters rule, D-74).
+- `goalStates()` → `[{counter, label, count, amount, met}]` — the goal set as the UI shows it, each count from the set's base (Goals rule, D-75).
 - `save()` → `state.toJSON()` — the whole game as JSON data, `rng` included; `restore` takes it back (D-67).
 - `board.*`.
 
@@ -739,6 +775,9 @@ Illegal → `{ ok:false }` and nothing changed (hand and `Rando` included).
 | `open` | `color, source: {q,r}, target: {q,r}` — the color that milestone opened, right after its `milestone` |
 | `clear` | `kind, q, r, hop` — a Thing taken off its hex outside the tick's motions: by a newly opened source or target, right after its `open`, at the tick's last hop (with a `splat` for a piece it destroyed, D-44); or by `bomb`, at hop 0, before the tick's own events, each hex's `clear` before its piece's `splat` (D-48). The client bursts it over the hop after `hop` |
 | `unlock` | `kinds` — the `UNLOCKS` step that milestone opened, after its `milestone`, `open` and clears |
+| `goal` | `index, counter, amount` — a goal of the set met this tick, at the end of the tick's events (after milestones), in the set's order (D-75) |
+| `goalsDone` | `set` — right after the `goal` that met the set's last goal (D-75) |
+| `goals` | `set` — `newGoals` dealt this set (its only event; no tick, D-75) |
 
 A piece pushed into water gets a `move` whose path ends on the water hex, then `sink`.
 
