@@ -9,7 +9,7 @@
 //     records: "0 sets dealt, 0 done" and (none); the period and rules versions split them with their games
 //   - rows → records: goal_sets' three counter/amount columns back as a list, goals_met's idx as index
 //   - end to end: batches the real Worker wrote into node:sqlite with the schema, read back by the CLI
-//     (local-d1) through a fake wrangler running its SQL: six read-only SELECTs, the Goals section
+//     (local-d1) through a fake wrangler running its SQL: seven read-only SELECTs, the Goals section
 'use strict';
 
 const fs = require('fs');
@@ -53,6 +53,7 @@ function fixture() {
             met('g1', 1, 0, 'bombs', 40), met('g1', 1, 1, 'slides', 60), met('g1', 1, 2, 'moved', 80),   // 10, 30, 50
             met('g2', 5, 1, 'slides', 99),                                                       // no set record
         ],
+        rungs: [],
     };
 }
 
@@ -70,7 +71,7 @@ function fixture() {
     check('slides: met twice (one with no set record), turns only from the known set', row('slides').dealt === 1 && row('slides').met === 2 && row('slides').medianTurns === 30);
     check('moved: met once at 50 turns from its deal', row('moved').met === 1 && row('moved').medianTurns === 50 && row('moved').rerolled === 0);
     check('most dealt first, ties by name', f.perCounter.map(r => r.counter).join() === 'bombs,trapped,moved,placed,exGremlins,slides');
-    const none = fig.goalFigures({ games: [], events: [], milestones: [], crashes: [], goalSets: [], goalsMet: [] });
+    const none = fig.goalFigures({ games: [], events: [], milestones: [], crashes: [], goalSets: [], goalsMet: [], rungs: [] });
     check('no goal records: no rows, 0 sets', none.perCounter.length === 0 && none.sets === 0 && none.done === 0);
 }
 
@@ -81,7 +82,7 @@ function fixture() {
     check('its table header', /\n  counter +dealt +re-rolled away +met +median turns to met\n/.test(text));
     check('a counter row', /\n  bombs +3 +0 +2 +15\n/.test(text) && /\n  trapped +3 +1 +0 +-\n/.test(text));
     check('after Players, before Volume', text.indexOf('\nGoals:') > text.indexOf('\nPlayers (signed in)') && text.indexOf('\nGoals:') < text.indexOf('\nVolume:'));
-    const empty = report({ games: [game('g')], events: [], milestones: [], crashes: [], goalSets: [], goalsMet: [] }, HEADING, SIZES);
+    const empty = report({ games: [game('g')], events: [], milestones: [], crashes: [], goalSets: [], goalsMet: [], rungs: [] }, HEADING, SIZES);
     check('no goal records: 0 sets, (none)', /\nGoals: 0 sets dealt, 0 done\n  \(none\)/.test(empty));
     const play = fixture();
     play.games.push(game('old', { startedUnixSeconds: T0 - 10 * 86400 }));
@@ -152,7 +153,7 @@ process.stdout.write(JSON.stringify([{ results, success: true, meta: {} }]));
     const r = spawnSync(process.execPath, [TOOL, config, 'local-d1'], { encoding: 'utf8', env: { ...process.env, WRANGLER: fake } });
     check('local-d1 report exits 0', r.status === 0);
     const calls = fs.readFileSync(callLog, 'utf8').trim().split('\n').map(JSON.parse).filter(a => a[1] === 'execute');
-    check('six read-only SELECTs, the goal tables\' among them', calls.length === 6 && calls.every(a => /^SELECT /.test(a.at(-1))) &&
+    check('seven read-only SELECTs, the goal tables\' among them', calls.length === 7 && calls.every(a => /^SELECT /.test(a.at(-1))) &&
         calls.some(a => a.at(-1).includes('FROM goal_sets ')) && calls.some(a => a.at(-1).includes('FROM goals_met ')));
     check('the Goals section from the Worker\'s rows', r.stdout.includes('\nGoals: 2 sets dealt (reroll 1, start 1), 0 done\n') &&
         /\n  trapped +1 +0 +1 +12\n/.test(r.stdout) && /\n  bombs +1 +1 +0 +-\n/.test(r.stdout) && /\n  moved +1 +0 +0 +-\n/.test(r.stdout));

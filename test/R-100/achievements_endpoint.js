@@ -48,7 +48,8 @@ async function verify(token, opts) {
 
 (async () => {
     const worker = await import(pathToFileURL(path.join(ROOT, 'worker', 'index.js')).href);
-    const { achievements, ACHIEVEMENT_COUNTERS, MAX_ADD_KEYS, MAX_ADD_VALUE } = await import(pathToFileURL(path.join(ROOT, 'worker', 'achievements.js')).href);
+    const { achievements, MAX_ADD_KEYS, MAX_ADD_VALUE } = await import(pathToFileURL(path.join(ROOT, 'worker', 'achievements.js')).href);
+    const { ACHIEVEMENT_COUNTERS } = await import(pathToFileURL(path.join(ROOT, 'worker', 'counters.js')).href);
     const { MAX_BODY_BYTES } = await import(pathToFileURL(path.join(ROOT, 'worker', 'telemetry.js')).href);
     const { PlayerTotals } = worker;
 

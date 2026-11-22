@@ -751,6 +751,25 @@ Updated: 2026-11-11T20:45:50Z
 
 Thing Factory: placing a card on a hex that already holds a Thing replaces that Thing, so the player no longer has to press D (remove) and then place. Update legalPlacements so occupied Thing hexes are legal (targets and other illegal hexes stay illegal). place() removes the old Thing and puts the new one down as one command and one tick. Decide whether D/remove stays as its own command (probably yes, for clearing a hex). Reconcile ONTOLOGY (place rule), CRITERIA row + test/R-n, RATIONALE, ARCHITECTURE_LOG, and the UI ghost and highlight on occupied hexes.
 ----
+Priority:   58
+Status: Done
+ID: achtelem-5rwx
+Created: 2026-11-22T20:04:21Z
+Updated: 2026-11-22T21:36:55Z
+
+Telemetry on achievements: record each rung reached, and report them.
+
+Goal: see which achievements players reach and how fast.
+
+Settled design (needs achclient):
+- GameTelemetry gets rung records in a new batch array rungs: [{gameKey, counter, rung, unixSeconds}], one per rung the achievements client announces (rungsReached's own included). Same recording rules as other telemetry (GPC off etc.) — unlike the sync itself.
+- worker/telemetry.js checks them (counter in ACHIEVEMENT_COUNTERS, rung a whole number > 0), writes table rungs (player, signed_in, game_key, counter, rung, unix_seconds), INSERT OR IGNORE on (player, counter, rung). Additive: TELEMETRY_FORMAT stays 1.
+- telemetry_report gets an Achievements section: per counter, players reaching each rung, and the highest rung seen.
+
+Done when: R-rows for recorder, Worker and report (fixtures + fake wrangler end to end); just cc-test passes.
+
+Design docs: reconcile ONTOLOGY + CRITERIA (new R-rows own test/R-n/) + RATIONALE (a D-n for the decisions below) + ARCHITECTURE_LOG + CLAUDE.md in the same change. RULES_VERSION stays 1. Starreach (../starreach, read only, never edit or commit there) has the model this follows: docs/ONTOLOGY.md "Counters", "Goal", "Ladder", "Goal selection", "Goal check", and docs/RATIONALE.md D-43 to D-49; app/src/achievements.ts; public/js/script.js drawAchievements.
+----
 Priority:   55
 Status: Done
 ID: crashreport-zj3f

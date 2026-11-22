@@ -15,35 +15,13 @@
 //   - the Worker takes every batch the recorder sent with goal records (204, every row written)
 'use strict';
 
-const vm = require('vm');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { check, done } = require('../helpers/check');
-const { flatGame, source } = require('../helpers/load');
+const { flatGame } = require('../helpers/load');
+const { recorderPage } = require('../helpers/telemetry');
 const { liveGame, setCount, waitTick } = require('../helpers/goals');
 
-function page(opts = {}) {
-    const p = { sent: [], beacons: [], timers: [] };
-    let ids = 0;
-    const ctx = vm.createContext({
-        console,
-        document: { documentElement: { dataset: opts.version === null ? {} : { version: 'abc1234' } }, visibilityState: 'visible', addEventListener() {} },
-        location: { protocol: opts.protocol || 'https:', hostname: 'ttdat.yuwakisa.com', origin: 'https://ttdat.yuwakisa.com' },
-        navigator: { userAgent: 'TestBrowser/1.0', globalPrivacyControl: !!opts.gpc,
-            sendBeacon: (url, body) => { p.beacons.push(JSON.parse(body)); return true; } },
-        fetch: (url, init) => { p.sent.push(JSON.parse(init.body)); return Promise.resolve({ status: opts.status || 204 }); },
-        crypto: { randomUUID: () => 'uuid-' + (++ids) },
-        window: { innerWidth: 1280, innerHeight: 720, devicePixelRatio: 1, addEventListener() {} },
-        setTimeout: (fn, ms) => { p.timers.push({ fn, ms, live: true }); return p.timers.length; },
-        clearTimeout: id => { if (id && p.timers[id - 1]) p.timers[id - 1].live = false; },
-    });
-    vm.runInContext(['artifacts.js', 'displayartifacts.js', 'telemetry.js'].map(source).join('\n;\n') +
-        '\n;globalThis.__x = { GameTelemetry, GameDisplayArtifacts };', ctx);
-    Object.assign(p, ctx.__x);
-    p.T = p.GameTelemetry;
-    p.fire = () => { const due = p.timers.filter(t => t.live); due.forEach(t => { t.live = false; t.fn(); }); return due.length; };
-    return p;
-}
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 const g = flatGame();
@@ -51,7 +29,7 @@ const { state, engine } = g;
 const goalsOf = s => s.goals.list.map(x => ({ counter: x.counter, amount: x.amount }));
 
 // ---- goal sets ----
-const p = page();
+const p = recorderPage({});
 p.T.goalSet('start', state);
 check('before startGame: no goal record', p.T.pending() === null);
 p.T.startGame({ seed: state.seed, size: 'small' });
@@ -99,7 +77,7 @@ check('… sent at once at N', p.sent.length === 2 && p.sent[1].goalSets.length 
 
 // ---- the gates ----
 for (const [label, opts] of [['without data-version', { version: null }], ['from file:', { protocol: 'file:' }], ['with Global Privacy Control', { gpc: true }]]) {
-    const q = page(opts);
+    const q = recorderPage(opts);
     q.T.startGame({ seed: 1, size: 'small' });
     q.T.goalSet('start', state);
     q.T.command('wait', undefined, res, state);
@@ -110,7 +88,7 @@ for (const [label, opts] of [['without data-version', { version: null }], ['from
 (async () => {
     // ---- backing off ----
     {
-        const q = page({ status: 429 });
+        const q = recorderPage({ status: 429 });
         q.T.startGame({ seed: 1, size: 'small' });
         q.fire();
         await new Promise(r => setTimeout(r, 10));

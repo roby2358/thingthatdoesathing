@@ -1,6 +1,6 @@
 // tools/telemetry_report/figures.js — the telemetry report's sums (ONTOLOGY "Telemetry report",
 // D-66): every figure the report prints, worked out from plain records alone (records.js's
-// shapes: games, events, milestones, crashes, goal sets and goals met). Pure functions: nothing here knows where the
+// shapes: games, events, milestones, crashes, goal sets, goals met and rungs). Pure functions: nothing here knows where the
 // records came from or how a figure is printed, so the tests feed fixtures.
 'use strict';
 
@@ -112,6 +112,7 @@ function inPeriod(play, since) {
             crashes: play.crashes.filter(c => c.unixSeconds >= since),
             goalSets: play.goalSets.filter(s => kept.has(s.gameKey)),
             goalsMet: play.goalsMet.filter(m => kept.has(m.gameKey)),
+            rungs: play.rungs.filter(r => kept.has(r.gameKey)),
         },
         leftOut: {
             events: play.events.filter(e => !known.has(e.gameKey)).length,
@@ -131,7 +132,7 @@ function byRulesVersion(play) {
         return {
             rulesVersion,
             play: { games, events: play.events.filter(mine), milestones: play.milestones.filter(mine), crashes: play.crashes.filter(mine),
-                goalSets: play.goalSets.filter(mine), goalsMet: play.goalsMet.filter(mine) },
+                goalSets: play.goalSets.filter(mine), goalsMet: play.goalsMet.filter(mine), rungs: play.rungs.filter(mine) },
         };
     });
     return { versions, unattached: play.crashes.filter(c => !all.has(c.gameKey)) };
@@ -298,6 +299,23 @@ function goalFigures(play) {
     };
 }
 
+/** Achievements (D-80), per counter: the distinct players who reached each of its rungs (rising),
+ *  the players who reached any, and the highest rung seen. Most players first, ties by name. Then
+ *  the rung records and the distinct players among them. */
+function achievementFigures(play) {
+    const perCounter = [...groupBy(play.rungs, r => r.counter)].map(([counter, rs]) => ({
+        counter,
+        players: new Set(rs.map(r => r.playerId)).size,
+        highest: Math.max(...rs.map(r => r.rung)),
+        perRung: rising(groupBy(rs, r => r.rung)).map(([rung, at]) => ({ rung, players: new Set(at.map(r => r.playerId)).size })),
+    }));
+    return {
+        perCounter: perCounter.sort((a, b) => b.players - a.players || a.counter.localeCompare(b.counter)),
+        rungs: play.rungs.length,
+        players: new Set(play.rungs.map(r => r.playerId)).size,
+    };
+}
+
 /** Every figure of one play. `sizeOrder` is the MAP_SIZES keys in order. */
 function figures(play, sizeOrder) {
     const knownGames = new Set(play.games.map(g => g.gameKey));
@@ -311,10 +329,11 @@ function figures(play, sizeOrder) {
         crashes: crashFigures(play.crashes, knownGames),
         players: playerFigures(play),
         goals: goalFigures(play),
+        achievements: achievementFigures(play),
     };
 }
 
 module.exports = {
     LONG_PAUSE_SECONDS, SECONDS_PER_DAY, WINDOW_BUCKET_PX, summarize, utcDay, clientOf, screenOf, messageKind,
-    inPeriod, byRulesVersion, figures, crashFigures, goalFigures,
+    inPeriod, byRulesVersion, figures, crashFigures, goalFigures, achievementFigures,
 };

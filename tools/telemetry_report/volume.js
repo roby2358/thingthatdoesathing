@@ -29,6 +29,7 @@ const TABLES = [
     ['crashes', r => r.unixSeconds],
     ['goalSets', r => r.unixSeconds],
     ['goalsMet', r => r.unixSeconds],
+    ['rungs', r => r.unixSeconds],
 ];
 
 /** Rows written per UTC day over the period: every row read whose own time is at or after

@@ -1615,9 +1615,10 @@ const GameUI = (function () {
         }
 
         // ---- Achievements (D-79; GameAchievements keeps the totals) ----
-        // The totals changed: the rungs reached go to the banner (after the tick animating, if
-        // one is), and the Achievements page, if it's showing, is drawn again.
+        // The totals changed: the rungs reached go to telemetry (D-80) and to the banner (after
+        // the tick animating, if one is), and the Achievements page, if it's showing, is drawn again.
         achievementsChanged(list) {
+            GameTelemetry.rungs(list);   // a rung record each, under telemetry's rules (D-80)
             if (list.length) {
                 if (this.anim) this.anim.rungs.push(...list);
                 else this.showRungBanner(list);

@@ -34,6 +34,13 @@
 // and every New goals) and command() turns each `goal` event of a tick into a goal-met record.
 // Both go in the batch as their own lists, goalSets and goalsMet, under the same rules as the
 // rest (they count toward TELEMETRY_FLUSH_RECORDS and are dropped while backing off).
+//
+// Achievements (D-80): GameUI hands the recorder each rung the achievements client announces
+// (rungs: rungsReached's own included) and each becomes a rung record {gameKey, counter, rung,
+// unixSeconds} in the batch's rungs list, under the same rules as every other record: a ship
+// build over http(s), no Global Privacy Control, not while backing off, and only with a game
+// being recorded. (The totals' sync to /achievements is the player's own service and runs
+// whatever GPC says, D-79; these records are tuning data and don't.)
 const GameTelemetry = (function () {
     const { TELEMETRY_FORMAT, TELEMETRY_ENDPOINT, TELEMETRY_FLUSH_MS, TELEMETRY_FLUSH_RECORDS, TELEMETRY_BACKOFF_MS } = GameDisplayArtifacts;
     const { RULES_VERSION, CRATE_COLORS } = GameArtifacts;
@@ -50,6 +57,7 @@ const GameTelemetry = (function () {
     let milestones = [];
     let goalSets = [];         // goal sets dealt (D-77)
     let goalsMet = [];         // goals met (D-77)
+    let rungs = [];            // achievement rungs reached (D-80)
     let timer = null;
     let listening = false;
     let quietUntil = 0;        // Date.now() before which nothing is recorded or sent (D-70)
@@ -109,14 +117,15 @@ const GameTelemetry = (function () {
         milestones = [];
         goalSets = [];
         goalsMet = [];
+        rungs = [];
     }
 
-    const queued = () => events.length + milestones.length + goalSets.length + goalsMet.length;
+    const queued = () => events.length + milestones.length + goalSets.length + goalsMet.length + rungs.length;
 
     // The batch the queue makes now, or null if there's nothing to send.
     function batch() {
         if (!game || (!gameUnsent && queued() === 0)) return null;
-        const b = { format: TELEMETRY_FORMAT, player, games: [game], events, milestones, goalSets, goalsMet };
+        const b = { format: TELEMETRY_FORMAT, player, games: [game], events, milestones, goalSets, goalsMet, rungs };
         if (token) b.token = token;
         return b;
     }
@@ -211,6 +220,17 @@ const GameTelemetry = (function () {
                 if (!game || quiet()) return;
                 goalSets.push({ gameKey: game.gameKey, set: state.goals.set, how, turn: state.turn, unixSeconds: unixSeconds(),
                     goals: state.goals.list.map(g => ({ counter: g.counter, amount: g.amount })) });
+                queuedEnough();
+            });
+        },
+
+        // The rungs the achievements client just announced (D-80; GameUI's listener hands them
+        // over, each {counter, amount, …}): one rung record each, its rung the announced amount.
+        rungs(announced) {
+            guarded(() => {
+                if (!game || quiet() || !announced.length) return;
+                const now = unixSeconds(), gameKey = game.gameKey;
+                for (const a of announced) rungs.push({ gameKey, counter: a.counter, rung: a.amount, unixSeconds: now });
                 queuedEnough();
             });
         },

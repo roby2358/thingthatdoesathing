@@ -4,7 +4,8 @@
 //
 //   { format: 1, player: string, token?: string,
 //     games?: [game…], events?: [event…], milestones?: [milestone…], crashes?: [crash…],
-//     goalSets?: [goal set…], goalsMet?: [goal met…] }            // the goal lists: D-77
+//     goalSets?: [goal set…], goalsMet?: [goal met…],             // the goal lists: D-77
+//     rungs?: [rung…] }                                            // achievement rungs: D-80
 //
 // It is checked whole (at most MAX_BODY_BYTES, at most MAX_RECORDS records, known record
 // types, field types) and answered 204 before anything is written: the rows go to D1 in one
@@ -41,6 +42,7 @@
 // Nothing else here reads the request's IP or any header but Origin and the body's length.
 
 import { identityFor } from './auth.js';
+import { ACHIEVEMENT_COUNTERS } from './counters.js';   // the counters a rung record may name (D-80)
 
 /** The format this build's browser sends (GameDisplayArtifacts.TELEMETRY_FORMAT). */
 export const TELEMETRY_FORMAT = 1;
@@ -133,8 +135,8 @@ function refuse(where) {
     return new Response(null, { status: 400, headers: CORS });
 }
 
-function rowCount({ games, events, milestones, crashes, goalSets, goalsMet }) {
-    return games.length + events.length + milestones.length + crashes.length + goalSets.length + goalsMet.length;
+function rowCount({ games, events, milestones, crashes, goalSets, goalsMet, rungs }) {
+    return games.length + events.length + milestones.length + crashes.length + goalSets.length + goalsMet.length + rungs.length;
 }
 
 async function write(db, statements) {
@@ -178,6 +180,7 @@ const GOAL_MET = {
     turn: ['int', true], unixSeconds: ['int', true], met: ['bool', true],
 };
 const GOAL = { counter: ['str', true, 32], amount: ['int', true] };
+const RUNG = { gameKey: ['str', true, 64], counter: ['str', true, 32], rung: ['int', true], unixSeconds: ['int', true] };
 /** An event's args that have their own columns, in the order INSERT_EVENT binds them; `rest` keeps the others. */
 const ARG_COLUMNS = { kind: ['str', false, 16], q: ['int', false], r: ['int', false], facing: ['int', false], color: ['str', false, 16] };
 
@@ -185,7 +188,7 @@ function readFormat1(batch) {
     const identity = { playerId: field(batch, 'player', ['str', true, 64], 'player'), signedIn: 0 };
     const lists = {};
     let count = 0;
-    for (const name of ['games', 'events', 'milestones', 'crashes', 'goalSets', 'goalsMet']) {
+    for (const name of ['games', 'events', 'milestones', 'crashes', 'goalSets', 'goalsMet', 'rungs']) {
         const list = batch[name] ?? [];
         if (!Array.isArray(list)) throw new BadBatch(name);
         list.forEach((record, i) => { if (!isObject(record)) throw new BadBatch(`${name}[${i}]`); });
@@ -236,7 +239,14 @@ function readFormat1(batch) {
         goal(row, where);
         return row;
     });
-    return { identity, games, events, milestones, crashes, goalSets, goalsMet };
+    const rungs = lists.rungs.map((r, i) => {
+        const where = `rungs[${i}]`;
+        const row = fields(r, RUNG, where);
+        if (!ACHIEVEMENT_COUNTERS.includes(row.counter)) throw new BadBatch(where + '.counter');
+        if (row.rung < 1) throw new BadBatch(where + '.rung');
+        return row;
+    });
+    return { identity, games, events, milestones, crashes, goalSets, goalsMet, rungs };
 }
 
 /** A goal record's set (0 on) and turn (1 on, as GameState's), D-77. */
@@ -321,9 +331,15 @@ const INSERT_GOAL_MET = `
   INSERT OR IGNORE INTO goals_met (game_key, set_no, idx, player_id, signed_in, counter, amount, turn, unix_seconds)
   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`;
 
+/** A rung reached (D-80): INSERT OR IGNORE on (player_id, counter, rung), so a player reaches each
+ *  rung once, the first record kept (a resend, or the same rung announced on another device). */
+const INSERT_RUNG = `
+  INSERT OR IGNORE INTO rungs (player_id, counter, rung, signed_in, game_key, unix_seconds)
+  VALUES (?1, ?2, ?3, ?4, ?5, ?6)`;
+
 /** Every row of a batch as D1 statements, in the order they're written: games, events, milestones,
- *  crashes, goal sets, goals met. */
-function statementsFor(db, { identity: { playerId, signedIn }, games, events, milestones, crashes, goalSets, goalsMet }) {
+ *  crashes, goal sets, goals met, rungs. */
+function statementsFor(db, { identity: { playerId, signedIn }, games, events, milestones, crashes, goalSets, goalsMet, rungs }) {
     return [
         ...games.map(g => db.prepare(INSERT_GAME).bind(g.gameKey, playerId, signedIn, g.format, g.startedUnixSeconds,
             g.seed, g.size, g.version, g.rulesVersion, g.userAgent, g.screen)),
@@ -338,5 +354,6 @@ function statementsFor(db, { identity: { playerId, signedIn }, games, events, mi
             ...s.goals.flatMap(g => [g.counter, g.amount]))),
         ...goalsMet.map(m => db.prepare(INSERT_GOAL_MET).bind(m.gameKey, m.set, m.index, playerId, signedIn, m.counter, m.amount,
             m.turn, m.unixSeconds)),
+        ...rungs.map(r => db.prepare(INSERT_RUNG).bind(playerId, r.counter, r.rung, signedIn, r.gameKey, r.unixSeconds)),
     ];
 }

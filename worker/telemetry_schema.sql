@@ -8,7 +8,7 @@
 -- database. Every statement is safe to run again. There is no migration history: a change to a
 -- table that exists is made by hand, and said to the designer. A local database made before a
 -- table changed is recreated instead with just local-d1-clear (deletes .wrangler/state/v3/d1). No
--- foreign keys: a game's events, milestones, crashes and goal rows are kept whether or not its games row arrived.
+-- foreign keys: a game's events, milestones, crashes, goal rows and rungs are kept whether or not its games row arrived.
 -- The goal tables (D-77) are new tables, so rerunning the schema adds them to a database that lacks
 -- them (production's at the designer's go, before a Worker that writes them is deployed).
 
@@ -143,4 +143,19 @@ CREATE TABLE IF NOT EXISTS goals_met (
   turn INTEGER NOT NULL,                   -- the turn after the tick that met it
   unix_seconds INTEGER NOT NULL,
   PRIMARY KEY (game_key, set_no, idx)
+);
+
+-- One row per achievement rung a player reached (D-80): a counter's lifetime total passing a rung
+-- of its ladder, as the browser's achievements client announced it. INSERT OR IGNORE on
+-- (player_id, counter, rung): each player reaches each rung once, the first record kept. A new
+-- table, so rerunning the schema adds it (production's at the designer's go, before a Worker that
+-- writes it is deployed).
+CREATE TABLE IF NOT EXISTS rungs (
+  player_id TEXT NOT NULL,
+  counter TEXT NOT NULL,                   -- a counter key (GameArtifacts.COUNTERS)
+  rung INTEGER NOT NULL,                   -- the mark passed: 10, 20, 50, … by the counter's scale
+  signed_in INTEGER NOT NULL,
+  game_key TEXT NOT NULL,                  -- the game it was reached in
+  unix_seconds INTEGER NOT NULL,
+  PRIMARY KEY (player_id, counter, rung)
 );

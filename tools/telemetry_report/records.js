@@ -1,6 +1,6 @@
 // tools/telemetry_report/records.js — where the telemetry report's records come from (ONTOLOGY
-// "Telemetry report", D-66): the six tables of the ttdat-telemetry D1 database (D-64; the goal
-// tables D-77), read by six read-only SELECTs through `wrangler d1 execute --json`, turned back into plain records
+// "Telemetry report", D-66): the seven tables of the ttdat-telemetry D1 database (D-64; the goal
+// tables D-77, rungs D-80), read by seven read-only SELECTs through `wrangler d1 execute --json`, turned back into plain records
 // shaped like the ones the browser sends (camelCase, ONTOLOGY "Records"), each with the
 // player_id and signed_in of the batch that wrote it. Nothing here runs a process: the caller
 // hands in a function that runs wrangler.
@@ -29,11 +29,11 @@ function wholeNumber(value) {
     return String(value);
 }
 
-/** The six read-only queries, one per table, for the period from `since` (Unix seconds) on.
+/** The seven read-only queries, one per table, for the period from `since` (Unix seconds) on.
  *  Every game is read (the table is small), so an event of a game started before the period
  *  is known as that game's, which figures.inPeriod drops, not as one with no game record. A
  *  game's events and milestones come after its start, so these hold every event and milestone
- *  of the games started in the period, and the same holds for its goal sets and goals met. A crash
+ *  of the games started in the period, and the same holds for its goal sets, goals met and rungs. A crash
  *  belongs to the period by its own time. */
 function queries(since) {
     const s = wholeNumber(since);
@@ -44,6 +44,7 @@ function queries(since) {
         crashes: `SELECT * FROM crashes WHERE unix_seconds >= ${s} ORDER BY unix_seconds, id`,
         goalSets: `SELECT * FROM goal_sets WHERE unix_seconds >= ${s} ORDER BY game_key, set_no`,
         goalsMet: `SELECT * FROM goals_met WHERE unix_seconds >= ${s} ORDER BY game_key, set_no, idx`,
+        rungs: `SELECT * FROM rungs WHERE unix_seconds >= ${s} ORDER BY counter, rung, player_id`,
     };
 }
 
@@ -128,16 +129,21 @@ function goalMetFromRow(row) {
     };
 }
 
-/** The records the rows of the six queries hold. */
-function playFromRows({ games, events, milestones, crashes, goalSets, goalsMet }) {
+/** A rung record (D-80): a counter's rung a player reached, in a game. */
+function rungFromRow(row) {
+    return { gameKey: row.game_key, ...identity(row), counter: row.counter, rung: row.rung, unixSeconds: row.unix_seconds };
+}
+
+/** The records the rows of the seven queries hold. */
+function playFromRows({ games, events, milestones, crashes, goalSets, goalsMet, rungs }) {
     return {
         games: games.map(gameFromRow), events: events.map(eventFromRow),
         milestones: milestones.map(milestoneFromRow), crashes: crashes.map(crashFromRow),
-        goalSets: goalSets.map(goalSetFromRow), goalsMet: goalsMet.map(goalMetFromRow),
+        goalSets: goalSets.map(goalSetFromRow), goalsMet: goalsMet.map(goalMetFromRow), rungs: rungs.map(rungFromRow),
     };
 }
 
-/** The records of a D1 telemetry database from `since` on, read by six read-only queries
+/** The records of a D1 telemetry database from `since` on, read by seven read-only queries
  *  through `wrangler(args) → Promise<stdout>`. Production isn't asked while the config still
  *  holds the placeholder id: the database doesn't exist yet. */
 async function playFromD1(wrangler, target, config, since) {
@@ -158,5 +164,5 @@ async function playFromD1(wrangler, target, config, since) {
 
 module.exports = {
     DATABASE, ID_PLACEHOLDER, D1_TARGETS, ReportRefusal, queries, rowsFromWrangler,
-    gameFromRow, eventFromRow, milestoneFromRow, crashFromRow, goalSetFromRow, goalMetFromRow, playFromRows, playFromD1,
+    gameFromRow, eventFromRow, milestoneFromRow, crashFromRow, goalSetFromRow, goalMetFromRow, rungFromRow, playFromRows, playFromD1,
 };

@@ -33,6 +33,7 @@ const milestone = (key, n, t) => ({ gameKey: key, milestone: n, playerId: 'p', s
 const goalSet = (key, set, t) => ({ gameKey: key, set, playerId: 'p', signedIn: false, how: 'start', turn: 1, unixSeconds: t,
     goals: [{ counter: 'placed', amount: 5 }, { counter: 'trapped', amount: 5 }, { counter: 'bombs', amount: 5 }] });
 const goalMet = (key, set, index, t) => ({ gameKey: key, set, index, playerId: 'p', signedIn: false, counter: 'placed', amount: 5, turn: 9, unixSeconds: t });
+const rung = (key, t) => ({ gameKey: key, playerId: 'p', signedIn: true, counter: 'placed', rung: 10, unixSeconds: t });
 const crash = (id, t, gameKey = null) => ({ id, unixSeconds: t, gameKey, playerId: 'p', signedIn: false, version: 'v', message: 'boom' });
 
 /** Rows over three days (and one before the period): a game started late on day 0 whose events
@@ -47,6 +48,7 @@ function fixture() {
         crashes: [crash(1, D0 + 2 * DAY + 70), crash(2, D0 + 70, 'a')],
         goalSets: [goalSet('b', 0, D0 + 2 * DAY + 6)],
         goalsMet: [goalMet('a', 0, 0, D0 + DAY + 8)],
+        rungs: [rung('a', D0 + DAY - 2)],
     };
 }
 
@@ -56,7 +58,7 @@ function fixture() {
     const row = d => v.perDay.find(r => r.day === d);
     check('days in order, only the period', v.perDay.map(r => r.day).join() === '2026-11-18,2026-11-19,2026-11-20');
     const d0 = row('2026-11-18'), d1 = row('2026-11-19'), d2 = row('2026-11-20');
-    check('day 0: a game by its start, its first event, a crash', d0.games === 1 && d0.events === 1 && d0.milestones === 0 && d0.crashes === 1 && d0.total === 3);
+    check('day 0: a game by its start, its first event, a crash, a rung (D-80)', d0.games === 1 && d0.events === 1 && d0.milestones === 0 && d0.crashes === 1 && d0.rungs === 1 && d0.total === 4);
     check("day 1: the game's events after midnight, its milestone and goal met, on their own day", d1.games === 0 && d1.events === 2 && d1.milestones === 1 && d1.goalsMet === 1 && d1.total === 4);
     check('day 2: a game, a ghost event with no game record, a milestone, a crash with no game, a goal set', d2.games === 1 && d2.events === 1 && d2.milestones === 1 && d2.crashes === 1 && d2.goalSets === 1 && d2.total === 5);
     check('the busiest day and its total', v.busiest.day === '2026-11-20' && v.busiest.total === 5);
@@ -64,8 +66,8 @@ function fixture() {
     const all = vol.volumeFigures(fixture(), 0);
     check('all time: the old game and its event count on their day', all.perDay[0].day === '2026-11-13' && all.perDay[0].total === 2);
     const text = volumeSection(v, LOCAL);
-    check('table header and a day row', /\n  day +games +events +milestones +crashes +goal sets +goals met +total +of limit\n/.test(text)
-        && /\n  2026-11-20 +1 +1 +1 +1 +1 +0 +5 +0%\n/.test(text));
+    check('table header and a day row', /\n  day +games +events +milestones +crashes +goal sets +goals met +rungs +total +of limit\n/.test(text)
+        && /\n  2026-11-20 +1 +1 +1 +1 +1 +0 +0 +5 +0%\n/.test(text));
     check("the busiest-day line", text.includes("\n  busiest day 2026-11-20 5 rows = 0% of the free plan's daily writes\n"));
     check('the limit named in the title', text.startsWith("Volume: rows written per day (UTC), against the D1 free plan's 100000 rows written per day"));
     check("a note: index writes and the Worker's requests aren't counted", text.includes('not counted: index writes') && text.includes("the Worker's requests, which the tables don't hold"));
@@ -80,7 +82,7 @@ function fixture() {
     const busy = n => ({
         games: [game('q', D0), game('g', D0 + DAY)],
         events: Array.from({ length: n - 1 }, (_, i) => event('g', i, D0 + DAY + 1 + (i % 80000))),
-        milestones: [], crashes: [], goalSets: [], goalsMet: [],
+        milestones: [], crashes: [], goalSets: [], goalsMet: [], rungs: [],
     });
     const under = vol.volumeFigures(busy(half - 1), 0);
     const underText = volumeSection(under, LOCAL);
@@ -88,7 +90,7 @@ function fixture() {
     check("just under half: no WARNING", underText.includes("\n  busiest day 2026-11-19 49999 rows = 50% of the free plan's daily writes") && !underText.includes('WARNING'));
     const at = vol.volumeFigures(busy(half), 0);
     const atText = volumeSection(at, LOCAL);
-    check('at half: the day marked, the quiet day not', at.busiest.warn && /\n  2026-11-19 +1 +49999 +0 +0 +0 +0 +50000 +50% +\*\n/.test(atText) && /\n  2026-11-18 +1 +0 +0 +0 +0 +0 +1 +0%\n/.test(atText));
+    check('at half: the day marked, the quiet day not', at.busiest.warn && /\n  2026-11-19 +1 +49999 +0 +0 +0 +0 +0 +50000 +50% +\*\n/.test(atText) && /\n  2026-11-18 +1 +0 +0 +0 +0 +0 +0 +1 +0%\n/.test(atText));
     check('at half: WARNING', atText.includes("\n  WARNING: busiest day 2026-11-19 50000 rows = 50% of the free plan's daily writes\n"));
     const over = volumeSection(vol.volumeFigures(busy(120000), 0), LOCAL);
     check('over the limit: WARNING, share over 100%', over.includes("\n  WARNING: busiest day 2026-11-19 120000 rows = 120% of the free plan's daily writes\n"));
@@ -97,10 +99,10 @@ function fixture() {
 
 // ---- no rows, the size line ----
 {
-    const none = volumeSection(vol.volumeFigures({ games: [], events: [], milestones: [], crashes: [], goalSets: [], goalsMet: [] }, 0), LOCAL);
+    const none = volumeSection(vol.volumeFigures({ games: [], events: [], milestones: [], crashes: [], goalSets: [], goalsMet: [], rungs: [] }, 0), LOCAL);
     check('no rows: (none) and no busiest day', none.includes('\n  (none)\n') && none.includes('  busiest day: none (no rows written in the period)'));
     check('unknown size', none.endsWith('\n  size: unknown (local)'));
-    const empty = vol.volumeFigures({ games: [], events: [], milestones: [], crashes: [], goalSets: [], goalsMet: [] }, 0);
+    const empty = vol.volumeFigures({ games: [], events: [], milestones: [], crashes: [], goalSets: [], goalsMet: [], rungs: [] }, 0);
     check('a small size against 500 MB', volumeSection(empty, { bytes: 1234567 }).endsWith("\n  size: 1.2 MB = 0.2% of the free plan's 500.0 MB per database"));
     check('half the free size: WARNING', volumeSection(empty, { bytes: 250e6 }).endsWith("\n  WARNING: size: 250.0 MB = 50% of the free plan's 500.0 MB per database"));
     check('just under half: no WARNING', !volumeSection(empty, { bytes: 250e6 - 1 }).includes('WARNING'));
@@ -116,7 +118,7 @@ function fixture() {
     const two = report(play, { source: 'x', period: 'all time', since: 0, size: LOCAL }, SIZES);
     check('several rules versions: Volume once, after every version', two.split('\nVolume:').length === 2 && two.indexOf('\nVolume:') > two.lastIndexOf('=== Rules version'));
     check('several rules versions: every row of the period counted once', /\n  busiest day 2026-11-20 5 rows/.test(two));
-    const nothing = report({ games: [], events: [], milestones: [], crashes: [crash(1, D0)], goalSets: [], goalsMet: [] }, { source: 'x', period: 'all time', since: 0, size: LOCAL }, SIZES);
+    const nothing = report({ games: [], events: [], milestones: [], crashes: [crash(1, D0)], goalSets: [], goalsMet: [], rungs: [] }, { source: 'x', period: 'all time', since: 0, size: LOCAL }, SIZES);
     check('no games: Volume still printed', nothing.includes('No games recorded.') && nothing.includes('\nVolume:') && nothing.endsWith('  size: unknown (local)\n'));
     const recent = report(fixture(), { source: 'x', period: 'games started in the last 1 day', since: D0 + 2 * DAY, size: LOCAL }, SIZES);
     check('a days limit: Volume counts the rows of the period only', /\n  busiest day 2026-11-20 5 rows/.test(recent) && !recent.includes('\n  2026-11-19 '));

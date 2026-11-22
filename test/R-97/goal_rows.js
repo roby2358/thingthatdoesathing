@@ -18,33 +18,12 @@ const { pathToFileURL } = require('url');
 const { DatabaseSync } = require('node:sqlite');
 const { check, done } = require('../helpers/check');
 require('../helpers/cloudflare');   // worker/index.js imports 'cloudflare:workers'
+const { SCHEMA, sqliteD1 } = require('../helpers/telemetry');
 const { load } = require('../helpers/load');
 
 const ROOT = path.join(__dirname, '..', '..');
-const SCHEMA = fs.readFileSync(path.join(ROOT, 'worker', 'telemetry_schema.sql'), 'utf8');
 const logged = [];
 for (const k of ['info', 'warn', 'error', 'debug']) console[k] = (...a) => logged.push(a.map(String).join(' '));
-
-function fakeD1() {
-    const db = new DatabaseSync(':memory:');
-    db.exec(SCHEMA);
-    let binds = 0;
-    return {
-        db, get binds() { return binds; },
-        prepare(sql) { return { bind(...args) { binds++; return { sql, args }; } }; },
-        async batch(statements) {
-            db.exec('BEGIN');
-            try {
-                for (const s of statements) db.prepare(s.sql).run(...s.args.map(v => v === undefined ? null : v));
-                db.exec('COMMIT');
-            } catch (e) { db.exec('ROLLBACK'); throw e; }
-        },
-        rows(table, order) { return db.prepare(`SELECT * FROM ${table} ORDER BY ${order}`).all().map(r => ({ ...r })); },
-        count(table) { return db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n; },
-    };
-}
-const TABLES = ['games', 'events', 'milestones', 'crashes', 'goal_sets', 'goals_met'];
-const total = d1 => TABLES.reduce((n, t) => n + d1.count(t), 0);
 
 const GAME = { gameKey: 'g1', startedUnixSeconds: 1763700000, seed: 4242, size: 'small', version: 'abc1234', rulesVersion: 1 };
 const SET = { gameKey: 'g1', set: 0, how: 'start', turn: 1, unixSeconds: 1763700001,
@@ -71,7 +50,7 @@ async function post(d1, body, headers = {}) {
 
     // A valid batch.
     {
-        const d1 = fakeD1();
+        const d1 = sqliteD1();
         const res = await post(d1, { format: 1, player: 'p-one', games: [GAME],
             goalSets: [SET, { ...SET, set: 1, how: 'reroll', turn: 20, goals: [{ counter: 'bombs', amount: 5 }, { counter: 'slides', amount: 100 }, { counter: 'pushesPulls', amount: 50 }] }],
             goalsMet: [MET, { ...MET, set: 1, index: 0, counter: 'bombs', amount: 5, turn: 30 }] });
@@ -95,9 +74,9 @@ async function post(d1, body, headers = {}) {
 
     // An old batch, no goal lists.
     {
-        const d1 = fakeD1();
+        const d1 = sqliteD1();
         const res = await post(d1, { format: 1, player: 'p', games: [GAME] });
-        check('a batch without goalSets or goalsMet → 204, its rows written', res.status === 204 && d1.count('games') === 1 && total(d1) === 1);
+        check('a batch without goalSets or goalsMet → 204, its rows written', res.status === 204 && d1.count('games') === 1 && d1.total() === 1);
     }
 
     // Bad goal records: 400, nothing written.
@@ -132,10 +111,10 @@ async function post(d1, body, headers = {}) {
         ['a goal met: unixSeconds as text', { goalsMet: [{ ...MET, unixSeconds: 'now' }] }, 'goalsMet[0].unixSeconds'],
     ];
     for (const [label, lists, why] of bad) {
-        const d1 = fakeD1();
+        const d1 = sqliteD1();
         logged.length = 0;
         const res = await post(d1, { format: 1, player: 'p', games: [GAME], ...lists });
-        check(`${label} → 400, nothing written, refused for it`, res.status === 400 && total(d1) === 0 && d1.binds === 0 &&
+        check(`${label} → 400, nothing written, refused for it`, res.status === 400 && d1.total() === 0 && d1.binds === 0 &&
             logged.length === 1 && logged[0] === 'telemetry batch refused: ' + why);
     }
 

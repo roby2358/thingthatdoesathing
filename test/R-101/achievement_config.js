@@ -15,7 +15,7 @@ require('../helpers/cloudflare');
 const ROOT = path.join(__dirname, '..', '..');
 
 (async () => {
-    const { ACHIEVEMENT_COUNTERS } = await import(pathToFileURL(path.join(ROOT, 'worker', 'achievements.js')).href);
+    const { ACHIEVEMENT_COUNTERS } = await import(pathToFileURL(path.join(ROOT, 'worker', 'counters.js')).href);
     const { GameArtifacts } = load();
     check('ACHIEVEMENT_COUNTERS is every GameArtifacts.COUNTERS key, in order',
         JSON.stringify(ACHIEVEMENT_COUNTERS) === JSON.stringify(GameArtifacts.COUNTERS.map(c => c.key)));

@@ -848,12 +848,12 @@ boot (GameUI.start, after the input is wired):
 
 ---
 
-## §8 Telemetry [D; D-64, D-65, D-66, D-70, D-71, D-77]
+## §8 Telemetry [D; D-64, D-65, D-66, D-70, D-71, D-77, D-80]
 *Serves:* tuning §6 from real play (how far games get, how fast, what players build), and bugs
 players never report. Two halves, and a report: the browser recorder (`telemetry.js`, `GameTelemetry`, D-65),
 which makes the records and sends them in batches, and the server side (D-64): the ttdat
 Worker's `POST /t` and its D1 database; `just telemetry-report` reads that database back as tables (D-66). `crash.js` sends one crash record of its own to the same endpoint (Crash report, D-71). The engine knows nothing of telemetry; GameUI hands the
-recorder each new game, each committed command and each goal set dealt (D-77).
+recorder each new game, each committed command, each goal set dealt (D-77) and each achievement rung announced (D-80).
 
 ### Recorder — `GameTelemetry` (telemetry.js) [D-65]
 ```
@@ -892,9 +892,16 @@ goalSet(how, state):                           # D-77; GameUI: after startGame (
                    goals: state.goals.list → [{counter, amount}] }   # GOALS_PER_GAME of them, in order
   queued records ≥ TELEMETRY_FLUSH_RECORDS → flush('fetch'), else start the timer
 
+rungs(announced):                              # D-80; GameUI's GameAchievements listener, every change
+  if no game, backing off or announced empty: nothing
+  for each announcement {counter, amount, …} (rungsReached's own included, in the order announced):
+      queue rung { gameKey, counter, rung: amount, unixSeconds }
+  queued records ≥ TELEMETRY_FLUSH_RECORDS → flush('fetch'), else start the timer
+  # the recorder's rules, Global Privacy Control included: unlike the totals' sync (D-79), these are tuning data
+
 flush(via):                                    # also when the timer fires (TELEMETRY_FLUSH_MS)
   nothing queued and the game record already sent → nothing
-  batch ← { format, player, games: [game], events, milestones, goalSets, goalsMet }; empty the queue
+  batch ← { format, player, games: [game], events, milestones, goalSets, goalsMet, rungs }; empty the queue
   via 'fetch': fetch(endpoint, POST, keepalive, credentials omit); via 'beacon': navigator.sendBeacon
   any failure: dropped, never retried, never shown, never thrown into the game
   a fetch answered 429 or 403 (D-70): back off for TELEMETRY_BACKOFF_MS: the queue dropped, and until
@@ -956,14 +963,15 @@ Event `args`, as GameUI reads them before the command runs:
 | crash | `unixSeconds`, `message`, `format`?, `version`?, `gameKey`?, `seed`?, `size`?, `turn`? (each null if unknown), `stack`?, `userAgent`? |
 | goal set (D-77) | `gameKey`, `set` (0 for the game's first, +1 per New goals), `how` (`'start'` the new game's set, `'reroll'` New goals with goals of the last set unmet, `'next'` New goals after a set all met), `turn` (when dealt), `unixSeconds`, `goals` (exactly `GOALS_PER_GAME` `{counter, amount}`: a goal counter key and a whole amount ≥ 1, in the set's order) |
 | goal met (D-77) | `gameKey`, `set`, `index` (0 to `GOALS_PER_GAME` − 1, its place in the set), `counter`, `amount`, `turn` (after the tick that met it), `unixSeconds`, `met` (always `true`) |
+| rung (D-80) | `gameKey` (the game it was reached in), `counter` (a `COUNTERS` key), `rung` (the mark its lifetime total passed: a whole number ≥ 1), `unixSeconds` |
 
 `?` = may be missing or null. Fields a record doesn't list are ignored, so a new optional field
 needs no format bump.
 
 ### Batch format
 One JSON object, sent as `text/plain` (no CORS preflight; `sendBeacon` can carry it):
-`{ format, player, token?, games?: [game…], events?: [event…], milestones?: [milestone…], crashes?: [crash…], goalSets?: [goal set…], goalsMet?: [goal met…] }`.
-  The goal lists (D-77) are additive: a batch without them (an older build) is read as before, so `format` stays 1.
+`{ format, player, token?, games?: [game…], events?: [event…], milestones?: [milestone…], crashes?: [crash…], goalSets?: [goal set…], goalsMet?: [goal met…], rungs?: [rung…] }`.
+  The goal lists (D-77) and `rungs` (D-80) are additive: a batch without them (an older build) is read as before, so `format` stays 1.
 - `format` — `TELEMETRY_FORMAT` (worker/telemetry.js and `GameDisplayArtifacts`), bumped in both
   whenever a field is renamed, removed or retyped. The itch.io and Newgrounds zips run whatever
   build was uploaded for months, so old clients keep sending old shapes: the Worker keeps one
@@ -996,7 +1004,8 @@ fetch(request):
     that isn't an object, a required field missing (or an empty string), a wrong field type or length, an
     event's seq not a whole number ≥ 0, an unknown command, a bad arg column, a deliveredByColor that isn't 4 whole numbers ≥ 0;
     a goal record (D-77) with a `how` not in GOAL_HOWS, a set < 0, an index outside 0 … GOALS_PER_SET − 1, a turn < 1,
-    not exactly GOALS_PER_SET goals, a counter not in GOAL_COUNTERS, an amount not a whole number ≥ 1, met not true) → 400, nothing written
+    not exactly GOALS_PER_SET goals, a counter not in GOAL_COUNTERS, an amount not a whole number ≥ 1, met not true;
+    a rung record (D-80) with a counter not in ACHIEVEMENT_COUNTERS or a rung not a whole number ≥ 1) → 400, nothing written
   else → 204 (Access-Control-Allow-Origin: *); ctx.waitUntil(identity, then one D1 batch of every row)
          identity = identityFor(batch.token) (Sign-in section) or the batch's random player
          a failed write is console.error'd and dropped
@@ -1030,6 +1039,9 @@ so a cross-origin page sees them and backs off.
   `turn`, `unix_seconds`. Both are new tables, so rerunning the schema adds them (`just d1-local`; production's
   at the designer's go, before a Worker that writes them is deployed: a batch's write is one D1 batch, and a
   missing table would lose all of it).
+- `rungs` (D-80) — PK (`player_id`, `counter`, `rung`), `INSERT OR IGNORE`: each player reaches each rung once, the
+  first record kept (a resend, or the same rung announced again on another device or after a sign-in); `signed_in`,
+  `game_key` (the game it was reached in), `unix_seconds`. A new table, added by rerunning the schema as the goal tables.
 - Every row carries `player_id` and `signed_in`; no foreign keys; no IP column. Indexes: games by
   start time, events by time (only: each index on events is another written row per event, D-64),
   crashes by time and by version.
@@ -1047,13 +1059,13 @@ tool args (after the config):
   source: no name → production: refused (exit 1, wrangler never run) while wrangler.jsonc holds
             PUT-THE-DATABASE-ID-HERE; else wrangler d1 execute ttdat-telemetry --remote --env production --json
           local-d1 → the same with --local (wrangler dev's database under .wrangler/)
-  read:   six SELECTs, one per table: every game (so an older game's events in the period drop with it,
-          not as left out); events, milestones, crashes, goal_sets, goals_met with unix_seconds ≥ since
+  read:   seven SELECTs, one per table: every game (so an older game's events in the period drop with it,
+          not as left out); events, milestones, crashes, goal_sets, goals_met, rungs with unix_seconds ≥ since
           (since = now − days × 86400, or 0); rows → records (camelCase, signedIn bool, an event's args
           = its non-NULL arg columns + rest.args, deliveredByColor = the four delivered_<color> columns,
-          a goal set's goals = its counterN/amountN columns, a goal met's index = idx)
-  period: the games started ≥ since, their events, milestones, goal sets and goals met; events and milestones whose game has
-          no games row are left out (counted in the heading), goal sets and goals met with no games row
+          a goal set's goals = its counterN/amountN columns, a goal met's index = idx, a rung's columns as they are)
+  period: the games started ≥ since, their events, milestones, goal sets, goals met and rungs; events and milestones whose game has
+          no games row are left out (counted in the heading), goal sets, goals met and rungs with no games row
           too (not counted); crashes by their own time
   print:  heading (source, period, counts of games / events / milestones / crashes, versions and
           rules versions seen with their game counts, signed-in games), then the sections; with
@@ -1075,7 +1087,8 @@ Sections, in order (a table with no rows prints `(none)`):
 - **Crashes** — per version; messages with numbers as N, most first, with distinct games hit; crashes with no game, and with a game not in the report.
 - **Players** — distinct signed-in `player_id`s (rows of any table with `signed_in` 1: identity is per batch) and those seen on more than one UTC day, or "no signed-in games"; games whose rows carry more than one identity (switched mid-game).
 - **Goals** (D-77) — "Goals: N sets dealt (how n, …), M done" (sets done: every goal of a recorded set met), then per goal counter, most dealt first: times dealt, re-rolled away (unmet in a set that a `reroll` set followed), met, and the median turns from its set's deal to the goal met (goals met whose set record is known; "-" with none).
-- **Volume** (figures in tools/telemetry_report/volume.js, printed by render.js, D-72; printed once, last) — rows written per UTC day over the period, per table (games, events, milestones, crashes, goal sets, goals met; the goal tables D-77) and in total, each row on the day of its own time column (`started_unix_seconds` for games, `unix_seconds` for the others), every row read in the period whether or not its game is in the report; each day's share of `D1_FREE_ROWS_WRITTEN_PER_DAY`, marked `*` at or over `WARN_SHARE`; then `busiest day <day> N rows = P% of the free plan's daily writes` (`WARNING: ` before it at or over `WARN_SHARE`; "busiest day: none" with no rows); a note that index writes and the Worker's requests aren't in the tables, so aren't counted; then `size: <bytes> = P% of the free plan's <D1_FREE_DB_BYTES> per database` (`WARNING: ` at or over `WARN_SHARE` of `D1_FREE_DB_BYTES`) or `size: unknown (…)`.
+- **Achievements** (D-80) — "Achievements: N rungs reached by M players" (rung records and distinct `player_id`s), then per counter, most players first (ties by name): the distinct players who reached any of its rungs, the highest rung seen, and the distinct players per rung, rising ("10: 3, 20: 2, 50: 1").
+- **Volume** (figures in tools/telemetry_report/volume.js, printed by render.js, D-72; printed once, last) — rows written per UTC day over the period, per table (games, events, milestones, crashes, goal sets, goals met, rungs; the goal tables D-77, rungs D-80) and in total, each row on the day of its own time column (`started_unix_seconds` for games, `unix_seconds` for the others), every row read in the period whether or not its game is in the report; each day's share of `D1_FREE_ROWS_WRITTEN_PER_DAY`, marked `*` at or over `WARN_SHARE`; then `busiest day <day> N rows = P% of the free plan's daily writes` (`WARNING: ` before it at or over `WARN_SHARE`; "busiest day: none" with no rows); a note that index writes and the Worker's requests aren't in the tables, so aren't counted; then `size: <bytes> = P% of the free plan's <D1_FREE_DB_BYTES> per database` (`WARNING: ` at or over `WARN_SHARE` of `D1_FREE_DB_BYTES`) or `size: unknown (…)`.
 
 ### Numbers [T]
 | Name | Value | Meaning |
@@ -1087,7 +1100,7 @@ Sections, in order (a table with no rows prints `(none)`):
 | `WARN_SHARE` | 0.5 | the report's Volume section: a day's writes, or the database's size, at or over this share of its free limit is marked and its line starts `WARNING:` (D-72) |
 | `TELEMETRY_FORMAT` | 1 | the batch format this build sends and reads |
 | `MAX_BODY_BYTES` | 64 KB | the largest batch body |
-| `MAX_RECORDS` | 200 | records per batch, all six lists together (the goal lists too, D-77) |
+| `MAX_RECORDS` | 200 | records per batch, all seven lists together (the goal lists too, D-77, and rungs, D-80) |
 | `GOAL_COUNTERS`, `GOALS_PER_SET` | the 15 goal counter keys / 3 | worker/telemetry.js's twins of `COUNTERS`' goal keys and `GOALS_PER_GAME` (R-97 checks them equal, D-77) |
 | `CRASH_MESSAGE_CHARS` | 500 | a crash's message is cut to this |
 | `CRASH_STACK_CHARS` | 2000 | a crash's stack is cut to this (its first lines) |
@@ -1236,7 +1249,7 @@ add has keys → stub.add(add), else stub.totals()
 every answer: Access-Control-Allow-Origin *, Cache-Control no-store
 ```
 `ACHIEVEMENT_COUNTERS` is every `GameArtifacts.COUNTERS` key (perGame or not) in table order,
-restated in the Worker. Nothing here stores or logs the IP (only the limiter's key), the token or
+restated in the Worker (worker/counters.js, which /t's rung check reads too, D-80). Nothing here stores or logs the IP (only the limiter's key), the token or
 the `sub`; it writes no telemetry rows. Refusals are logged with the field only.
 
 ### Numbers [T]
@@ -1303,7 +1316,7 @@ The running copy isn't replaced by an add's answer (it would count again what wa
 
 ### On screen — GameUI [D]
 ```
-the listener: announcements → the achievement banner, after the tick animating (anim.rungs), else now;
+the listener: announcements → GameTelemetry.rungs (a rung record each, under telemetry's rules, D-80) and the achievement banner, after the tick animating (anim.rungs), else now;
               the Achievements page redrawn if it's showing
 achievement banner (#rung-banner, under the goal banner; doesn't stop play):
   one line per announcement, at most RUNG_BANNER_LINES at once, each up MILESTONE_MS; the rest wait

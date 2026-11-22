@@ -21,12 +21,8 @@
 
 import { identityFor } from './auth.js';
 import { originAllowed, underLimit, readJsonObject } from './telemetry.js';
+import { ACHIEVEMENT_COUNTERS } from './counters.js';
 
-/** The counters a total may be kept for: every GameArtifacts.COUNTERS key, perGame or not, in
- *  table order, restated here (the Worker can't load the game's scripts; R-101 checks they match). */
-export const ACHIEVEMENT_COUNTERS = ['cratesDelivered', 'bigDelivered', 'exGremlins', 'trapped', 'placed', 'springThrows',
-    'rocketFlights', 'cannonLobs', 'moved', 'bombs', 'slides', 'mountainsFlown', 'pushes', 'pulls', 'pushesPulls',
-    'milestones', 'goalsMet', 'rungsReached', 'cratesSunk', 'cratesSmashed', 'cratesLostOther', 'discards'];
 /** The most keys one add may carry. */
 export const MAX_ADD_KEYS = 64;
 /** The largest increment one add may carry for a counter. */
