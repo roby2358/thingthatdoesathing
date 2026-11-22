@@ -566,12 +566,12 @@ run('Help shows the keys and holds Go; closing it lets Go pick up again', () => 
     if (s.turn === held || !ui.running) throw new Error('Go did not pick up after Help closed');
     els.go.fire('click'); settle();
 });
-run('Help is a pager (D-60, D-61): opens on Keys, → More keys (B onward, off Keys), → Special cards (the Pusher/Puller color, Mover and Bomb lines, off Keys), → Things (one row per card, its hover text), → World, → at the end stays, ← back, a button click stays, any other key closes, Go picks up again', () => {
+run('Help is a pager (D-60, D-61): opens on Keys, → More keys (B onward, off Keys), → Special cards (the Pusher/Puller color, Mover and Bomb lines, off Keys), → Things (one row per card, its hover text), → World, → Goals and achievements (D-76), → at the end stays, ← back, a button click stays, any other key closes, Go picks up again', () => {
     els['new-game'].fire('click'); key('1');
     const s = ui.state;
     const shown = id => !els[id].classList.set.has('hidden');
-    const page = () => [0, 1, 2, 3, 4].filter(i => shown('help-page-' + i)).join();
-    const count = n => { if (els['help-count'].textContent !== n + ' / 5') throw new Error('page count: ' + els['help-count'].textContent); };
+    const page = () => [0, 1, 2, 3, 4, 5].filter(i => shown('help-page-' + i)).join();
+    const count = n => { if (els['help-count'].textContent !== n + ' / 6') throw new Error('page count: ' + els['help-count'].textContent); };
     els.go.fire('click');
     advance(1000);
     els.help.fire('click');
@@ -601,12 +601,15 @@ run('Help is a pager (D-60, D-61): opens on Keys, → More keys (B onward, off K
     if (ui.overlay !== 'help' || page() !== '3' || els['help-prev'].disabled || els['help-next'].disabled) throw new Error('→ three times must turn to Things');
     count(4);
     key('ArrowRight');
-    if (ui.overlay !== 'help' || page() !== '4' || els['help-prev'].disabled || !els['help-next'].disabled) throw new Error('→ four times must reach World');
+    if (ui.overlay !== 'help' || page() !== '4' || els['help-prev'].disabled || els['help-next'].disabled) throw new Error('→ four times must reach World');
     count(5);
     key('ArrowRight');
-    if (page() !== '4') throw new Error('→ on the last page must stay put');
-    count(5);
-    key('ArrowLeft');
+    if (ui.overlay !== 'help' || page() !== '5' || els['help-prev'].disabled || !els['help-next'].disabled) throw new Error('→ five times must reach Goals and achievements');
+    count(6);
+    key('ArrowRight');
+    if (page() !== '5') throw new Error('→ on the last page must stay put');
+    count(6);
+    key('ArrowLeft'); key('ArrowLeft');
     const cards = vm.runInContext('GameArtifacts.CARDS', ctx);
     const looks = vm.runInContext('GameDisplayArtifacts.THING_LOOK', ctx);
     const rows = els['help-things'].children;

@@ -48,7 +48,17 @@ const GameDisplayArtifacts = (function () {
             signInSave: "Can't keep the game while you sign in",   // D-68: the save before the redirect was refused
             signInFailed: "Can't start the sign-in",
         },
-        MILESTONE_MS: 3500,          // how long the milestone banner stays up
+        MILESTONE_MS: 3500,          // how long the milestone banner (and the goal banner, D-76) stays up
+        // Messages the game shows, by occasion: each a list of whole sentences, one picked with
+        // Math.random (never Rando) each time (D-76). goalMet: a goal of the set was met;
+        // {amount} is its amount and {label} its counter's label ("50 crates delivered").
+        MESSAGES: {
+            goalMet: [
+                'Goal met: {amount} {label}!',
+                '{amount} {label}. That goal is done.',
+                'There it is: {amount} {label}. Goal met.',
+            ],
+        },
         // Map-scale buttons (D-40): each divisor is a button showing the board at 1/d size;
         // a last "∞" button fits the whole board to the canvas (never above 1x).
         ZOOM_DIVISORS: [1, 2],

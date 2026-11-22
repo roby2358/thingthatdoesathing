@@ -13,9 +13,9 @@ const GameUI = (function () {
         PIECE_LOOK, CRATE_SHADES, BIG_CRATE_SCALE, COLOR_INK, SPLAT_BLOTS, SOURCE_COLOR, PORT_NEUTRAL_MARK, PORT_OUTLINE,
         PORT_MARK_WIDTH, PORT_RING_RADII, PORT_PLUS_REACH, PORT_OUTLINE_WIDTH, BG_COLOR, UI_FONT, REACH_COLOR, MAP_SIZE_NOTES,
         COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES, ABOUT, HELP_CARD_PX, HELP_PIECE_SCALE, HELP_LADDER_SHOWN, WORLD_LOOK,
-        SAVE_KEY, SAVE_VERSION, SAVE_REDIRECT_MAX_AGE_S
+        SAVE_KEY, SAVE_VERSION, SAVE_REDIRECT_MAX_AGE_S, MESSAGES
     } = GameDisplayArtifacts;
-    const { TERRAIN, THINGS, WHITE, HAND_SIZE, MAP_SIZES, CARDS, PIECES, MAX_SLIDE, aims, cardOf, nextMilestone } = GameArtifacts;
+    const { TERRAIN, THINGS, WHITE, HAND_SIZE, MAP_SIZES, CARDS, PIECES, MAX_SLIDE, GOALS_PER_GAME, aims, cardOf, nextMilestone } = GameArtifacts;
     const SIZE_KEYS = Object.keys(MAP_SIZES);
     // A splat burst's color, by piece kind: a gremlin's own color, a crate's side face.
     const SPLAT_COLOR = {
@@ -38,23 +38,38 @@ const GameUI = (function () {
         d.style.width = d.style.height = px + 'px';
         return d;
     }
-    const OVERLAY_PANELS = { intro: 'intro-panel', size: 'size-panel', news: 'news-panel', help: 'help-panel', color: 'color-panel', about: 'about-panel' };   // L5 overlay → its panel
+    const OVERLAY_PANELS = { intro: 'intro-panel', size: 'size-panel', news: 'news-panel', help: 'help-panel', color: 'color-panel', about: 'about-panel',
+        goals: 'goals-panel', goalsDone: 'goals-done-panel' };   // L5 overlay → its panel
     // L5: what a key does on each overlay. The size pickers take their number keys (and Esc
     // when a game is behind); the news panel (new colors) closes on any key; the color picker
-    // takes its swatch numbers and Esc; Help and About turn their pages on ← → and close on
-    // any other key (their Pager, D-59, D-60).
+    // takes its swatch numbers and Esc; Help, About and the Goals view turn their pages on ← →
+    // and close on any other key (their Pager, D-59, D-60, D-76); goals met takes only Esc
+    // (Keep playing, D-76).
     const OVERLAY_KEYS = {
         intro: (ui, e) => ui.sizeKey(e),
         size: (ui, e) => ui.sizeKey(e),
-        news: ui => ui.dismissOverlay(),
+        news: ui => ui.closeNews(),
+        goals: (ui, e) => ui.goalsPager.key(e),
+        goalsDone: (ui, e) => ui.doneKey(e),
         help: (ui, e) => ui.helpPager.key(e),
         color: (ui, e) => ui.colorKey(e),
         about: (ui, e) => ui.aboutPager.key(e),
     };
     // How many pages each paged overlay has (#help-page-0…, #about-page-0…). Help: Keys, More
-    // keys, Special cards, Things (D-60), World (D-61). About: credits, privacy (D-59).
-    const HELP_PAGES = 5;
+    // keys, Special cards, Things (D-60), World (D-61), Goals and achievements (D-76). About:
+    // credits, privacy (D-59). The Goals view: Goals (D-76).
+    const HELP_PAGES = 6;
     const ABOUT_PAGES = 2;
+    const GOALS_PAGES = 1;
+    // A goal's label with its first letter up, for a line of its own (D-76).
+    const capitalFirst = s => s.charAt(0).toUpperCase() + s.slice(1);
+    // A goal met (a goalStates() entry), in one of MESSAGES.goalMet's wordings, picked with
+    // Math.random (D-76).
+    function goalMetLine(goal) {
+        const list = MESSAGES.goalMet;
+        return list[Math.floor(Math.random() * list.length)]
+            .replace(/\{amount\}/g, () => String(goal.amount)).replace(/\{label\}/g, () => goal.label);
+    }
     // What a click on a paged overlay may land on without closing it: a link, the < > buttons,
     // selectable text (About's version and seed).
     const PAGER_STAYS = 'a, button, .selectable';
@@ -500,9 +515,15 @@ const GameUI = (function () {
             this.picked = null;      // L1.2 { slot, card, mode, legal: Set<key>, kind, color, from, booms } — the card in play (PICK_MODES; kind/color: what a ghost draws; from: a carried Thing's hex; booms: the hexes a Bomb has blown up, D-48)
             this.choosing = null;    // L5 { q, r, colors } — the color picker's hex and swatches, while it's open (D-32)
             this.facing = 0;         // ghost facing; remembered between placements
-            this.overlay = null;     // L5 'intro' | 'size' (board-size pickers) | 'news' (a color opened) | 'help' (keys, then Things, D-60) | 'color' (the color picker, D-32) | 'about' (credits and privacy, D-59) | null
+            this.overlay = null;     // L5 'intro' | 'size' (board-size pickers) | 'news' (a color opened) | 'help' (keys, then Things, D-60) | 'color' (the color picker, D-32) | 'about' (credits and privacy, D-59) | 'goals' (the Goals view, D-76) | 'goalsDone' (a goal set met, D-76) | null
             this.helpPager = new Pager('help', HELP_PAGES, () => this.dismissOverlay());   // D-60
             this.aboutPager = new Pager('about', ABOUT_PAGES, () => this.closeAbout());     // D-59
+            this.goalsPager = new Pager('goals', GOALS_PAGES, () => this.dismissOverlay());   // D-76
+            this.goalsDrawn = null;  // what drawGoals last drew, so it redraws only on change
+            this.goalLines = [];     // the side panel's goal lines {line, check, label, count}, made by buildGoals (D-76)
+            this.goalRows = [];      // the Goals view's rows {row, label, count, fill}
+            this.doneWaiting = false;   // a set was met under a news panel: goals met opens when it closes (D-76)
+            this.goalBannerTimer = null;   // hides the goal banner
             this.aboutFrom = null;   // the overlay About opened over ('intro'), to go back to; null over the game
             this.hoveredHex = null;  // L1.3
             this.selected = null;    // {q, r} — a clicked hex: highlighted, holds Go; a second click turns its mover
@@ -701,6 +722,8 @@ const GameUI = (function () {
             this.zoom = ZOOMS[0].label;
             this.markZoom();
             document.getElementById('milestone').classList.add('hidden');
+            document.getElementById('goal-banner').classList.add('hidden');
+            this.doneWaiting = false;
             this.dismissOverlay();
             this.sound.fanfare();
             this.resize();
@@ -1327,6 +1350,8 @@ const GameUI = (function () {
             const unlocked = [];
             const redrawn = [];
             const cleared = [];   // Things taken off mid-command (a bomb, a new endpoint): a burst on their hop
+            const goalsMet = [];   // goal events: a banner when the tick ends (D-76)
+            let goalsDone = false;
             const ends = new Set();
             const still = id => ({ q: before.get(id).q, r: before.get(id).r });
             const trackOf = id => tracks.get(id) || { ...before.get(id), pts: [still(id)], hop: 0, over: 0, end: null };
@@ -1353,12 +1378,17 @@ const GameUI = (function () {
                     redrawn.push(e.slot);
                 } else if (e.type === 'clear') {
                     cleared.push(e);
+                } else if (e.type === 'goal') {
+                    goalsMet.push(e);
+                } else if (e.type === 'goalsDone') {
+                    goalsDone = true;
                 }
             }
             const hops = Math.max(1, ...[...tracks.values()].map(t => t.pts.length - 1 + (t.end ? 1 : 0)),
                 ...cleared.map(e => e.hop + 1));
             this.anim = { t0: performance.now(), dur: hops * HOP_MS,
-                tracks, before, hidden, milestones, opened, unlocked, redrawn, cleared, ends };
+                tracks, before, hidden, milestones, opened, unlocked, redrawn, cleared, ends,
+                goalsMet, goalsDone, goalSet: this.state.goals.set };
             const frame = now => {
                 if (!this.anim) return;
                 if (now - this.anim.t0 >= this.anim.dur) { this.finishAnim(); return; }
@@ -1383,6 +1413,7 @@ const GameUI = (function () {
             if (cue) this.sound[cue]();
             if (a.milestones.length) { this.sound.fanfare(); this.showMilestone(a.milestones, a.unlocked); }
             if (a.opened.length) this.showNews(a.opened, a.unlocked);
+            this.showGoalsMet(a);
             this.render();
             a.redrawn.forEach(slot => this.flashCard(slot));
             this.queue.flush();   // its own guards drop it if, say, a news overlay just opened
@@ -1455,6 +1486,140 @@ const GameUI = (function () {
             if (kinds.length) lines.push(`Now in the deck: ${kinds.map(k => `${THING_LOOK[k].name} (${THING_LOOK[k].does})`).join('; ')}.`);
             document.getElementById('news-sub').textContent = lines.join(' ');
             this.showOverlay('news');
+        }
+
+        // ---- Goals on screen (D-76) ----
+        // The side panel's lines and the Goals view's rows, made once (GOALS_PER_GAME of each),
+        // and the goal buttons wired.
+        buildGoals() {
+            const side = document.getElementById('goals-side-list'), view = document.getElementById('goals-view');
+            const span = (cls, parent) => { const s = document.createElement('span'); s.className = cls; parent.appendChild(s); return s; };
+            this.goalLines = [];
+            this.goalRows = [];
+            for (let i = 0; i < GOALS_PER_GAME; i++) {
+                const line = document.createElement('div');
+                line.className = 'goal-line';
+                this.goalLines.push({ line, check: span('goal-check', line), label: span('goal-label', line), count: span('goal-count', line) });
+                side.appendChild(line);
+                const row = document.createElement('div');
+                row.className = 'goal-row';
+                this.goalRows.push({ row, label: span('goal-label', row), count: span('goal-count', row), fill: span('goal-fill', span('goal-bar', row)) });
+                view.appendChild(row);
+            }
+            document.getElementById('goals-side-new').addEventListener('click', () => this.newGoalsOver(null));
+            document.getElementById('goals-side-expand').addEventListener('click', () => this.showGoals());
+            document.getElementById('goals-view-new').addEventListener('click', () => this.newGoalsOver('goals'));
+            document.getElementById('done-new-game').addEventListener('click', () => this.doneNewGame());
+            document.getElementById('done-new-goals').addEventListener('click', () => this.doneNewGoals());
+            document.getElementById('done-keep').addEventListener('click', () => this.doneKeep());
+            this.goalsPager.wire();
+        }
+
+        // The goals as they stand (engine.goalStates()), on the side panel and in the Goals view:
+        // the label, "count / amount" with the count capped at the amount, and a met goal green
+        // with a check (and a full bar). Redrawn only when what it shows changes.
+        drawGoals() {
+            const goals = this.engine.goalStates();
+            const shown = JSON.stringify(goals.map(g => [g.counter, g.count, g.amount, g.met]));
+            if (shown === this.goalsDrawn) return;
+            this.goalsDrawn = shown;
+            document.getElementById('goals-side').classList.remove('hidden');
+            goals.forEach((g, i) => {
+                const count = `${Math.min(g.count, g.amount)} / ${g.amount}`, label = capitalFirst(g.label);
+                const line = this.goalLines[i], row = this.goalRows[i];
+                line.line.classList.toggle('met', g.met);
+                line.check.textContent = g.met ? '✓' : '';
+                line.label.textContent = label;
+                line.count.textContent = count;
+                row.row.classList.toggle('met', g.met);
+                row.label.textContent = (g.met ? '✓ ' : '') + label;
+                row.count.textContent = count;
+                row.fill.style.width = Math.min(1, g.count / g.amount) * 100 + '%';
+            });
+        }
+
+        // New goals (engine.newGoals(), D-75): no tick, so it works mid-animation, like rotate.
+        dealNewGoals() {
+            this.engine.newGoals();
+            this.sound.step();
+            this.render();
+        }
+
+        // A New goals button, which works only over its own overlay: the side panel's (null) is
+        // ignored under any overlay, like Help; the Goals view's ('goals') keeps the view open,
+        // showing the new set.
+        newGoalsOver(overlay) {
+            if (this.overlay !== overlay) return;
+            this.dealNewGoals();
+        }
+
+        // The expand button: the Goals view, a pager like Help, opening on Goals; it holds Go
+        // like every overlay.
+        showGoals() {
+            if (this.overlay) return;
+            this.goalsPager.show(0);
+            this.showOverlay('goals');
+            this.render();
+        }
+
+        // When a tick's animation ends: a banner for the goals it met, and, if it met the set's
+        // last, Go off and goals met (after a news panel, if one opened). A set re-rolled while
+        // the tick played is a different set: nothing about the old one shows.
+        showGoalsMet(a) {
+            if (a.goalSet !== this.state.goals.set) return;
+            if (a.goalsMet.length) this.showGoalBanner(a.goalsMet);
+            if (!a.goalsDone) return;
+            this.setRunning(false);
+            if (this.overlay === 'news') this.doneWaiting = true;
+            else this.showOverlay('goalsDone');
+        }
+
+        // A banner that doesn't stop play, under the milestone's: one line per goal met, each in
+        // one of MESSAGES.goalMet's wordings. `events` are the tick's goal events.
+        showGoalBanner(events) {
+            const goals = this.engine.goalStates();
+            const box = document.getElementById('goal-banner-lines');
+            box.innerHTML = '';
+            for (const e of events) {
+                const line = document.createElement('div');
+                line.textContent = goalMetLine(goals[e.index]);
+                box.appendChild(line);
+            }
+            const el = document.getElementById('goal-banner');
+            el.classList.remove('hidden');
+            clearTimeout(this.goalBannerTimer);
+            this.goalBannerTimer = setTimeout(() => el.classList.add('hidden'), MILESTONE_MS);
+        }
+
+        // The news panel closes on a click or any key; goals met waits behind it.
+        closeNews() {
+            this.dismissOverlay();
+            if (!this.doneWaiting) return;
+            this.doneWaiting = false;
+            this.showOverlay('goalsDone');
+        }
+
+        // Goals met: Esc is Keep playing; every other key is eaten.
+        doneKey(e) {
+            if (e.key === 'Escape') this.doneKeep();
+        }
+
+        // Keep playing: the met set stays on the side panel until New goals.
+        doneKeep() {
+            if (this.overlay !== 'goalsDone') return;
+            this.dismissOverlay();
+        }
+
+        doneNewGoals() {
+            if (this.overlay !== 'goalsDone') return;
+            this.dismissOverlay();
+            this.dealNewGoals();
+        }
+
+        // New game: the New Game size panel (its Esc goes back to this game).
+        doneNewGame() {
+            if (this.overlay !== 'goalsDone') return;
+            this.newGame();
         }
 
         // ---- L5 Overlays ----
@@ -1924,6 +2089,7 @@ const GameUI = (function () {
                 `<span style="color:${CRATE_SHADES[t.color].top}">■ ${t.delivered}</span>`).join(' ');
             document.getElementById('ex-info').textContent = s.exGremlins;
             document.getElementById('trap-info').textContent = s.trapped;
+            this.drawGoals();
             this.renderHand();
 
             const hoverEl = document.getElementById('hover-info');
@@ -2013,7 +2179,7 @@ const GameUI = (function () {
             document.getElementById('new-game').addEventListener('click', () => this.newGame());
             document.getElementById('discard').addEventListener('click', () => this.discardPicked());
             document.getElementById('size-cancel').addEventListener('click', () => this.dismissOverlay());
-            document.getElementById('news-panel').addEventListener('click', () => this.dismissOverlay());
+            document.getElementById('news-panel').addEventListener('click', () => this.closeNews());
             document.getElementById('sound').addEventListener('click', () => this.toggleMute());
             document.getElementById('signin').addEventListener('click', () => this.signInFromGame());
             document.getElementById('signout').addEventListener('click', () => this.signOut());
@@ -2022,6 +2188,7 @@ const GameUI = (function () {
             this.showMute();
             this.buildHelp();
             this.buildAbout();
+            this.buildGoals();
             const colorPanel = document.getElementById('color-panel');
             colorPanel.addEventListener('click', () => this.closeColorPicker());
             colorPanel.addEventListener('contextmenu', e => { e.preventDefault(); this.closeColorPicker(); });

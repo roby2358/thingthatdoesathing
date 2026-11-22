@@ -33,24 +33,42 @@
         <div id="zoom" class="panel" title="Map scale"><span class="zoom-label">Map</span><span class="buttons" id="zoom-buttons"></span></div>
         <div id="hud-hover" class="panel hidden"><span id="hover-info"></span></div>
     </div>
-    <div id="tally" class="panel">
-        <div id="progress">
-            <span class="tally-label">Delivered</span>
-            <span id="progress-bar"><span id="progress-fill"></span></span>
-            <span id="progress-pct">0 / 10</span>
+    <!-- The right column: the tally, then the goals (D-76), one line per goal, with New goals and
+    the expand button that opens the Goals view. Hidden until there's a board. -->
+    <div id="right-stack">
+        <div id="tally" class="panel">
+            <div id="progress">
+                <span class="tally-label">Delivered</span>
+                <span id="progress-bar"><span id="progress-fill"></span></span>
+                <span id="progress-pct">0 / 10</span>
+            </div>
+            <div id="color-info"></div>
+            <div class="tally-row"><span class="tally-label">Ex-gremlins</span><span id="ex-info">0</span></div>
+            <div class="tally-row"><span class="tally-label">Trapped</span><span id="trap-info">0</span></div>
+            <div id="lost-info"></div>
         </div>
-        <div id="color-info"></div>
-        <div class="tally-row"><span class="tally-label">Ex-gremlins</span><span id="ex-info">0</span></div>
-        <div class="tally-row"><span class="tally-label">Trapped</span><span id="trap-info">0</span></div>
-        <div id="lost-info"></div>
+        <div id="goals-side" class="panel hidden">
+            <div class="goals-head">
+                <span class="tally-label">Goals</span>
+                <span class="buttons">
+                    <button id="goals-side-new" class="btn" type="button" title="Deal three new goals (no tick)">New goals</button>
+                    <button id="goals-side-expand" class="btn" type="button" title="Open the Goals view; ticks hold while it's open" aria-label="Open the Goals view">⤢</button>
+                </span>
+            </div>
+            <div id="goals-side-list"></div>
+        </div>
     </div>
     <div id="run" class="panel">
         <button id="go" class="btn go" title="Keep ticking on its own; picking a card holds it">Go</button>
     </div>
-    <div id="milestone" class="panel hidden">
-        <div id="milestone-title"></div>
-        <div id="milestone-sub"></div>
-        <div id="milestone-cards" class="hidden"></div>
+    <!-- Banners that don't stop play, stacked top centre: a milestone, then goals met (D-76). -->
+    <div id="banners">
+        <div id="milestone" class="panel hidden">
+            <div id="milestone-title"></div>
+            <div id="milestone-sub"></div>
+            <div id="milestone-cards" class="hidden"></div>
+        </div>
+        <div id="goal-banner" class="panel hidden"><div id="goal-banner-lines"></div></div>
     </div>
     <div id="hand" class="panel">
         <div id="cards"></div>
@@ -76,7 +94,8 @@
     </div>
     <!-- Help (D-60): a pager like About (D-59), opening on Keys; then Special cards (the Pusher/Puller
     color, the Mover, the Bomb); then Things, one row per card,
-    built from the hand's drawing and hover text; then World (D-61), its numbers from the rules data. A click on a button keeps it open; any other
+    built from the hand's drawing and hover text; then World (D-61), its numbers from the rules data; then Goals and achievements (D-76), the
+    mechanic only. A click on a button keeps it open; any other
     click or key closes it, ← → turn the pages. -->
     <div id="help-panel" class="hidden">
         <div class="panel help-card">
@@ -123,9 +142,23 @@
                 <h1>World</h1>
                 <div id="help-world" class="things"></div>
             </div>
+            <div id="help-page-5" class="hidden">
+                <h1>Goals and achievements</h1>
+                <div class="help-prose">
+                    <p>Each game sets you three goals, each sized for a session: so many of
+                        something, counted from when the goals are dealt. They're on the right,
+                        under the tally; ⤢ shows them bigger.</p>
+                    <p>New goals deals three fresh ones any time, with no tick. When all three are
+                        met, a panel offers a new game, new goals, or to keep playing.</p>
+                    <p>Achievements are lifetime totals, over all your games, that pass marks:
+                        10, 20, 50, 100, and on. They're kept only while you're signed in (and on a
+                        copy opened from a file, in this browser). Goals met and achievements
+                        reached are achievements too.</p>
+                </div>
+            </div>
             <div class="pager-nav">
                 <button id="help-prev" class="btn" type="button" title="Previous page (←)">&lt;</button>
-                <span id="help-count" class="pager-count">1 / 5</span>
+                <span id="help-count" class="pager-count">1 / 6</span>
                 <button id="help-next" class="btn" type="button" title="Next page (→)">&gt;</button>
             </div>
             <p class="continue">Click or press any key to play</p>
@@ -190,6 +223,35 @@
             <h1 id="news-title"></h1>
             <p id="news-sub"></p>
             <p class="continue">Click or press any key to continue</p>
+        </div>
+    </div>
+    <!-- The Goals view (D-76): a pager like Help, its first page the goals with progress bars and
+    New goals. A click on a button keeps it open; any other click or key closes it. -->
+    <div id="goals-panel" class="hidden">
+        <div class="panel help-card goals-card">
+            <div id="goals-page-0">
+                <h1>Goals</h1>
+                <div id="goals-view" class="goals-view"></div>
+                <button id="goals-view-new" class="btn" type="button" title="Deal three new goals (no tick)">New goals</button>
+            </div>
+            <div class="pager-nav">
+                <button id="goals-prev" class="btn" type="button" title="Previous page (←)">&lt;</button>
+                <span id="goals-count" class="pager-count">1 / 1</span>
+                <button id="goals-next" class="btn" type="button" title="Next page (→)">&gt;</button>
+            </div>
+            <p class="continue">Click or press any key to close</p>
+        </div>
+    </div>
+    <!-- Goals met (D-76): the set is done; Go has stopped. Only its buttons (or Esc, Keep playing)
+    close it. -->
+    <div id="goals-done-panel" class="hidden">
+        <div class="panel news-card">
+            <h1>Goals met!</h1>
+            <div class="done-actions">
+                <button id="done-new-game" class="btn" type="button" title="Pick a board for a new game">New game</button>
+                <button id="done-new-goals" class="btn primary" type="button" title="Deal three new goals and play on">New goals</button>
+                <button id="done-keep" class="btn" type="button" title="Play on; the met goals stay until New goals">Keep playing <kbd>Esc</kbd></button>
+            </div>
         </div>
     </div>
     <!-- The color picker (D-32): a clear backdrop (a click on it cancels) and a small box of

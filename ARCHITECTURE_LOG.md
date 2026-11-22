@@ -2,6 +2,9 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-22 — Goals on screen (D-76)
+New: the goals side panel (`#goals-side`, under the tally in a new `#right-stack` column; before, `#tally` was fixed top right on its own), its New goals and ⤢ buttons; the Goals view overlay `'goals'` (`goalsPager`, `GOALS_PAGES` 1, `#goals-panel`); the goal banner (`#goal-banner`, in a new `#banners` column with `#milestone`, which was fixed top centre on its own); the goals-met overlay `'goalsDone'` (`#goals-done-panel`); `GameDisplayArtifacts.MESSAGES` (`goalMet`); Help's sixth page, Goals and achievements (`HELP_PAGES` 5 → 6). The news panel now closes through `closeNews()`, so goals met can wait behind it. `test/helpers/page.js` keeps element listeners (`fire`) and has a `live` clock. ONTOLOGY (GameUI view state, Goals on screen), CRITERIA R-90…R-95, U-24 (6 pages), U-41, README, UI_CONTROLS, CLAUDE.md follow. No rule changed; `RULES_VERSION` stays 1.
+
 ### 2026-11-22 — Goals in the engine (D-75)
 New: `GameArtifacts.GOALS_PER_GAME` (3) and each `MAP_SIZES` row's `goalLevels` and `goalExcludes`; `Rando.stream(n)` (an independent mulberry32 generator); `GameState.goals` `{set, base, list}` (in toJSON/fromJSON; a save without it is refused); `GameEngine.dealGoals(set)` (`newGame` deals set 0 last, off the shared stream), `goalStates()`, `checkGoals()` (the last step of every tick: `goal` and `goalsDone` events, `goalsMet` counted; before, `goalsMet` stayed 0) and `newGoals()` (no tick, a `goals` event). No rule changed, no shared `Rando` call added; `cc-sim 200 small` unchanged. ONTOLOGY (GameState `goals`, the Goals rule, the Generate and Tick pseudocode, the invariants (`newGoals` ticks nothing; the goal list's shape), `goalsMet`'s row, Numbers, Commands, Queries, Events, `restore`), CRITERIA R-85…R-89, CLAUDE.md follow. `RULES_VERSION` stays 1.
 

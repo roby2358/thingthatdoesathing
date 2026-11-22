@@ -1,26 +1,3 @@
-Priority:   66
-Status: ToDo
-ID: goalsui-s9q3
-Created: 2026-11-22T20:04:21Z
-Updated: 2026-11-22T20:04:21Z
-
-Goals on screen: the side panel, the New Goals button, the goals-done panel and the expanded Goals view.
-
-Goal: the player always sees the three goals and their progress, can re-roll them, and is offered New game / New goals / Keep playing when a set is done.
-
-Settled design (needs the goalsengine task):
-- A goals side panel, always visible during play (not over the hand or the top-left HUD; pick a spot that doesn't cover the board's middle): one line per goal, label + "count / amount" (count capped at amount for display), met goals green with a check; a "New goals" button (calls engine.newGoals(), no tick, works mid-animation like rotate, ignored under an overlay) and an expand button.
-- Expand opens a new GameUI overlay, a Pager (like Help/About) whose first page is Goals (the three goals with progress bars and the New goals button); the achievements task adds the Achievements page after it. It holds Go while open (like Help); Esc / click off / any other key closes it like the other pagers.
-- On a goal event the UI shows a non-blocking banner like the milestone banner with one of 3 wordings from a new GameDisplayArtifacts MESSAGES.goalMet list (whole sentences with {amount} and {label} placeholders, picked with Math.random, never Rando). Add the MESSAGES table now with goalMet; the achievements task adds rungReached and rungNotoriety (3 each).
-- On goalsDone the UI turns Go off and opens a goals-done overlay: "Goals met!" and three buttons: New game (opens the New Game size panel), New goals (engine.newGoals(), closes), Keep playing (closes; the met set stays shown until the player presses New goals). It consumes input like the other overlays; Esc = Keep playing.
-- Help (the help pager) gets a Goals and achievements page describing the mechanic only, never listing counters or amounts: three goals per game sized for a session, counted from when they're dealt, New goals re-rolls, the done panel; achievements are lifetime totals that pass marks (10, 20, 50, 100, …), kept only while signed in (and on a double-clicked copy, in the browser); goals met and achievements reached are achievements too.
-- Saved around the sign-in redirect with the rest of the state (engine.save already has goals); an open goals-done panel isn't saved (saveForRedirect's caller backs overlays out).
-- UI_CONTROLS / README UI section updated.
-
-Done when: uiboot-style tests on the stub DOM show the panel's three lines and counts, New goals changes them without a tick, a met goal turns green with a banner, goalsDone stops Go and opens the panel whose three buttons do their jobs, the expand pager opens and holds Go, Help has the new page; just cc-test passes. Manual U-row for the look.
-
-Design docs: reconcile ONTOLOGY + CRITERIA (new R-rows own test/R-n/) + RATIONALE (a D-n for the decisions below) + ARCHITECTURE_LOG + CLAUDE.md in the same change. RULES_VERSION stays 1. Starreach (../starreach, read only, never edit or commit there) has the model this follows: docs/ONTOLOGY.md "Counters", "Goal", "Ladder", "Goal selection", "Goal check", and docs/RATIONALE.md D-43 to D-49; app/src/achievements.ts; public/js/script.js drawAchievements.
-----
 Priority:   64
 Status: ToDo
 ID: goalstelem-56eh
