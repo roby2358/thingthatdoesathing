@@ -82,12 +82,15 @@ const GameTelemetry = (function () {
             navigator.globalPrivacyControl !== true;
     }
 
-    // The live site's absolute URL, so the portal builds post there too; a page on localhost
-    // (wrangler dev, just preview) posts to its own origin's Worker.
-    function endpoint() {
+    // The Worker's URL for `path` ('/t', '/achievements'): beside TELEMETRY_ENDPOINT on the live
+    // site, so the portal builds post there too; a page on localhost (wrangler dev, just preview)
+    // posts to its own origin's Worker.
+    function workerUrl(path) {
         const host = location.hostname;
-        return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' ? location.origin + '/t' : TELEMETRY_ENDPOINT;
+        return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' ? location.origin + path
+            : TELEMETRY_ENDPOINT.replace(/\/t$/, path);
     }
+    const endpoint = () => workerUrl('/t');
 
     // The board after a command's tick. deliveredByColor: the crates delivered to each color's
     // target, in CRATE_COLORS order (one target per color; 0 for a color not open yet).
@@ -160,6 +163,8 @@ const GameTelemetry = (function () {
     }
 
     return {
+        workerUrl,
+
         // A new game (the intro's size pick, or New Game): the last game's records go first,
         // under their own game record.
         startGame({ seed, size }) {

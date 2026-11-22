@@ -175,8 +175,9 @@ in one command (`bomb`, D-48).
 |---|---|
 | `picked` | `{ slot, card, mode, legal: Set<key>, kind, color, from, booms }` \| null — the hand card in play. `mode` (`PICK_MODES`, D-47): `'build'` (a Thing card: `legal` is `legalPlacements`; a legal click sends `place`, or opens the color picker, an illegal one puts the card back), `'pickup'` (a tool card: `legal` is `legalPicks`; a click on a legal hex leads where `AFTER_PICK[card]` says, a bare hex does nothing, Esc or right-click puts the card back), `'carry'` (the Mover holding the Thing it picked up from `from`: the card is spent and the hand, Wait/Space and `B` locked, the Thing is hidden from its hex, `kind`/`color` are that Thing's and draw the ghost and the card; a legal click sends `move`, an illegal one does nothing, Esc, right-click or Discard sends `scrap`), `'bomb'` (the Bomb after its first boom, D-48: `booms` are the hexes blown up so far; each bursts (its Thing in its colors, its piece splatting, the splat sound) the moment it's clicked and is drawn cleared from then on (Thing and piece hidden, gone from the hover bar), though the engine hears of them only when the bomb ends; the card is spent and the hand, Wait/Space and `B` locked; `legal` is `legalPicks` less the booms; a legal click booms, any other does nothing; the boom that reaches `wipes`, Esc, right-click or Discard sends `bomb` with every boom, and that tick's animation leaves out the booms' `clear`s and `splat`s, already shown). A click that does nothing, here or in `build`, says why in the hover bar (`notice`, D-55). |
 | `facing` | 0…5 — the ghost's facing, remembered between placements. |
-| `overlay` | `'intro'` \| `'size'` \| `'news'` \| `'help'` \| `'color'` \| `'about'` \| `'goals'` \| `'goalsDone'` \| null. `'intro'` and `'size'` are size pickers; picking a size starts a game, and `'size'` (New Game) also closes on Esc, back to the game. `'news'` shows the colors `open` events named and the cards `unlock` events named, on one panel, and closes on a click or any key (D-30). `'help'` is Help (D-60), a pager like About: Keys (the legend), then Things (every card, locked or not: its tile as the hand draws it, its name and its hover line), then World (crates, big crates, gremlins, ice, open water, milestones, each but milestones pictured by the board's drawing code, numbers from the rules data, D-61), then Goals and achievements (the mechanic only, D-76); it opens on Keys after the intro's size pick and from the Help button; `<` `>` or ←/→ turn the pages, a click on a button keeps it open, any other click or key closes it. A phone or tablet starts on the sorry page instead, with no UI built; its "Try it anyway" boots the game as on a desktop (D-41). `'color'` is the color picker (D-32): a click on a legal hex with a card whose `colorChoices` has more than one color opens it beside that hex, one swatch per choice; a swatch click or its number key sends `place` in that color; Esc, right-click or a click off the swatches closes it with the card still picked. `'about'` is the About panel (D-59): credits then privacy (what the recorder sends, its per-load random ID, and that Global Privacy Control turns it off, D-65), flipped by `<` `>` or ←/→; opened by the About button or the intro's About link (it goes back to the intro); clicks on links, buttons and the version/seed text keep it open, any other click or key closes it. `'goals'` is the Goals view (D-76), a pager like Help opened by the goals panel's expand button: Goals (each goal with a progress bar, and New goals, which keeps it open); a button click keeps it open, any other click or key closes it. `'goalsDone'` is goals met (D-76): the tick that met a set's last goal turned Go off and opened it; New game opens `'size'`, New goals deals the next set and closes, Keep playing (or Esc) closes; every other key and click is eaten. Goals on screen has the rest. [D] |
-| `helpPager`, `aboutPager`, `goalsPager` | Help's, About's and the Goals view's pager (one `Pager`, D-60): `page`, the page showing (Help: 0 Keys, 1 More keys, 2 Special cards, 3 Things, 4 World, 5 Goals and achievements; About: 0 credits, 1 privacy; Goals view: 0 Goals, D-76). |
+| `overlay` | `'intro'` \| `'size'` \| `'news'` \| `'help'` \| `'color'` \| `'about'` \| `'goals'` \| `'goalsDone'` \| null. `'intro'` and `'size'` are size pickers; picking a size starts a game, and `'size'` (New Game) also closes on Esc, back to the game. `'news'` shows the colors `open` events named and the cards `unlock` events named, on one panel, and closes on a click or any key (D-30). `'help'` is Help (D-60), a pager like About: Keys (the legend), then Things (every card, locked or not: its tile as the hand draws it, its name and its hover line), then World (crates, big crates, gremlins, ice, open water, milestones, each but milestones pictured by the board's drawing code, numbers from the rules data, D-61), then Goals and achievements (the mechanic only, D-76); it opens on Keys after the intro's size pick and from the Help button; `<` `>` or ←/→ turn the pages, a click on a button keeps it open, any other click or key closes it. A phone or tablet starts on the sorry page instead, with no UI built; its "Try it anyway" boots the game as on a desktop (D-41). `'color'` is the color picker (D-32): a click on a legal hex with a card whose `colorChoices` has more than one color opens it beside that hex, one swatch per choice; a swatch click or its number key sends `place` in that color; Esc, right-click or a click off the swatches closes it with the card still picked. `'about'` is the About panel (D-59): credits then privacy (what the recorder sends, its per-load random ID, and that Global Privacy Control turns it off, D-65; that a signed-in player's achievement totals are kept on the server, which Global Privacy Control doesn't stop, and a file copy's in the browser, D-79), flipped by `<` `>` or ←/→; opened by the About button or the intro's About link (it goes back to the intro); clicks on links, buttons and the version/seed text keep it open, any other click or key closes it. `'goals'` is the Goals view (D-76), a pager like Help opened by the goals panel's expand button: Goals (each goal with a progress bar, and New goals, which keeps it open), then Achievements (the active achievements, D-79); a button click keeps it open, any other click or key closes it. `'goalsDone'` is goals met (D-76): the tick that met a set's last goal turned Go off and opened it; New game opens `'size'`, New goals deals the next set and closes, Keep playing (or Esc) closes; every other key and click is eaten. Goals on screen has the rest. [D] |
+| `helpPager`, `aboutPager`, `goalsPager` | Help's, About's and the Goals view's pager (one `Pager`, D-60): `page`, the page showing (Help: 0 Keys, 1 More keys, 2 Special cards, 3 Things, 4 World, 5 Goals and achievements; About: 0 credits, 1 privacy; Goals view: 0 Goals, D-76, 1 Achievements, D-79). |
+| `achievementsDrawn`, `rungWaiting`, `rungLines` | The Achievements page's `{key: reached}` as last drawn with the totals known (a row whose rung differs flashes, D-79), and the achievement banner's announcements waiting and showing (at most `RUNG_BANNER_LINES`). |
 | `goalLines`, `goalRows`, `goalsDrawn`, `doneWaiting` | The goals panel's lines and the Goals view's rows (`GOALS_PER_GAME` each, made once), what they last drew (redrawn only on change), and whether goals met waits behind a news panel (D-76). |
 | `aboutFrom` | The overlay About opened over (`'intro'`, to go back to on close) or null over the game (D-59). |
 | `choosing` | `{ q, r, colors }` \| null — the hex and swatches of the open color picker; the ghost stands there while it's open. [D-32] |
@@ -185,7 +186,7 @@ in one command (`bomb`, D-48).
 | `selected` | `{q, r}` \| null — a clicked hex: outlined, holds Go; clicking it again calls `rotate`; `D` removes its Thing (D-39). |
 | `bursts` | `[{q, r, thing, piece, t0}]` — Bomb booms bursting now, outside any tick (D-48). |
 | `notice` | string \| null — why the last refused click or key did nothing, from `REASONS`; it takes the hover bar for `NOTICE_MS` (D-55). |
-| `anim` | `{ t0, dur, tracks, before, hidden, milestone, opened, unlocked, redrawn, ends, goalsMet, goalsDone, goalSet }` \| null — tick animation, played hop by hop as the engine ran it (each track `{pts, hop, over, end}`, `pts[k]` its hex after hop k, D-38). Commands that arrive while it runs go into `queue`; picking a card, selecting, turning and muting work at once. |
+| `anim` | `{ t0, dur, tracks, before, hidden, milestone, opened, unlocked, redrawn, ends, goalsMet, goalsDone, goalSet, rungs }` \| null — tick animation, played hop by hop as the engine ran it (each track `{pts, hop, over, end}`, `pts[k]` its hex after hop k, D-38). Commands that arrive while it runs go into `queue`; picking a card, selecting, turning and muting work at once. |
 | `queue` | `TickQueue` — one held command (the latest wins) that came in during `anim`: X / Discard, a card's × or Shift+number, a board click with a card picked, `D`, `B`; it runs when the animation ends, re-checking its own guards; picking or putting back a card and a new game clear it (D-49, D-50). |
 | `running` | bool — Go/Pause. While true, the client calls `wait()` `RUN_GAP_MS` after each animation ends, and holds while a card is picked, a hex is selected or an overlay is open; the tick that meets a goal set turns it off (D-76). [D] |
 | `sound` | `GameSound`, `Math.random` only; muted by the Sound button or `M`, remembered in `localStorage` (D-53). |
@@ -720,7 +721,7 @@ The code constant in `GameArtifacts` is the single source. `RULES_VERSION` stays
 | `PLACE_SLICE_FRAC` / `PLACE_SLICE_MIN` | 0.05 / 3 | of passable hexes / hexes |
 | `HOP_MS` | 140 | ms per animated hop (client) |
 | `RUN_GAP_MS` | 250 | ms between ticks while Go runs (client) |
-| `MILESTONE_MS` | 3500 | ms the milestone banner shows (client) |
+| `MILESTONE_MS` | 3500 | ms the milestone banner, each goal banner and each achievement banner line show (client) |
 | `NOTICE_MS` | 2500 | ms a refusal's reason holds the hover bar (client, D-55) |
 | `DRAG_THRESHOLD` | 4 | px (client) |
 | `SPLAT_BLOTS` | 8 | drops in the splat burst (client) |
@@ -797,6 +798,7 @@ goals panel (under the tally, top right; hidden until there's a board):
   expand → overlay 'goals' (ignored under an overlay)
 Goals view ('goals', a Pager; holds Go like every overlay):
   page 0 Goals: per goal label, count / amount, a bar (met: green, ✓, full); New goals (stays open)
+  page 1 Achievements: the active achievements (Achievements client section, D-79)
 when a tick's animation ends, if goals.set is still the set it started with:
   goal events → a banner under the milestone's, one line each:
                 a MESSAGES.goalMet wording picked with Math.random, {amount} and {label} filled
@@ -1102,7 +1104,7 @@ Sections, in order (a table with no rows prints `(none)`):
 ## §9 Sign-in [D; D-68]
 *Serves:* knowing a returning player across page loads in telemetry, without making anyone sign
 in; later, saves and achievements build on it. Playing never needs it. For now a sign-in changes
-only telemetry's identity (the Worker's achievements endpoint, D-78, has no client yet). Thing Factory is a public OAuth client of yuwakisacloud's auth/ (its
+telemetry's identity and, through the achievements client (D-79), where a player's lifetime totals live (the Worker's achievements endpoint, D-78). Thing Factory is a public OAuth client of yuwakisacloud's auth/ (its
 `/authorize` page offers "Sign in with Bluesky" through bskyoidc): authorization code with PKCE,
 run in the browser (`signin.js`, `GameSignIn`), with two small server halves in the ttdat Worker
 (`worker/auth.js`). auth/ is reached from the Worker only through the `AUTH_SERVICE` service
@@ -1203,8 +1205,9 @@ written. worker/index.js imports the vendored auth-client (TypeScript, bundled b
 *Serves:* achievements (lifetime totals of the counters, measured on the ladder, D-74) that follow
 a signed-in player across devices; accumulation. The server half only: a signed-in player's
 lifetime total per counter lives in the ttdat Worker, one Durable Object per player. No client
-calls it yet; who adds what, and when, is the achievements client's (Counters rule: `rungsReached`
-is counted there). Signed-out players have no server totals.
+calls it but the achievements client (Achievements client section, D-79), which decides who adds
+what, and when (Counters rule: `rungsReached` is counted there). Signed-out players have no server
+totals.
 
 ### PlayerTotals — the Durable Object (worker/player_totals.js), bound as `PLAYER_TOTALS`
 ```
@@ -1243,3 +1246,85 @@ the `sub`; it writes no telemetry rows. Refusals are logged with the field only.
 | `MAX_ADD_VALUE` | 100000 | largest increment one add may carry for a counter |
 
 The body limit is /t's `MAX_BODY_BYTES` (Telemetry numbers), shared.
+
+## §11 Achievements client [D; D-79]
+*Serves:* achievements (a counter's lifetime total passing each rung of its ladder, D-74) seen as
+they're reached and listed while they're active; accumulation across games. The browser half:
+`GameAchievements` (achievements.js, loaded after signin.js) keeps the totals and announces rungs;
+GameUI hands it each command's counters and shows what it announces. Client only: the engine never
+sees it, and it never calls `Rando` (wordings by `Math.random`).
+
+### Store — `GameAchievements.configure(token | null)`
+```
+GameUI calls it at boot (the stored sign-in's token, or null), on a sign-in (its token), on sign-out (null)
+leaving a server copy → flush() first (what's unsent goes); then everything is reset:
+location file:                      → 'local':  totals = localStorage[ACHIEVEMENTS_KEY] ({key: n}; unreadable → {})
+http(s) with a token                → 'server': totals = null; POST {token} → /achievements
+anything else (signed out, portals, the dev page) → none: status 'off', nothing counted
+# Global Privacy Control doesn't stop it (the player's own service); the D-70 backoff does
+```
+`/achievements` is beside `TELEMETRY_ENDPOINT` (its `/t` replaced), or a localhost page's own
+origin. Play before a sign-in isn't added to the account (no merge).
+
+### Counting — `counted(before, after)` [D]
+```
+GameUI.commit: before = engine.counters(); an accepted command; counted(before, engine.counters())
+none here, or backing off → nothing
+inc = {key: after − before for every COUNTERS key that rose}       # a fall or no change adds nothing
+totals null ('server', not in yet) → early += inc; return           # announced when they come
+apply(inc):
+  pass = inc
+  loop:
+    rungs = 0
+    for c in COUNTERS (table order) with pass[c] > 0:
+      before = totals[c] ?? 0; totals[c] += pass[c]
+      for r in rungsCrossed(c.scale, before, totals[c]) (rising):
+        announce {counter, label, amount: r, negative, line}; rungs += 1
+    rungs == 0 → stop; else pass = {rungsReached: rungs}             # can cross a rung of its own
+  line = (c.negative ? MESSAGES.rungNotoriety : MESSAGES.rungReached)[floor(Math.random() · 3)],
+         {amount} and {label} filled
+'local' → localStorage[ACHIEVEMENTS_KEY] = totals; 'server' → unsent += every increment applied
+the listener (GameUI) hears the announcements
+```
+A new game starts its counters at 0 and a restored save carries them (D-67), so the differences
+never count anything twice.
+
+### Server sync [D]
+```
+POST {token} answered 200 {totals} → totals = them; apply(early); early = {}
+  (any other answer, or a failed fetch: asked again TELEMETRY_FLUSH_MS later, the queue waiting)
+every TELEMETRY_FLUSH_MS with something unsent, and on pagehide: POST {token, add: unsent}; unsent = {}
+  # fetch, keepalive, credentials omit, the body JSON as text/plain (no preflight, as /t)
+any answer 429 or 403 → early = unsent = {}; nothing counted or sent for TELEMETRY_BACKOFF_MS
+any answer 401 → none here until the next configure
+an answer to an earlier configure is ignored
+```
+The running copy isn't replaced by an add's answer (it would count again what was added since).
+
+### On screen — GameUI [D]
+```
+the listener: announcements → the achievement banner, after the tick animating (anim.rungs), else now;
+              the Achievements page redrawn if it's showing
+achievement banner (#rung-banner, under the goal banner; doesn't stop play):
+  one line per announcement, at most RUNG_BANNER_LINES at once, each up MILESTONE_MS; the rest wait
+  their turn; a negative counter's line marked 'negative'
+Goals view page 1, Achievements (drawn as it's shown, and as the totals change while it's shown):
+  rows: counters with total > 0, by toward = (total − reached) / (next − reached), highest first
+        (reached 0 below the first rung; ties in COUNTERS order); standing(scale, total) gives reached, next
+  row: capitalized label, total, "Reached n" or "No mark yet", "· Next n", a bar of toward
+  a row whose reached differs from the page's last drawing with totals known → class 'flash' (once)
+  'on', no rows → "Nothing counted yet. …"
+  'loading' → "Fetching your achievements…"
+  'off', sign-in offered → "Achievements are kept while you are signed in." + Sign in
+                           (closes the view, then the bar's Sign in, D-68)
+  'off', not offered → "Achievements are kept only on the game's own site, while signed in."
+```
+
+### Numbers [T]
+| Name | Value | Meaning |
+|---|---|---|
+| `ACHIEVEMENTS_KEY` | `'thingfactory.totals'` | a file:// copy's totals in localStorage (displayartifacts.js) |
+| `RUNG_BANNER_LINES` | 3 | achievement banner lines showing at once |
+
+The banner time is `MILESTONE_MS`; the flush interval and backoff are telemetry's
+`TELEMETRY_FLUSH_MS` and `TELEMETRY_BACKOFF_MS`.

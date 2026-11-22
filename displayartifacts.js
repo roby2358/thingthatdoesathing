@@ -58,7 +58,21 @@ const GameDisplayArtifacts = (function () {
                 '{amount} {label}. That goal is done.',
                 'There it is: {amount} {label}. Goal met.',
             ],
+            // An achievement (D-79): a counter's lifetime total reached a rung of its ladder;
+            // {amount} is the rung, {label} the counter's label. rungNotoriety is for a negative
+            // counter (crates lost, cards discarded): wry, not congratulatory.
+            rungReached: [
+                'Achievement: {amount} {label}!',
+                '{amount} {label}, all told. Well done.',
+                'A new mark: {amount} {label}.',
+            ],
+            rungNotoriety: [
+                '{amount} {label}. Someone is keeping count.',
+                'Notorious: {amount} {label}.',
+                '{amount} {label} so far. Not that anyone minds.',
+            ],
         },
+        RUNG_BANNER_LINES: 3,        // achievement lines showing at once (D-79); more wait their turn, each up MILESTONE_MS
         // Map-scale buttons (D-40): each divisor is a button showing the board at 1/d size;
         // a last "∞" button fits the whole board to the canvas (never above 1x).
         ZOOM_DIVISORS: [1, 2],
@@ -92,6 +106,9 @@ const GameDisplayArtifacts = (function () {
         SIGNIN_TOKEN_PATH: '/auth/token',             // the Worker's code exchange, on the page's own origin
         AUTH_KEY: 'thingfactory.auth',                // localStorage: { token, handle, expiresAt } while signed in
         SIGNIN_FLOW_KEY: 'thingfactory.signin',       // sessionStorage: { state, verifier } across the redirect only
+        // A file:// copy's lifetime totals for achievements (D-79): localStorage {counterKey: n}.
+        // A signed-in player's live on the server (D-78) instead; anyone else has none.
+        ACHIEVEMENTS_KEY: 'thingfactory.totals',
         HELP_CARD_PX: 32,            // each card's tile on Help's Things page (D-60)
         HELP_PIECE_SCALE: 1.4,       // a piece in a World picture, times its board size against the hex, so a gremlin's label still draws (D-61)
         HELP_LADDER_SHOWN: 7,        // milestones Help's World page lists before "and on" (D-61)

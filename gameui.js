@@ -13,7 +13,7 @@ const GameUI = (function () {
         PIECE_LOOK, CRATE_SHADES, BIG_CRATE_SCALE, COLOR_INK, SPLAT_BLOTS, SOURCE_COLOR, PORT_NEUTRAL_MARK, PORT_OUTLINE,
         PORT_MARK_WIDTH, PORT_RING_RADII, PORT_PLUS_REACH, PORT_OUTLINE_WIDTH, BG_COLOR, UI_FONT, REACH_COLOR, MAP_SIZE_NOTES,
         COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES, ABOUT, HELP_CARD_PX, HELP_PIECE_SCALE, HELP_LADDER_SHOWN, WORLD_LOOK,
-        SAVE_KEY, SAVE_VERSION, SAVE_REDIRECT_MAX_AGE_S, MESSAGES
+        SAVE_KEY, SAVE_VERSION, SAVE_REDIRECT_MAX_AGE_S, MESSAGES, RUNG_BANNER_LINES
     } = GameDisplayArtifacts;
     const { TERRAIN, THINGS, WHITE, HAND_SIZE, MAP_SIZES, CARDS, PIECES, MAX_SLIDE, GOALS_PER_GAME, aims, cardOf, nextMilestone } = GameArtifacts;
     const SIZE_KEYS = Object.keys(MAP_SIZES);
@@ -57,10 +57,11 @@ const GameUI = (function () {
     };
     // How many pages each paged overlay has (#help-page-0…, #about-page-0…). Help: Keys, More
     // keys, Special cards, Things (D-60), World (D-61), Goals and achievements (D-76). About:
-    // credits, privacy (D-59). The Goals view: Goals (D-76).
+    // credits, privacy (D-59). The Goals view: Goals (D-76), Achievements (D-79).
     const HELP_PAGES = 6;
     const ABOUT_PAGES = 2;
-    const GOALS_PAGES = 1;
+    const GOALS_PAGES = 2;
+    const ACHIEVEMENTS_PAGE = 1;   // the Goals view's page that lists the achievements (D-79)
     // A goal's label with its first letter up, for a line of its own (D-76).
     const capitalFirst = s => s.charAt(0).toUpperCase() + s.slice(1);
     // A goal met (a goalStates() entry), in one of MESSAGES.goalMet's wordings, picked with
@@ -397,12 +398,13 @@ const GameUI = (function () {
     // < > buttons #<id>-prev / #<id>-next and its counter #<id>-count ("1 / 2"), on #<id>-panel.
     // ← → (or < >) turn the pages, clamped at the ends with the button there disabled; any other
     // key closes it (`close`), and so does a click on the panel, unless it lands on PAGER_STAYS
-    // or ends a text selection (copying About's version).
+    // or ends a text selection (copying About's version). `onShow` (or null) hears each page shown.
     class Pager {
-        constructor(id, pages, close) {
+        constructor(id, pages, close, onShow) {
             this.id = id;
             this.pages = pages;
             this.close = close;
+            this.onShow = onShow;
             this.page = 0;    // the page showing
         }
         el(part) { return document.getElementById(`${this.id}-${part}`); }
@@ -412,6 +414,7 @@ const GameUI = (function () {
             this.el('prev').disabled = this.page === 0;
             this.el('next').disabled = this.page === this.pages - 1;
             this.el('count').textContent = `${this.page + 1} / ${this.pages}`;
+            if (this.onShow) this.onShow(this.page);
         }
         key(e) {
             if (e.key === 'ArrowLeft') this.show(this.page - 1);
@@ -516,9 +519,13 @@ const GameUI = (function () {
             this.choosing = null;    // L5 { q, r, colors } — the color picker's hex and swatches, while it's open (D-32)
             this.facing = 0;         // ghost facing; remembered between placements
             this.overlay = null;     // L5 'intro' | 'size' (board-size pickers) | 'news' (a color opened) | 'help' (keys, then Things, D-60) | 'color' (the color picker, D-32) | 'about' (credits and privacy, D-59) | 'goals' (the Goals view, D-76) | 'goalsDone' (a goal set met, D-76) | null
-            this.helpPager = new Pager('help', HELP_PAGES, () => this.dismissOverlay());   // D-60
-            this.aboutPager = new Pager('about', ABOUT_PAGES, () => this.closeAbout());     // D-59
-            this.goalsPager = new Pager('goals', GOALS_PAGES, () => this.dismissOverlay());   // D-76
+            this.helpPager = new Pager('help', HELP_PAGES, () => this.dismissOverlay(), null);   // D-60
+            this.aboutPager = new Pager('about', ABOUT_PAGES, () => this.closeAbout(), null);     // D-59
+            this.goalsPager = new Pager('goals', GOALS_PAGES, () => this.dismissOverlay(),   // D-76
+                page => { if (page === ACHIEVEMENTS_PAGE) this.drawAchievements(); });          // D-79
+            this.achievementsDrawn = null;   // {key: reached} as the Achievements page last drew them, so a changed row flashes (D-79)
+            this.rungWaiting = [];   // achievement announcements waiting for a banner line (D-79)
+            this.rungLines = [];     // the ones showing, at most RUNG_BANNER_LINES
             this.goalsDrawn = null;  // what drawGoals last drew, so it redraws only on change
             this.goalLines = [];     // the side panel's goal lines {line, check, label, count}, made by buildGoals (D-76)
             this.goalRows = [];      // the Goals view's rows {row, label, count, fill}
@@ -563,6 +570,7 @@ const GameUI = (function () {
         // Then the sign-in (D-68): a stored one gives telemetry its token; a sign-in return,
         // once the game is restored, trades its code for one.
         start() {
+            GameAchievements.listen(list => this.achievementsChanged(list));   // D-79
             this.attach();
             if (!this.restoreSaved()) {
                 this.showOverlay('intro');
@@ -572,14 +580,18 @@ const GameUI = (function () {
         }
 
         // ---- The optional Bluesky sign-in (D-68; GameSignIn does the OAuth) ----
+        // Achievements (D-79) follow the sign-in: the server's totals while signed in, a file://
+        // copy's own, or none.
         startSignIn() {
             const auth = GameSignIn.current();
             if (auth) GameTelemetry.switchIdentity(auth.token);
+            GameAchievements.configure(auth ? auth.token : null);
             this.showSignIn(auth);
             if (!signInReturn()) return;
             GameSignIn.finish().then(fresh => {
                 if (!fresh) return;
                 GameTelemetry.switchIdentity(fresh.token);   // the next batches carry the signed-in identity
+                GameAchievements.configure(fresh.token);
                 this.showSignIn(fresh);
             });
         }
@@ -612,6 +624,7 @@ const GameUI = (function () {
         signOut() {
             if (this.overlay || !this.signedIn) return;
             GameTelemetry.switchIdentity(null);
+            GameAchievements.configure(null);   // sends what it hasn't, then counts nothing (D-79)
             GameSignIn.signOut();
             this.showSignIn(null);
         }
@@ -1144,9 +1157,12 @@ const GameUI = (function () {
 
         // ---- Commands: snapshot, call the engine, hand it to telemetry, animate from its events ----
         // `record` is { command, args } for the recorder (D-65), args read before the command runs.
+        // Achievements (D-79) get the game's counters before and after; their rungs reached
+        // wait for the animation's end, like the milestone banner.
         commit(fn, cue, record) {
             const before = new Map(this.state.pieces.map(p =>
                 [p.id, { q: p.q, r: p.r, color: p.color, label: p.label, kind: p.kind }]));
+            const counts = this.engine.counters();
             const res = fn();
             GameTelemetry.command(record.command, record.args, res, this.state);
             if (!res.ok) { this.render(); return false; }
@@ -1154,6 +1170,7 @@ const GameUI = (function () {
             this.notice = null;
             cue();
             this.startAnim(before, res);
+            GameAchievements.counted(counts, this.engine.counters());
             return true;
         }
 
@@ -1389,7 +1406,7 @@ const GameUI = (function () {
                 ...cleared.map(e => e.hop + 1));
             this.anim = { t0: performance.now(), dur: hops * HOP_MS,
                 tracks, before, hidden, milestones, opened, unlocked, redrawn, cleared, ends,
-                goalsMet, goalsDone, goalSet: this.state.goals.set };
+                goalsMet, goalsDone, goalSet: this.state.goals.set, rungs: [] };
             const frame = now => {
                 if (!this.anim) return;
                 if (now - this.anim.t0 >= this.anim.dur) { this.finishAnim(); return; }
@@ -1415,6 +1432,7 @@ const GameUI = (function () {
             if (a.milestones.length) { this.sound.fanfare(); this.showMilestone(a.milestones, a.unlocked); }
             if (a.opened.length) this.showNews(a.opened, a.unlocked);
             this.showGoalsMet(a);
+            if (a.rungs.length) this.showRungBanner(a.rungs);
             this.render();
             a.redrawn.forEach(slot => this.flashCard(slot));
             this.queue.flush();   // its own guards drop it if, say, a news overlay just opened
@@ -1513,6 +1531,7 @@ const GameUI = (function () {
             document.getElementById('done-new-game').addEventListener('click', () => this.doneNewGame());
             document.getElementById('done-new-goals').addEventListener('click', () => this.doneNewGoals());
             document.getElementById('done-keep').addEventListener('click', () => this.doneKeep());
+            document.getElementById('achievements-signin').addEventListener('click', () => this.signInFromAchievements());
             this.goalsPager.wire();
         }
 
@@ -1593,6 +1612,84 @@ const GameUI = (function () {
             el.classList.remove('hidden');
             clearTimeout(this.goalBannerTimer);
             this.goalBannerTimer = setTimeout(() => el.classList.add('hidden'), MILESTONE_MS);
+        }
+
+        // ---- Achievements (D-79; GameAchievements keeps the totals) ----
+        // The totals changed: the rungs reached go to the banner (after the tick animating, if
+        // one is), and the Achievements page, if it's showing, is drawn again.
+        achievementsChanged(list) {
+            if (list.length) {
+                if (this.anim) this.anim.rungs.push(...list);
+                else this.showRungBanner(list);
+            }
+            if (this.overlay === 'goals' && this.goalsPager.page === ACHIEVEMENTS_PAGE) this.drawAchievements();
+        }
+
+        // A banner that doesn't stop play, under the goal banner: one line per rung reached, at
+        // most RUNG_BANNER_LINES at a time, each up for MILESTONE_MS; the rest wait their turn.
+        showRungBanner(list) {
+            this.rungWaiting.push(...list);
+            this.drawRungBanner();
+        }
+
+        drawRungBanner() {
+            while (this.rungLines.length < RUNG_BANNER_LINES && this.rungWaiting.length) {
+                const shown = this.rungWaiting.shift();
+                this.rungLines.push(shown);
+                setTimeout(() => {
+                    this.rungLines = this.rungLines.filter(s => s !== shown);
+                    this.drawRungBanner();
+                }, MILESTONE_MS);
+            }
+            const box = document.getElementById('rung-banner-lines');
+            box.innerHTML = '';
+            for (const s of this.rungLines) {
+                const line = document.createElement('div');
+                line.textContent = s.line;
+                if (s.negative) line.className = 'negative';
+                box.appendChild(line);
+            }
+            document.getElementById('rung-banner').classList.toggle('hidden', !this.rungLines.length);
+        }
+
+        // The Goals view's Achievements page: the active achievements (a total above 0), nearest
+        // their next mark first, each with its label, total, "Reached n" or "No mark yet", "Next n"
+        // and a bar from the last mark to the next; a row whose mark changed since the page was
+        // last drawn flashes once. With no achievements here, a line says why (and, where sign-in
+        // is offered, its button).
+        drawAchievements() {
+            const status = GameAchievements.status(), rows = GameAchievements.active();
+            const view = document.getElementById('achievements-view'), note = document.getElementById('achievements-note');
+            const span = (cls, parent, text) => { const s = document.createElement('span'); s.className = cls; s.textContent = text; parent.appendChild(s); return s; };
+            const before = this.achievementsDrawn;
+            view.innerHTML = '';
+            for (const a of rows) {
+                const row = document.createElement('div');
+                row.className = 'goal-row ach-row';
+                if (before && (before[a.key] ?? null) !== a.reached) row.classList.add('flash');
+                span('goal-label', row, capitalFirst(a.label));
+                span('goal-count', row, String(a.total));
+                span('ach-marks', row, (a.reached === null ? 'No mark yet' : 'Reached ' + a.reached) + ' · Next ' + a.next);
+                const from = a.reached || 0;
+                span('goal-fill', span('goal-bar', row, ''), '').style.width = (a.total - from) / (a.next - from) * 100 + '%';
+                view.appendChild(row);
+            }
+            if (status === 'on') this.achievementsDrawn = Object.fromEntries(rows.map(a => [a.key, a.reached]));
+            const offered = GameSignIn.offered();
+            const text = status === 'loading' ? 'Fetching your achievements…'
+                : status === 'on' ? (rows.length ? '' : 'Nothing counted yet. Each thing you do adds up here.')
+                : offered ? 'Achievements are kept while you are signed in.'
+                : "Achievements are kept only on the game's own site, while signed in.";
+            note.textContent = text;
+            note.classList.toggle('hidden', !text);
+            document.getElementById('achievements-signin').classList.toggle('hidden', status !== 'off' || !offered);
+        }
+
+        // The Achievements page's Sign in: the Goals view closes and the bar's Sign in runs.
+        signInFromAchievements() {
+            if (this.overlay !== 'goals') return;
+            this.dismissOverlay();
+            this.signInFromGame();
         }
 
         // The news panel closes on a click or any key; goals met waits behind it.

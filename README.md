@@ -80,10 +80,10 @@ that comes onto a target dies there, so they can't camp it.
 - Esc or right-click puts the card back; left-drag pans (the board can't be dragged off the screen)
 - Map `1` `2` `∞` (buttons under the top-left bar): the board at full or half size, or the whole board in the space above the hand; zooming keeps the middle of the screen where it is, and every new game starts at `1`. Buttons only: the number keys pick cards and the wheel turns the Thing
 - Top right: crates delivered toward the next milestone (and per color, once there are two), Ex-gremlins (gremlins done in), Trapped (gremlins a Trap caught), and crates lost
-- Goals (under the tally): three goals per game, each a thing to do so many times ("Crates delivered 12 / 50"), counted from when they were dealt; a met goal turns green with a ✓ and a banner says so (play goes on). New goals deals three fresh ones at once, no tick (works mid-tick, not under a panel); ⤢ opens the Goals view, the goals with progress bars and its own New goals (ticks hold while it's open; any key or a click off its buttons closes it). Meeting all three stops Go and asks: New game (the board-size picker), New goals, or Keep playing (Esc; the met goals stay up until New goals)
+- Goals (under the tally): three goals per game, each a thing to do so many times ("Crates delivered 12 / 50"), counted from when they were dealt; a met goal turns green with a ✓ and a banner says so (play goes on). New goals deals three fresh ones at once, no tick (works mid-tick, not under a panel); ⤢ opens the Goals view, the goals with progress bars and its own New goals, then (→) Achievements, your lifetime marks nearest the next first, while signed in or in a file copy (ticks hold while it's open; any key or a click off its buttons closes it). Meeting all three stops Go and asks: New game (the board-size picker), New goals, or Keep playing (Esc; the met goals stay up until New goals)
 - `M` / Sound (top left, by Help): turn all sound on or off; remembered in this browser, works any time (not while an overlay is open)
 - Help (top left): six pages, the keys legend in two (B and on is the second), then the special cards (picking a Pusher's or Puller's crate color, the Mover, the Bomb), then every Thing and tool card (its picture, name and what it does, the same line its card shows on hover), then the world (crates, big crates, gremlins, ice, open water, milestones), then goals and achievements (how they work); `<` `>` or ← → turn the pages, any other key or a click closes it. It opens on the keys, also once when the first game opens; ticks hold while it's open
-- About (top left, by Help; also a link on the intro): who made it, how it was made (with AI), the version and the board's seed (selectable, for bug reports), and a privacy page that lists what the game sends and says Global Privacy Control turns it off; `<` `>` or ← → turn the pages, any other key or a click closes it; ticks hold while it's open
+- About (top left, by Help; also a link on the intro): who made it, how it was made (with AI), the version and the board's seed (selectable, for bug reports), and a privacy page that lists what the game sends and says Global Privacy Control turns it off (achievement totals, kept for you while signed in, aren't stopped by it); `<` `>` or ← → turn the pages, any other key or a click closes it; ticks hold while it's open
 - If the game hits a bug, a card says so over everything, with the error and the version and seed (selectable, for a bug report), Reload, and Start fresh (drops any saved game, in case it's what broke, and reloads; the sound setting stays). A ship build also reports the error once to the telemetry endpoint (the message, the first lines of the stack, version, seed, board size, turn and browser type), under the same rules as the rest of telemetry: never from the dev page or `file://`, never under Global Privacy Control
 - New Game: pick a board size (click or `1`–`4`); Esc keeps the current game
 - Sign in (optional; top left by Help, About and Sound, and on the intro and New Game): "Sign in with Bluesky" through yuwakisa's sign-in page and back. Playing never needs it; for now it only lets the game's telemetry recognize you across visits (a hashed form of your account; your handle stays in your browser). Signed in, the button shows your handle, with a Sign out button after it in the top-left bar: it signs out at once, without a reload, and the game keeps going; About says whether you're signed in. A sign-in lasts a few hours, then you're quietly signed out. Only on ttdat.yuwakisa.com (and `just dev-worker`): the itch.io and Newgrounds builds and `file://` don't show it
@@ -178,7 +178,16 @@ token (missing or not verifying: 401) and an optional `{counterKey: n}` of incre
 64; anything else: 400). It adds them in that player's `PlayerTotals` object (named by the salted
 hash of the account, never the account itself) and answers `{totals}`. The same Origin check and
 rate limit as `/t` come first; no IP or account is stored or logged, and it writes no telemetry
-rows. No client calls it yet. Under `just dev-worker` the object lives in `.wrangler/` (U-42).
+rows. Under `just dev-worker` the object lives in `.wrangler/` (U-42).
+
+In the browser (D-79), `achievements.js` (`GameAchievements`) adds what each command counted (the
+rise in the game's counters) to the player's lifetime totals: a signed-in player's on the server
+(fetched at sign-in, increments sent every 30 s and on leaving the page, whatever Global Privacy
+Control says; sign-out sends the rest and stops), a file:// copy's in `localStorage`
+(`thingfactory.totals`); signed out, or on a portal, nothing is counted. Each mark a total passes
+(10, 20, 50, 100, … by its scale) shows a banner line under the goal banner (three at a time,
+wry for the bad counters), and the Goals view's second page lists the active achievements, nearest
+their next mark first.
 
 ### Sign-in
 

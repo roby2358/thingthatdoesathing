@@ -61,7 +61,8 @@
     <div id="run" class="panel">
         <button id="go" class="btn go" title="Keep ticking on its own; picking a card holds it">Go</button>
     </div>
-    <!-- Banners that don't stop play, stacked top centre: a milestone, then goals met (D-76). -->
+    <!-- Banners that don't stop play, stacked top centre: a milestone, then goals met (D-76),
+    then achievements reached (D-79), a few lines at a time, the rest waiting their turn. -->
     <div id="banners">
         <div id="milestone" class="panel hidden">
             <div id="milestone-title"></div>
@@ -69,6 +70,7 @@
             <div id="milestone-cards" class="hidden"></div>
         </div>
         <div id="goal-banner" class="panel hidden"><div id="goal-banner-lines"></div></div>
+        <div id="rung-banner" class="panel hidden"><div id="rung-banner-lines"></div></div>
     </div>
     <div id="hand" class="panel">
         <div id="cards"></div>
@@ -198,6 +200,10 @@
                 <p>Your browser's Global Privacy Control setting turns it off.</p>
                 <p>Your browser keeps your settings (like mute), your game while you sign in and, if
                     you sign in, your sign-in. Only the sign-in is ever sent, with your moves.</p>
+                <p>If you sign in, your achievement totals (how many of each thing you've done) are kept
+                    on our server under that hashed account, so they follow you. That's for you, not for
+                    tuning, so Global Privacy Control doesn't turn it off; signing out stops it. A copy
+                    opened from a file keeps them in your browser instead.</p>
             </div>
             <div class="pager-nav">
                 <button id="about-prev" class="btn" type="button" title="Previous page (←)">&lt;</button>
@@ -226,7 +232,8 @@
         </div>
     </div>
     <!-- The Goals view (D-76): a pager like Help, its first page the goals with progress bars and
-    New goals. A click on a button keeps it open; any other click or key closes it. -->
+    New goals, its second the active achievements (D-79). A click on a button keeps it open; any
+    other click or key closes it. -->
     <div id="goals-panel" class="hidden">
         <div class="panel help-card goals-card">
             <div id="goals-page-0">
@@ -234,9 +241,15 @@
                 <div id="goals-view" class="goals-view"></div>
                 <button id="goals-view-new" class="btn" type="button" title="Deal three new goals (no tick)">New goals</button>
             </div>
+            <div id="goals-page-1" class="hidden">
+                <h1>Achievements</h1>
+                <div id="achievements-view" class="goals-view"></div>
+                <p id="achievements-note" class="hidden"></p>
+                <button id="achievements-signin" class="btn hidden" type="button" title="Sign in with Bluesky (optional)">Sign in</button>
+            </div>
             <div class="pager-nav">
                 <button id="goals-prev" class="btn" type="button" title="Previous page (←)">&lt;</button>
-                <span id="goals-count" class="pager-count">1 / 1</span>
+                <span id="goals-count" class="pager-count">1 / 2</span>
                 <button id="goals-next" class="btn" type="button" title="Next page (→)">&gt;</button>
             </div>
             <p class="continue">Click or press any key to close</p>
@@ -298,6 +311,7 @@
     <script src="displayartifacts.js"></script>
     <script src="telemetry.js"></script>
     <script src="signin.js"></script>
+    <script src="achievements.js"></script>
     <script src="rando.js"></script>
     <script src="colortheory.js"></script>
     <script src="hex.js"></script>

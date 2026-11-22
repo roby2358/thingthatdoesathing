@@ -265,7 +265,7 @@ same rule applies, which is why `hexandcounter` routes its intro and victory scr
 the `overlay` flag and `dismissOverlay()` rather than handling them ad hoc.
 
 *Thing Factory:* its goals (D-76) add two overlays. The Goals view (`'goals'`, opened by the
-goals panel's expand button) is a pager like Help and About: ← → turn its pages, a click on a
+goals panel's expand button) is a pager like Help and About (Goals, then Achievements, D-79): ← → turn its pages, a click on a
 button keeps it open, any other key or click closes it. Goals met (`'goalsDone'`, opened when a
 tick meets a goal set, with Go turned off) is a question like the size pickers: only its three
 buttons (New game, New goals, Keep playing) and Esc (Keep playing) act; every other input is

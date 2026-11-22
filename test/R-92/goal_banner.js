@@ -1,12 +1,17 @@
 // R-92: a goal met shows a banner that doesn't stop play (D-76): one line per goal met that
 // tick, each one of GameDisplayArtifacts.MESSAGES.goalMet (three whole sentences with {amount}
 // and {label}) filled in, picked with Math.random; it hides after MILESTONE_MS; Go keeps going.
+// The met green (index.css --met, the banner's color) is SOURCE_COLOR's, not a var() of itself.
 'use strict';
+const fs = require('fs');
+const path = require('path');
 const { check, done } = require('../helpers/check');
 const { liveGame, shown, setCount, waitTick } = require('../helpers/goals');
 
 const p = liveGame('small');
 const words = p.run('GameDisplayArtifacts.MESSAGES.goalMet');
+const met = /--met:\s*([^;]+);/.exec(fs.readFileSync(path.join(__dirname, '../../index.css'), 'utf8'));
+check('index.css --met is SOURCE_COLOR\'s green', met && met[1].trim() === p.run('GameDisplayArtifacts.SOURCE_COLOR'));
 check('MESSAGES.goalMet has 3 wordings', Array.isArray(words) && words.length === 3 && new Set(words).size === 3);
 words.forEach((w, i) => check(`wording ${i} "${w}" is a whole sentence with {amount} and {label}`,
     w.includes('{amount}') && w.includes('{label}') && /^[A-Z{]/.test(w) && /[.!]$/.test(w)));

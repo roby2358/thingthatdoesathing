@@ -639,6 +639,27 @@ Fix the flaky test test/R-76/browser_signin.js. It fails sometimes when the whol
 ----
 Priority:   60
 Status: Done
+ID: achclient-shjq
+Created: 2026-11-22T20:04:21Z
+Updated: 2026-11-22T21:24:36Z
+
+Achievements in the browser: lifetime totals from per-game counter differences, rung banners, and the Achievements page.
+
+Goal: a signed-in player (or a file:// copy) sees each achievement as it's reached and a list of active ones.
+
+Settled design (needs counters, goalsui, achserver):
+- New achievements.js, global GameAchievements, loaded after signin.js. Store: signed in on http(s) → the server (POST /achievements, same base as TELEMETRY_ENDPOINT); file:// → localStorage 'thingfactory.totals' (an ACHIEVEMENTS_KEY in displayartifacts, try/catch); anyone else (signed out, portals) → no achievements, nothing counted. Achievement syncing is the player's own service: it runs whatever Global Privacy Control says, but honours the 429/403 backoff (drops the queue, loses those increments).
+- After each command GameUI hands it engine.counters() before and after; increments = the positive differences. Added to a running copy of totals; for each counter in COUNTERS order, each rung crossed (rungsCrossed) → a banner (non-blocking, like the milestone banner) with one of 3 wordings from MESSAGES.rungReached, or MESSAGES.rungNotoriety for a negative counter (wry, not congratulatory), {amount} {label}, Math.random pick; and rungsReached += 1 per rung, which can itself cross a rung (loop until none). A new game starts counters at 0 and a restored save carries them, so nothing is counted twice; play before sign-in isn't added to the account (no merge).
+- Server sync: on sign-in (or a stored sign-in at boot) fetch totals ({token}); increments made before the fetch returns are queued and announced against the fetched totals. Queued increments go by fetch keepalive every TELEMETRY_FLUSH_MS and on pagehide; sign-out flushes then stops.
+- The expanded pager's Achievements page (after Goals): only active achievements — counters with a total above 0 — nearest its next rung first (by (total − reached)/(next − reached), ties in table order), each with label, total, "Reached n" or "No mark yet", "Next n" and a progress bar; a row whose rung changed since the page was last drawn flashes once. Signed out where sign-in is offered: a line saying achievements are kept while signed in, with the sign-in button; where not offered (portals): a line that they need the game's site.
+- GameUI side: banners queue behind each other with the milestone and goal banners.
+
+Done when: R-rows on the stub DOM with a fake fetch and fake storage: increments from differences, rung banners and rungsReached cascade, notoriety wording on a negative counter, file:// localStorage persistence, signed-out counts nothing, the queued-before-fetch case, the Achievements page's active-only order; just cc-test passes.
+
+Design docs: reconcile ONTOLOGY + CRITERIA (new R-rows own test/R-n/) + RATIONALE (a D-n for the decisions below) + ARCHITECTURE_LOG + CLAUDE.md in the same change. RULES_VERSION stays 1. Starreach (../starreach, read only, never edit or commit there) has the model this follows: docs/ONTOLOGY.md "Counters", "Goal", "Ladder", "Goal selection", "Goal check", and docs/RATIONALE.md D-43 to D-49; app/src/achievements.ts; public/js/script.js drawAchievements.
+----
+Priority:   60
+Status: Done
 ID: springwall-sz3b
 Created: 2026-11-21T19:29:00Z
 Updated: 2026-11-21T19:35:31Z
