@@ -155,6 +155,70 @@ const GameArtifacts = (function () {
         return n;
     };
 
+    // ---- Counters and the ladder (D-74) ----
+    // The counter table: what one game counts, one row per counter, in display order. The rule
+    // where a thing happens counts it, at that one place in the engine; nothing is counted from
+    // event text. A goal (per game) and an achievement (lifetime totals) are measured on these.
+    //   key      — the counter's name (GameEngine.counters() keys, GameState.counts keys)
+    //   label    — reads after a number: "12 crates delivered"
+    //   scale    — the unit of its ladder (rung below): 1, 10, 100 or 1000
+    //   goal     — may be a game's goal
+    //   negative — a bad thing: never a goal; its rung messages are wry
+    //   perGame  — counted per game by the engine; false only for rungsReached, which is lifetime
+    //              only and counted by the achievements client
+    const counter = (key, label, scale, goal, negative, perGame) => ({ key, label, scale, goal, negative, perGame });
+    const COUNTERS = [
+        counter('cratesDelivered', 'crates delivered', 10, true, false, true),          // state.delivered: a big crate counts its value
+        counter('bigDelivered', 'big crates delivered', 1, true, false, true),
+        counter('exGremlins', 'ex-gremlins', 1, true, false, true),                     // state.exGremlins
+        counter('trapped', 'gremlins trapped', 1, true, false, true),                   // state.trapped
+        counter('placed', 'Things placed', 10, true, false, true),
+        counter('springThrows', 'Spring throws', 10, true, false, true),
+        counter('rocketFlights', 'Rocket flights', 1, true, false, true),
+        counter('cannonLobs', 'Cannon lobs', 1, true, false, true),
+        counter('moved', 'Things moved', 1, true, false, true),
+        counter('bombs', 'Bombs set off', 1, true, false, true),
+        counter('slides', 'hexes slid', 10, true, false, true),
+        counter('mountainsFlown', 'mountains flown over', 10, true, false, true),
+        counter('pushes', 'pushes', 10, true, false, true),
+        counter('pulls', 'pulls', 10, true, false, true),
+        counter('pushesPulls', 'pushes and pulls', 10, true, false, true),              // pushes + pulls
+        counter('milestones', 'milestones', 1, false, false, true),                     // milestonesReached(delivered)
+        counter('goalsMet', 'goals met', 1, false, false, true),
+        counter('rungsReached', 'achievements reached', 1, false, false, false),
+        counter('cratesSunk', 'crates sunk', 1, false, true, true),              // cargo value lost to open water
+        counter('cratesSmashed', 'crates smashed by gremlins', 1, false, true, true),   // cargo value a gremlin wrecked
+        counter('cratesLostOther', 'crates lost otherwise', 1, false, true, true),      // every other cargo loss
+        counter('discards', 'cards discarded', 10, false, true, true),
+    ];
+    // The per-game counters read from existing state fields or derived, never stored twice:
+    // each a function of a GameState. Every other perGame counter is stored in state.counts.
+    const COUNTER_READS = {
+        cratesDelivered: s => s.delivered,
+        exGremlins: s => s.exGremlins,
+        trapped: s => s.trapped,
+        pushesPulls: s => s.counts.pushes + s.counts.pulls,
+        milestones: s => milestonesReached(s.delivered),
+    };
+    const STORED_COUNTERS = COUNTERS.filter(c => c.perGame && !COUNTER_READS[c.key]).map(c => c.key);
+
+    // The ladder: a counter's rungs are scale × 1, 2, 5, 10, 20, 50, … (scale 10: 10, 20, 50,
+    // 100, 200, …). rung(scale, i) is the i-th, from 0; "level n" is rung(scale, n − 1).
+    const LADDER_STEPS = [1, 2, 5];
+    const rung = (scale, i) => scale * LADDER_STEPS[i % LADDER_STEPS.length] * Math.pow(10, Math.floor(i / LADDER_STEPS.length));
+    // Every rung r with before < r ≤ after, rising.
+    const rungsCrossed = (scale, before, after) => {
+        const out = [];
+        for (let i = 0, r; (r = rung(scale, i)) <= after; i++) if (r > before) out.push(r);
+        return out;
+    };
+    // Where a total stands: the last rung it reached (null below the first) and the next one.
+    const standing = (scale, total) => {
+        let reached = null, i = 0;
+        for (; rung(scale, i) <= total; i++) reached = rung(scale, i);
+        return { reached, next: rung(scale, i) };
+    };
+
     // Which rules a game ran under, for telemetry (D-65): the game record carries it, so games
     // under different rules can be told apart. It stays 1 through development (the build's commit hash
     // tells builds apart); it changes only for a drastic, breaking rules change, at the designer's call (D-65).
@@ -193,6 +257,13 @@ const GameArtifacts = (function () {
         crateCap,
         milestonesReached,
         bigCrateChance,
+        COUNTERS,
+        COUNTER_READS,
+        STORED_COUNTERS,
+        LADDER_STEPS,
+        rung,
+        rungsCrossed,
+        standing,
         // Passability for Board: land is enterable, water and mountain are not. Water
         // still *accepts* a pushed piece (it sinks); that's the step rule, not this table.
         MOVEMENT_COST: {

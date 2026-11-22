@@ -8,7 +8,7 @@
 const GameEngine = (function () {
     const {
         TERRAIN, THINGS, TOOLS, CARDS, cardOf, UNLOCKS, PIECES, CRATE_COLORS, WHITE, aims, nextMilestone, MAP_SIZES, ENHANCE_CHANCE, HAND_SIZE, IDLE_REDRAW_TICKS, BUMP_ADVANCE, MAX_SLIDE,
-        gremlinDice, GREMLIN_DICE_SIDES, crateCap, milestonesReached, bigCrateChance,
+        gremlinDice, GREMLIN_DICE_SIDES, crateCap, milestonesReached, bigCrateChance, COUNTERS, COUNTER_READS,
         GEN_MAX_ATTEMPTS, HEIGHTMAP_ROUGHNESS,
         WATER_PCT, MOUNTAIN_PCT, ICE_FRAC, PLACE_SLICE_FRAC, PLACE_SLICE_MIN
     } = GameArtifacts;
@@ -20,6 +20,11 @@ const GameEngine = (function () {
         filled: (engine, hex) => !!engine.thingAt(hex.q, hex.r) || !!engine.pieceAt(hex.q, hex.r),
     };
     const MOVER = 'MOVER';   // the tool card move() and scrap() spend
+    // Counters a Thing's motion adds 1 to when it moves its piece at least one hex (D-74).
+    const MOTION_COUNTS = { SPRING: 'springThrows', ROCKET: 'rocketFlights', CANNON: 'cannonLobs', PUSHER: 'pushes', PULLER: 'pulls' };
+    const BIG_CRATE = 'bigcrate';   // the piece kind bigDelivered counts
+    // Where each cargo loss is counted: open water, a gremlin's wreck, or anything else (D-74).
+    const SUNK = 'cratesSunk', SMASHED = 'cratesSmashed', LOST_OTHER = 'cratesLostOther';
     // A wanderer's own step, as a push; `wrecks` comes from its piece template.
     const wanderOf = piece => ({ n: 1, splat: false, flies: false, overMountains: false, clears: 0, wrecks: PIECES[piece.kind].wrecks });
     // How each phase of a motion travels, one hex per hop (D-38):
@@ -190,8 +195,23 @@ const GameEngine = (function () {
             s.exGremlins = 0;
             s.trapped = 0;
             s.idleTicks = 0;
+            s.counts = GameState.zeroCounts();
             s.phase = 'player';
             return { ok: true };
+        }
+
+        // ---- Counters (D-74) ----
+        // This game's count of every perGame COUNTERS row, {key: n}: the ones COUNTER_READS names
+        // read from their state fields or derived, the rest from state.counts. A query.
+        counters() {
+            const s = this.state;
+            return Object.fromEntries(COUNTERS.filter(c => c.perGame)
+                .map(c => [c.key, COUNTER_READS[c.key] ? COUNTER_READS[c.key](s) : s.counts[c.key]]));
+        }
+
+        // Add n to a stored counter, at the one place its thing happens. Never touches Rando.
+        count(key, n) {
+            this.state.counts[key] += n;
         }
 
         // ---- Save and restore (D-67) ----
@@ -378,7 +398,7 @@ const GameEngine = (function () {
         // its value lost. Returns its `splat` at `hop`.
         smash(piece, hop) {
             this.removePiece(piece);
-            this.loseValue(piece);
+            this.loseValue(piece, LOST_OTHER);
             return { type: 'splat', id: piece.id, by: null, trap: false, hop };
         }
 
@@ -565,13 +585,16 @@ const GameEngine = (function () {
         // A piece goes into open water: gone, and counted as lost if it was cargo.
         sink(piece) {
             this.removePiece(piece);
-            this.loseValue(piece);
+            this.loseValue(piece, SUNK);
         }
 
         // A piece destroyed (sunk, wrecked, blasted, crashed) adds its value to `lost`: 0 for a
-        // gremlin, 1 for a crate, 10 for a big crate (D-34).
-        loseValue(piece) {
-            this.state.lost += PIECES[piece.kind].value;
+        // gremlin, 1 for a crate, 10 for a big crate (D-34); and the same to its cause's counter,
+        // SUNK, SMASHED or LOST_OTHER, so the three always sum to `lost` (D-74).
+        loseValue(piece, cause) {
+            const value = PIECES[piece.kind].value;
+            this.state.lost += value;
+            this.count(cause, value);
         }
 
         // The board hex one step from `at` in `dir` (undefined off the map).
@@ -595,6 +618,7 @@ const GameEngine = (function () {
             this.removePiece(piece);
             goal.delivered += PIECES[piece.kind].value;
             this.state.delivered += PIECES[piece.kind].value;
+            if (piece.kind === BIG_CRATE) this.count('bigDelivered', 1);
         }
 
         // What coming onto `hex` on the ground does to `piece`: delivered on its color's target,
@@ -693,6 +717,7 @@ const GameEngine = (function () {
                 splat: false, wrecks: false, doomed: false, aloft: false, overhead: false,
                 leader: null, followed: 0, waitHop: 0, dropTo: null,
                 slid: 0, onSlick: this.isSlick(this.hexOf(piece)), sliding: false,
+                counter: null,   // the MOTION_COUNTS counter its Thing's launch set, if any (D-74)
             };
             run.motions.push(m);
             run.byId.set(piece.id, m);
@@ -759,6 +784,7 @@ const GameEngine = (function () {
                 if (++run.hop > MAX_HOPS) throw new Error('a tick ran past MAX_HOPS hops');
                 this.runHop(run);
             }
+            run.motions.filter(m => m.counter && m.path.length).forEach(m => this.count(m.counter, 1));
             const moves = run.motions.filter(m => m.path.length)
                 .map(m => ({ type: 'move', id: m.piece.id, path: m.path, hop: m.hop, over: m.over }));
             return [...moves, ...run.ends];
@@ -903,7 +929,7 @@ const GameEngine = (function () {
         }
 
         splatBump(m, first, run) {
-            if (PIECES[first.kind].splatsOnSlideBump) this.destroy(first, m.piece.id, run);
+            if (PIECES[first.kind].splatsOnSlideBump) this.destroy(first, m.piece.id, run, LOST_OTHER);
             else this.advanceLine(m, first, run);
             this.crash(m, run, first.id);
         }
@@ -930,7 +956,7 @@ const GameEngine = (function () {
             const moving = props.filter(p => VACATES.has(fates.get(p.m).kind));
             for (const p of moving) {
                 const { victim } = fates.get(p.m);
-                if (victim) this.destroy(victim, p.m.piece.id, run);
+                if (victim) this.destroy(victim, p.m.piece.id, run, fates.get(p.m).kind === 'wreck' ? SMASHED : LOST_OTHER);
                 p.m.piece.moveTo(p.hex.q, p.hex.r);
                 this.record(p.m, p.hex, run.hop);
             }
@@ -939,10 +965,11 @@ const GameEngine = (function () {
             for (const p of stopped) this[STOPPED[p.m.phase]](p.m, run);
         }
 
-        // A piece a mover splatted or wrecked: gone, its value lost, its motion over.
-        destroy(victim, by, run) {
+        // A piece a mover splatted or wrecked: gone, its value lost (counted in `cause`), its
+        // motion over.
+        destroy(victim, by, run, cause) {
             this.removePiece(victim);
-            this.loseValue(victim);
+            this.loseValue(victim, cause);
             const vm = run.byId.get(victim.id);
             if (vm) vm.phase = 'done';
             run.ends.push({ type: 'splat', id: victim.id, by, trap: false, hop: run.hop });
@@ -977,6 +1004,7 @@ const GameEngine = (function () {
 
         flewInto(m, hex, run) {
             m.flown.push(hex);
+            if (hex.terrain === TERRAIN.MOUNTAIN) this.count('mountainsFlown', 1);   // only a flight overMountains is ever over one
             const res = this.airResult(m.piece, hex);
             if (res !== 'moved') return this.end(m, res, run);
             if (--m.left === 0) this.land(m, run, true);
@@ -1001,7 +1029,7 @@ const GameEngine = (function () {
         slidInto(m, hex, fromSlick) {
             m.onSlick = m.sliding = this.isSlick(hex);
             if (!m.sliding) return false;
-            if (fromSlick) m.slid++;
+            if (fromSlick) { m.slid++; this.count('slides', 1); }
             return true;
         }
 
@@ -1070,7 +1098,7 @@ const GameEngine = (function () {
         // value lost (splat, `by` what it hit).
         crash(m, run, by) {
             this.removePiece(m.piece);
-            this.loseValue(m.piece);
+            this.loseValue(m.piece, LOST_OTHER);
             run.ends.push({ type: 'splat', id: m.piece.id, by, trap: false, hop: run.hop });
             m.phase = 'done';
         }
@@ -1110,7 +1138,8 @@ const GameEngine = (function () {
             order.forEach((thing, rank) => {
                 const act = this.actionOf(thing);
                 if (!act || !act.piece || !this.affects(thing, act.piece) || run.claimed.has(act.piece.id)) return;
-                this.launch(run, act.piece, act.dir, act.how, rank);
+                const m = this.launch(run, act.piece, act.dir, act.how, rank);
+                if (m) m.counter = MOTION_COUNTS[thing.kind] || null;   // counted once the tick has run, if it moved
             });
             // Unclaimed wanderers pick a direction from the board as it stands, ranked after
             // every Thing. One with nowhere to go has no motion (a bump can still move it).
@@ -1169,6 +1198,7 @@ const GameEngine = (function () {
             if (!this.colorChoices(kind).includes(color)) return { ok: false };
             if (!this.canPlace(kind, this.board.get(q, r))) return { ok: false };
             this.build({ kind, color, q, r, facing: aimed ? facing : null });
+            this.count('placed', 1);
             s.hand[slot] = this.draw();
             return this.tick(CARD_FIRST);
         }
@@ -1219,6 +1249,7 @@ const GameEngine = (function () {
             if (!this.canPlace(thing.kind, this.board.get(q, r))) return { ok: false };
             this.unbuild(thing);
             this.build({ kind: thing.kind, color: thing.color, q, r, facing: aimed ? facing : null });
+            this.count('moved', 1);
             s.hand[slot] = this.draw();
             return this.tick(this.stranded(fq, fr, true));
         }
@@ -1265,6 +1296,7 @@ const GameEngine = (function () {
             if (new Set(targets.map(h => Hex.key(h.q, h.r))).size !== targets.length) return { ok: false };
             const pieces = targets.map(h => this.pieceAt(h.q, h.r)).filter(p => p);
             const events = targets.flatMap(h => this.wipeHex(h));
+            this.count('bombs', 1);
             s.hand[slot] = this.draw();
             return this.tick({ events, gone: pieces.map(p => p.kind), usedCard: true });
         }
@@ -1288,6 +1320,7 @@ const GameEngine = (function () {
         discard(slot) {
             const s = this.state;
             if (!Number.isInteger(slot) || slot < 0 || slot >= s.hand.length) return { ok: false };
+            this.count('discards', 1);
             s.hand[slot] = this.draw();
             return this.tick(CARD_FIRST);
         }

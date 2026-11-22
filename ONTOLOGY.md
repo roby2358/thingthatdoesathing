@@ -69,7 +69,7 @@ everything; G-2 beats G-1 (a funny interaction that can't be read is a bug, not 
 | `unlocks` | int ≥ 1 | How many `UNLOCKS` steps are open; their kinds are the deck (Unlock rule). A new game opens 1. [D: pjpd card-unlock] |
 | `turn` | int ≥ 1 | Goes up by 1 per tick. |
 | `delivered` | int | Crates delivered, all colors together, each counted at its `value` (a big crate is 10; milestones count this, D-34). |
-| `lost` | int | Crates that sank, were wrecked by a gremlin or were blasted, each counted at its `value` (D-34). |
+| `lost` | int | Crates that sank, were wrecked by a gremlin, or were destroyed otherwise (blasted, bombed, crashed mid-air, cleared by a newly opened endpoint), each counted at its `value` (D-34); split by cause in `counts` (`cratesSunk`, `cratesSmashed`, `cratesLostOther`, D-74). |
 | `exGremlins` | int | Gremlins gone any way but a Trap: sunk, splatted, bombed, or killed on a target (Tick rule). Shown in the tally. [D] |
 | `trapped` | int | Gremlins a Trap caught (Tick rule). Shown in the tally. [D] |
 | `idleTicks` | int | Ticks in a row with no card used (`place`, `discard`, `move`, `scrap`, `bomb`); at `IDLE_REDRAW_TICKS` one card is redrawn (Tick rule). [D] |
@@ -77,11 +77,12 @@ everything; G-2 beats G-1 (a funny interaction that can't be read is a bug, not 
 | `spawnSlot` | int, 0 ≤ n < `spawnCycle.length` | The slot of `spawnCycle` the next tick takes; advances one per tick, wrapping. The crate cap isn't stored: it's `crateCap(size)` plus `milestonesReached(delivered)` (D-31). [D] |
 | `nextId` | int | Next piece id. |
 | `phase` | `'player' \| 'tick'` | `'tick'` only while a tick resolves inside a command. |
+| `counts` | `{key: int ≥ 0}` | The stored per-game counters, exactly `STORED_COUNTERS`, each 0 in a new game; the ones read from the fields above or derived aren't stored (Counters rule, D-74). [D] |
 
 `toJSON()` gives the whole struct as plain JSON data (`hexes` as a list in Map order, pieces as
 plain records) plus `rng`, the seeded `Rando` stream's position (`Rando.state()`, a uint32);
 `GameState.fromJSON(data)` checks that data and builds a GameState from it, or throws, and never
-touches `Rando`. The engine's `save()` / `restore(data)` wrap them (D-67).
+touches `Rando`; it refuses data whose `counts` isn't exactly the stored counters with whole numbers ≥ 0 (D-74). The engine's `save()` / `restore(data)` wrap them (D-67).
 
 ### Hex — one map cell (plain object)
 | Field | Type | Notes |
@@ -517,6 +518,63 @@ Reaching a milestone ends nothing: it may open a color (Open a color rule) and u
 (Unlock rule), the client shows a banner naming the cards it unlocked, and play goes on. An
 opened color also gets the news panel, which waits for a click or any key.
 
+### Counters — `COUNTERS`, `counters()` [D-74]
+*Serves:* goals (one game's objective) and achievements (lifetime totals), built on top later;
+accumulation. Every game counts what happened in it: a named count per kind of thing, counted at
+the one place in the engine where the thing happens, never from event text. Counting never
+touches `Rando` and changes no rule. `GameArtifacts.COUNTERS` is the counter table, one row per
+counter in this order, `{key, label, scale, goal, negative, perGame}`: `label` reads after a
+number ("12 crates delivered"); `scale` is the unit of its ladder (1, 10, 100 or 1000); `goal`:
+it may be a game's goal; `negative`: a bad thing, never a goal, its rung messages wry; `perGame`
+false only for `rungsReached`, which is lifetime only and counted by the achievements client.
+[D: the rows and fields; T: the scales, first guesses]
+
+| Key | Label | Scale | Goal | Counted where |
+|---|---|---|---|---|
+| `cratesDelivered` | crates delivered | 10 | yes | `state.delivered` (a big crate counts its value, 10) |
+| `bigDelivered` | big crates delivered | 1 | yes | `deliver`: 1 per big crate |
+| `exGremlins` | ex-gremlins | 1 | yes | `state.exGremlins` |
+| `trapped` | gremlins trapped | 1 | yes | `state.trapped` |
+| `placed` | Things placed | 10 | yes | an accepted `place` |
+| `springThrows` | Spring throws | 10 | yes | a Spring's motion that moved its piece (at least one hex) |
+| `rocketFlights` | Rocket flights | 1 | yes | a Rocket's motion that moved its piece |
+| `cannonLobs` | Cannon lobs | 1 | yes | a Cannon's shot that fired |
+| `moved` | Things moved | 1 | yes | an accepted `move` (`scrap` doesn't count) |
+| `bombs` | Bombs set off | 1 | yes | an accepted `bomb` |
+| `slides` | hexes slid | 10 | yes | each slick-to-slick move of a ground motion or a landing's skid (the D-52 count) |
+| `mountainsFlown` | mountains flown over | 10 | yes | each mountain hex a flight enters (only a Spring's, `overMountains`, ever does) |
+| `pushes` | pushes | 10 | yes | a Pusher's motion that moved its piece |
+| `pulls` | pulls | 10 | yes | a Puller's motion that moved its piece |
+| `pushesPulls` | pushes and pulls | 10 | yes | `pushes + pulls`, derived |
+| `milestones` | milestones | 1 | no | `milestonesReached(delivered)`, derived |
+| `goalsMet` | goals met | 1 | no | stored, 0 until the goals task counts it |
+| `rungsReached` | achievements reached | 1 | no | lifetime only (`perGame` false): the achievements client |
+| `cratesSunk` | crates sunk | 1 | negative | `loseValue` from `sink`: cargo value lost to open water |
+| `cratesSmashed` | crates smashed by gremlins | 1 | negative | `loseValue` from a gremlin's wreck |
+| `cratesLostOther` | crates lost otherwise | 1 | negative | every other `loseValue`: blast, Bomb, a mid-air crash or slide-bump splat, a new endpoint clearing it |
+| `discards` | cards discarded | 10 | negative | an accepted `discard` |
+
+```
+COUNTER_READS: cratesDelivered ← delivered; exGremlins ← exGremlins; trapped ← trapped
+               pushesPulls ← counts.pushes + counts.pulls; milestones ← milestonesReached(delivered)
+STORED_COUNTERS = perGame keys not in COUNTER_READS        # state.counts holds exactly these, 0 at newGame
+counters() = {key: COUNTER_READS[key](state) or state.counts[key]} for every perGame row, in order
+loseValue(piece, cause): lost += value; counts[cause] += value  # cratesSunk + cratesSmashed + cratesLostOther = lost
+a refused command (ok:false) counts nothing
+```
+A motion's counter (`springThrows`, `rocketFlights`, `cannonLobs`, `pushes`, `pulls`) is set
+when its Thing launches it, and counted once the tick's hops have run if its piece moved: a throw
+with nowhere to go or a shot that doesn't fire counts nothing; a bumped line's pieces are the
+bump's, not a Thing's. No counter is stored twice: the tally fields stay as they are.
+
+**The ladder** (`GameArtifacts`, for goals and achievements):
+```
+rung(scale, i) = scale × LADDER_STEPS[i mod 3] × 10^floor(i / 3)   # LADDER_STEPS [1, 2, 5]; scale 10: 10, 20, 50, 100, 200, …
+level n = rung(scale, n − 1)
+rungsCrossed(scale, before, after) = every rung r with before < r ≤ after, rising
+standing(scale, total) = {reached: the last rung ≤ total, or null; next: the first rung > total}
+```
+
 ### Commands
 ```
 place(slot, q, r, facing, color):
@@ -599,6 +657,8 @@ The code constant in `GameArtifacts` is the single source. `RULES_VERSION` stays
 | `BIG_CRATE_KNEE` | 5 | milestones over which the chance rises in a straight line, START → AT_FIFTH; `bigCrateChance(m)` = START + (AT_FIFTH − START)·m / KNEE for m ≤ KNEE: 1, 1.8, 2.6, 3.4, 4.2, 5% (D-45) [D: the end points; T: the straight line] |
 | `BIG_CRATE_EASE` | 0.85 | past the knee, `bigCrateChance(m)` = 1 − (1 − AT_FIFTH)·this^(m − KNEE): 19% at 6, 31% at 7, 58% at 10, 81% at 15, toward 1, never 1 (D-45) [D: asymptotic to 1; T: the ratio] |
 | `PIECES.bigcrate.value` | 10 | crates a big crate is worth (D-34) [D] |
+| `COUNTERS.*.scale` | 10 cratesDelivered, placed, springThrows, slides, mountainsFlown, pushes, pulls, pushesPulls, discards; 1 the rest | the unit of each counter's ladder (Counters rule, D-74) [T: first guesses, the designer tunes] |
+| `LADDER_STEPS` | 1, 2, 5 | a ladder's rungs: scale × these × 10^k (D-74) [D] |
 | `HAND_SIZE` | 3 | cards |
 | `BUMP_ADVANCE` | 2 | hexes a bumped line advances; its bumper follows to one hex behind it (D-33) [D] |
 | `MAX_SLIDE` | 3 | moves from a slick hex (bare ice or a Slide) onto a slick hex one ground motion or skid makes; it stops on the 3rd, so at most 4 slick hexes in a row (D-52) [D] |
@@ -648,7 +708,7 @@ The code constant in `GameArtifacts` is the single source. `RULES_VERSION` stays
 | `bomb(slot, hexes)` | `hand[slot]` is a Bomb; `hexes` 1 to `wipes` distinct board hexes, each holding a Thing or a piece | clear each: its Thing off, its piece destroyed (lost + a crate's value; a gremlin is an ex-gremlin), redraw slot, tick (D-48) | `{ok, events}` |
 | `discard(slot)` | `0 <= slot < HAND_SIZE` | redraw that slot, tick | `{ok, events}` |
 | `wait()` | always | tick | `{ok, events}` |
-| `restore(data)` | `GameState.fromJSON(data)` takes it (a known size, terrain, piece and card kinds, whole-number counters, `phase` `'player'`, `rng` a uint32) | the state becomes `data`'s (the same GameState object), the board is rebuilt over its hexes, `Rando` goes back to `rng`; no tick (D-67) | `{ok, events: []}` |
+| `restore(data)` | `GameState.fromJSON(data)` takes it (a known size, terrain, piece and card kinds, whole-number counters, `counts` holding exactly `STORED_COUNTERS`, each a whole number ≥ 0 (D-74), `phase` `'player'`, `rng` a uint32) | the state becomes `data`'s (the same GameState object), the board is rebuilt over its hexes, `Rando` goes back to `rng`; no tick (D-67) | `{ok, events: []}` |
 
 Illegal → `{ ok:false }` and nothing changed (hand and `Rando` included).
 
@@ -661,6 +721,7 @@ Illegal → `{ ok:false }` and nothing changed (hand and `Rando` included).
 - `thingAt(q, r)`, `pieceAt(q, r)`, `targetAt(q, r)`, `sourceOf(color)`, `openColors()`, `isEndpoint(hex)`.
 - `unlockedKinds()`, `drawableKinds()` — the kinds open so far, and the deck the Draw rule uses.
 - `spawnKind()` — `'bigcrate'` or `'crate'` for the next spawn (Tick rule; one `Rando` roll per spawn, D-34, D-45).
+- `counters()` → `{key: n}` — this game's count on every `perGame` `COUNTERS` row (Counters rule, D-74).
 - `save()` → `state.toJSON()` — the whole game as JSON data, `rng` included; `restore` takes it back (D-67).
 - `board.*`.
 

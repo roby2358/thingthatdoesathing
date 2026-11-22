@@ -2,6 +2,9 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-22 — Per-game counters and the ladder (D-74)
+New: `GameArtifacts.COUNTERS` (the counter table: 22 rows `{key, label, scale, goal, negative, perGame}`), `COUNTER_READS`, `STORED_COUNTERS`, `LADDER_STEPS` and `rung` / `rungsCrossed` / `standing`; `GameState.counts` (the stored counters, 0 in a new game, in toJSON/fromJSON; a save without them is refused) and `GameState.zeroCounts()`; `GameEngine.counters()` and `count(key, n)`. Before, `loseValue(piece)` only added to `lost`; now it takes the cause and adds to `cratesSunk`, `cratesSmashed` or `cratesLostOther` too. Motions carry `counter` (the counter their Thing's launch set). GameState's own list of whole-number fields is renamed `TALLIES` (was `COUNTERS`). No rule changed, no Rando call added; `cc-sim 200 small` unchanged. ONTOLOGY (GameState `counts` and `lost`, the Counters rule, Numbers, Queries, `restore`), CRITERIA R-79…R-84, CLAUDE.md follow; CLAUDE.md's artifacts.js row no longer says `RULES_VERSION` is 2 and bumped with every rule change (stale since the D-65 entry below). `RULES_VERSION` stays 1.
+
 ### 2026-11-21 — RULES_VERSION back to 1, and it stays 1 through development (D-65)
 Before, `RULES_VERSION` was to be bumped by one with every rule or tuning change, and D-73 took it to 2. Now it stays 1 while the game is in development, rule changes included: the game record's `version` (the commit hash) already tells builds apart, and it changes only for a drastic, breaking rules change, at the designer's call. `artifacts.js`, R-69's check, ONTOLOGY (Numbers and the note above the table), CLAUDE.md, D-65 and D-73 follow. Production games recorded under 2 between the D-73 deploy and this one carry `rulesVersion` 2.
 

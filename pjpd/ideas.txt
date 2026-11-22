@@ -1,3 +1,10 @@
+Score:   55
+ID: scaletune-3isp
+Created: 2026-11-22T20:04:27Z
+Updated: 2026-11-22T20:04:27Z
+
+Report each counter's per-game median beside its COUNTERS scale (starreach D-43's rule on real players): needs the game's final counters in telemetry (e.g. a counters snapshot on the last event of a game, or a per-game counters record on flush), then a telemetry-report section that prints median and 25th percentile per counter, the scale the D-43 rule would give, and marks rows that differ.
+----
 Score:   50
 ID: bigcrate-pac-e3h4
 Created: 2026-11-12T00:51:43Z

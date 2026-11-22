@@ -333,6 +333,43 @@ Done when: just cc-test passes with the new rows and the uiboot test.
 ----
 Priority:   70
 Status: Done
+ID: counters-9s8e
+Created: 2026-11-22T20:04:20Z
+Updated: 2026-11-22T20:15:08Z
+
+Per-game counters and the ladder: the counter table that goals and achievements are built from.
+
+Goal: every game counts what happened in it, a named count per kind of thing, counted at the one place in the engine where it happens (never from event text), so goals (per game) and achievements (lifetime totals) can be measured against them.
+
+Settled design:
+- artifacts.js gets COUNTERS, the counter table, one row per counter in this order: {key, label (reads after a number: "12 crates delivered"), scale (1, 10, 100 or 1000: the ladder's unit), goal (true: may be a game's goal), negative (true: a bad thing; never a goal; its rung messages are wry), perGame (false only for rungsReached, which is lifetime only and counted by the achievements client, not the engine)}. Rows and first-guess scales (the designer will tune):
+  cratesDelivered "crates delivered" 10 goal (a big crate counts its value, 10 — this is state.delivered);
+  bigDelivered "big crates delivered" 1 goal (1 per big crate);
+  exGremlins "ex-gremlins" 1 goal (state.exGremlins);
+  trapped "gremlins trapped" 1 goal (state.trapped);
+  placed "Things placed" 10 goal (accepted place commands);
+  springThrows "Spring throws" 10 goal (flights a Spring starts);
+  rocketFlights "Rocket flights" 1 goal; cannonLobs "Cannon lobs" 1 goal;
+  moved "Things moved" 1 goal (move commands with the Mover; scrap doesn't count);
+  bombs "Bombs set off" 1 goal (bomb commands);
+  slides "hexes slid" 10 goal (one per slick-to-slick hex a piece slides, a landing's skid included);
+  mountainsFlown "mountains flown over" 10 goal (one per mountain hex a Spring's flight passes over);
+  pushes "pushes" 10 goal (one per piece a Pusher moves); pulls "pulls" 10 goal (one per piece a Puller moves); pushesPulls "pushes and pulls" 10 goal (pushes + pulls, derived, not stored);
+  milestones "milestones" 1 not goal (milestonesReached(state.delivered), derived);
+  goalsMet "goals met" 1 not goal (counted by the goals task; this task adds the row and a 0 count);
+  rungsReached "achievements reached" 1 not goal, perGame false;
+  cratesSunk "crates sunk" 1 negative (cargo value lost to open water); cratesSmashed "crates smashed by gremlins" 1 negative (cargo value lost to a gremlin wrecking it); cratesLostOther "crates lost otherwise" 1 negative (every other cargo loss: Bomb, midair crash, a new source/target clearing it, etc.; sunk + smashed + other = state.lost); discards "cards discarded" 10 negative (accepted discard commands).
+- GameState gets counts: {key: n} holding only the stored per-game counts (not the ones read from existing state fields or derived); 0 for each in a new game; in toJSON/fromJSON (fromJSON checks every key is a known stored counter with a whole number ≥ 0; a save without counts throws like any bad save).
+- GameEngine.counters() returns {key: n} for every perGame COUNTERS row: cratesDelivered, exGremlins, trapped from their existing state fields, milestones and pushesPulls derived, the rest from state.counts. The existing tally fields stay as they are; no counter is stored twice.
+- The ladder, in artifacts.js beside COUNTERS: rung(scale, i) = scale × [1, 2, 5][i mod 3] × 10^(floor(i / 3)), i = 0, 1, 2, … (scale 10: 10, 20, 50, 100, 200, …); "level n" means rung(scale, n − 1); rungsCrossed(scale, before, after) = every rung r with before < r ≤ after, rising; standing(scale, total) = {reached: last rung ≤ total or null, next: first rung > total}. Exported for the goals and achievements tasks.
+- Counting never touches Rando and changes no rule: every seeded test still plays the same.
+
+Done when: R-rows test each counter at its rule site on flatGame boards (a big crate adds 10 to cratesDelivered and 1 to bigDelivered; a skid's hexes count in slides; a Spring over two mountains adds 2; each loss cause lands in its own counter and the three sum to state.lost; pushesPulls = pushes + pulls; refused commands count nothing), the ladder and standing functions, toJSON/fromJSON round-trip with counts; just cc-test passes.
+
+Design docs: reconcile ONTOLOGY + CRITERIA (new R-rows own test/R-n/) + RATIONALE (a D-n for the decisions below) + ARCHITECTURE_LOG + CLAUDE.md in the same change. RULES_VERSION stays 1. Starreach (../starreach, read only, never edit or commit there) has the model this follows: docs/ONTOLOGY.md "Counters", "Goal", "Ladder", "Goal selection", "Goal check", and docs/RATIONALE.md D-43 to D-49; app/src/achievements.ts; public/js/script.js drawAchievements.
+----
+Priority:   70
+Status: Done
 ID: prodtables-3xzh
 Created: 2026-11-21T17:56:01Z
 Updated: 2026-11-21T18:12:15Z

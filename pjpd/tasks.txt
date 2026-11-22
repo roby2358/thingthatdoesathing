@@ -1,3 +1,130 @@
+Priority:   68
+Status: ToDo
+ID: goalsengine-j9up
+Created: 2026-11-22T20:04:21Z
+Updated: 2026-11-22T20:04:21Z
+
+Goals in the engine: three per game, dealt from a side stream of the seed, measured from when the set was dealt, re-rollable.
+
+Goal: each game asks three session-sized things of the player (rung level 3 or 4 of a counter), so an endless game has something to finish; a new set can be dealt any time.
+
+Settled design (needs the counters task's COUNTERS, counters() and rung()):
+- artifacts.js: GOALS_PER_GAME = 3. Each MAP_SIZES row gets goalLevels (the ladder levels a goal amount may be: small [3], medium [3, 4], large [3, 4], huge [4]) and goalExcludes (counter keys never dealt on that size: small ['pushes', 'pulls', 'pushesPulls']; the others []). "Small goals for small boards."
+- Rando gets Rando.stream(n): an independent mulberry32 generator function seeded with n, which never reads or moves the shared stream.
+- GameState gets goals: {set, base, list}: set is the set's number (0 for the set a new game deals, +1 per new set), base is engine.counters() when the set was dealt, list is GOALS_PER_GAME of {counter, amount, met}. In toJSON/fromJSON (checked: known goal counters, whole amounts, booleans).
+- Dealing set k: rng = Rando.stream(a 32-bit mix of state.seed and k); offered = COUNTERS rows with goal true, minus the size's goalExcludes; repeat GOALS_PER_GAME times: counter = uniform pick from offered, removed from it; level = uniform pick from goalLevels; amount = rung(scale, level − 1); met false. Goals may be unreachable for now (a card not yet unlocked): the player can re-roll. newGame deals set 0 after generation, without moving Rando, so every seeded test plays the same.
+- A goal's count = counters()[counter] − base[counter]. GameEngine.goalStates() returns [{counter, label, count, amount, met}] for the UI.
+- Goal check, after every tick (every ticking command, after milestones): each unmet goal whose count ≥ amount becomes met for good, emits goal{index, counter, amount} and adds 1 to counts.goalsMet; when that made every goal of the set met, a goalsDone{set} event follows. A refused command or rotate checks nothing.
+- GameEngine.newGoals(): no tick, never touches Rando, deals set + 1 with base = counters() now (so every new set, mid-game or after a done set, counts from 0); returns {ok: true, events: [{type: 'goals', set}]}.
+
+Done when: R-rows test the deal (distinct counters, amounts are level-3/4 rungs per size, excluded counters never dealt on small, same seed+set gives the same goals, dealing never moves Rando: a game's play is identical to before goals), counting from base, the goal check events (one per goal, goalsDone after the last, met stays met), newGoals resets counts and leaves the world untouched, save/restore round-trip; just cc-test passes.
+
+Design docs: reconcile ONTOLOGY + CRITERIA (new R-rows own test/R-n/) + RATIONALE (a D-n for the decisions below) + ARCHITECTURE_LOG + CLAUDE.md in the same change. RULES_VERSION stays 1. Starreach (../starreach, read only, never edit or commit there) has the model this follows: docs/ONTOLOGY.md "Counters", "Goal", "Ladder", "Goal selection", "Goal check", and docs/RATIONALE.md D-43 to D-49; app/src/achievements.ts; public/js/script.js drawAchievements.
+----
+Priority:   66
+Status: ToDo
+ID: goalsui-s9q3
+Created: 2026-11-22T20:04:21Z
+Updated: 2026-11-22T20:04:21Z
+
+Goals on screen: the side panel, the New Goals button, the goals-done panel and the expanded Goals view.
+
+Goal: the player always sees the three goals and their progress, can re-roll them, and is offered New game / New goals / Keep playing when a set is done.
+
+Settled design (needs the goalsengine task):
+- A goals side panel, always visible during play (not over the hand or the top-left HUD; pick a spot that doesn't cover the board's middle): one line per goal, label + "count / amount" (count capped at amount for display), met goals green with a check; a "New goals" button (calls engine.newGoals(), no tick, works mid-animation like rotate, ignored under an overlay) and an expand button.
+- Expand opens a new GameUI overlay, a Pager (like Help/About) whose first page is Goals (the three goals with progress bars and the New goals button); the achievements task adds the Achievements page after it. It holds Go while open (like Help); Esc / click off / any other key closes it like the other pagers.
+- On a goal event the UI shows a non-blocking banner like the milestone banner with one of 3 wordings from a new GameDisplayArtifacts MESSAGES.goalMet list (whole sentences with {amount} and {label} placeholders, picked with Math.random, never Rando). Add the MESSAGES table now with goalMet; the achievements task adds rungReached and rungNotoriety (3 each).
+- On goalsDone the UI turns Go off and opens a goals-done overlay: "Goals met!" and three buttons: New game (opens the New Game size panel), New goals (engine.newGoals(), closes), Keep playing (closes; the met set stays shown until the player presses New goals). It consumes input like the other overlays; Esc = Keep playing.
+- Help (the help pager) gets a Goals and achievements page describing the mechanic only, never listing counters or amounts: three goals per game sized for a session, counted from when they're dealt, New goals re-rolls, the done panel; achievements are lifetime totals that pass marks (10, 20, 50, 100, …), kept only while signed in (and on a double-clicked copy, in the browser); goals met and achievements reached are achievements too.
+- Saved around the sign-in redirect with the rest of the state (engine.save already has goals); an open goals-done panel isn't saved (saveForRedirect's caller backs overlays out).
+- UI_CONTROLS / README UI section updated.
+
+Done when: uiboot-style tests on the stub DOM show the panel's three lines and counts, New goals changes them without a tick, a met goal turns green with a banner, goalsDone stops Go and opens the panel whose three buttons do their jobs, the expand pager opens and holds Go, Help has the new page; just cc-test passes. Manual U-row for the look.
+
+Design docs: reconcile ONTOLOGY + CRITERIA (new R-rows own test/R-n/) + RATIONALE (a D-n for the decisions below) + ARCHITECTURE_LOG + CLAUDE.md in the same change. RULES_VERSION stays 1. Starreach (../starreach, read only, never edit or commit there) has the model this follows: docs/ONTOLOGY.md "Counters", "Goal", "Ladder", "Goal selection", "Goal check", and docs/RATIONALE.md D-43 to D-49; app/src/achievements.ts; public/js/script.js drawAchievements.
+----
+Priority:   64
+Status: ToDo
+ID: goalstelem-56eh
+Created: 2026-11-22T20:04:21Z
+Updated: 2026-11-22T20:04:21Z
+
+Telemetry on goals: record each set dealt and each goal met, and report them.
+
+Goal: see which goals players get, re-roll and meet, to tune scales and levels.
+
+Settled design (needs goalsengine and goalsui):
+- telemetry.js gets goal records in the batch as a new array goals: [{gameKey, set, how ('start' | 'reroll' | 'next': the new game's set, New goals with unmet goals left, New goals after a done set), turn, unixSeconds, goals: [{counter, amount}]×3}] for a dealt set, and [{gameKey, set, index, counter, amount, turn, unixSeconds, met: true}] as separate met records — implement as two arrays goalSets and goalsMet. GameUI hands them to GameTelemetry (startGame's set 0 included). Same recording rules as the rest (data-version, http(s), no GPC, backoff).
+- worker/telemetry.js accepts and checks them (counter keys against a worker-side twin of the goal counter keys, tested equal to artifacts.js's; numbers whole and in range; MAX_RECORDS counts them), writes two new tables in telemetry_schema.sql: goal_sets (game_key, player, signed_in, set_no, how, turn, unix_seconds, counter1, amount1, counter2, amount2, counter3, amount3) and goals_met (game_key, player, signed_in, set_no, idx, counter, amount, turn, unix_seconds), INSERT OR IGNORE on natural keys (game_key, set_no) and (game_key, set_no, idx). Additive arrays: TELEMETRY_FORMAT stays 1; an old batch without them is fine.
+- tools/telemetry_report gets a Goals section: per counter, times dealt, re-rolled away, met, and median turns from deal to met; sets done.
+- Local: just local-d1-clear recreates; production tables are added by applying the schema (designer's go; don't touch production).
+
+Done when: R-rows for the recorder (records queued with the right fields), the Worker (accepts, rejects bad ones with 400, writes rows), the report on fixtures and end to end with the fake wrangler; just cc-test passes.
+
+Design docs: reconcile ONTOLOGY + CRITERIA (new R-rows own test/R-n/) + RATIONALE (a D-n for the decisions below) + ARCHITECTURE_LOG + CLAUDE.md in the same change. RULES_VERSION stays 1. Starreach (../starreach, read only, never edit or commit there) has the model this follows: docs/ONTOLOGY.md "Counters", "Goal", "Ladder", "Goal selection", "Goal check", and docs/RATIONALE.md D-43 to D-49; app/src/achievements.ts; public/js/script.js drawAchievements.
+----
+Priority:   62
+Status: ToDo
+ID: achserver-a2az
+Created: 2026-11-22T20:04:21Z
+Updated: 2026-11-22T20:04:21Z
+
+Achievements on the server: lifetime totals per signed-in player in a Durable Object, behind POST /achievements.
+
+Goal: a signed-in player's lifetime totals per counter live server-side, one Durable Object per player, so achievements follow them across devices.
+
+Settled design:
+- worker/: a SQLite-backed Durable Object class PlayerTotals (exported from worker/index.js as the class wrangler needs; keep the default export the fetch handler), one object per player, named by the player hash identityFor already makes (SHA-256 of PLAYER_SALT + sub). It holds a key per counter in its key-value storage. Methods: add(increments) → {totals} (adds each increment, within the object, so concurrent adds never lose a count) and totals() → {totals}.
+- wrangler.jsonc: durable_objects binding PLAYER_TOTALS → PlayerTotals and a migrations entry (tag v1, new_sqlite_classes ['PlayerTotals']), in the top level and env.production.
+- Route POST /achievements, same Origin check (403) and TELEMETRY_LIMIT rate limit (429) as /t, before reading the body. Body {token, add?}: add is {counterKey: whole number}; keys must be in a worker-side ACHIEVEMENT_COUNTERS list (every COUNTERS key, perGame or not), a test keeps it equal to artifacts.js's; each value 0 ≤ n ≤ 100000; at most 64 keys; MAX_BODY_BYTES applies. Invalid body 400. The token must verify (identityFor: audience TTDAT_CLIENT_ID, scope); missing or bad → 401. Then add (if any) and answer 200 {totals: {key: n for every key with a total}}. CORS like /t if /t has it.
+- Never stores or logs the IP or the sub; no telemetry rows here.
+- Not deployed by this task (production needs the migration; designer's go).
+
+Done when: Node tests (R-rows) for routing, origin/limit, body checks, 401, add-and-read through a fake DO namespace, and PlayerTotals itself against a fake storage (adds accumulate, concurrent adds both kept); wrangler deploy --dry-run passes with the new binding; just cc-test passes.
+
+Design docs: reconcile ONTOLOGY + CRITERIA (new R-rows own test/R-n/) + RATIONALE (a D-n for the decisions below) + ARCHITECTURE_LOG + CLAUDE.md in the same change. RULES_VERSION stays 1. Starreach (../starreach, read only, never edit or commit there) has the model this follows: docs/ONTOLOGY.md "Counters", "Goal", "Ladder", "Goal selection", "Goal check", and docs/RATIONALE.md D-43 to D-49; app/src/achievements.ts; public/js/script.js drawAchievements.
+----
+Priority:   60
+Status: ToDo
+ID: achclient-shjq
+Created: 2026-11-22T20:04:21Z
+Updated: 2026-11-22T20:04:21Z
+
+Achievements in the browser: lifetime totals from per-game counter differences, rung banners, and the Achievements page.
+
+Goal: a signed-in player (or a file:// copy) sees each achievement as it's reached and a list of active ones.
+
+Settled design (needs counters, goalsui, achserver):
+- New achievements.js, global GameAchievements, loaded after signin.js. Store: signed in on http(s) → the server (POST /achievements, same base as TELEMETRY_ENDPOINT); file:// → localStorage 'thingfactory.totals' (an ACHIEVEMENTS_KEY in displayartifacts, try/catch); anyone else (signed out, portals) → no achievements, nothing counted. Achievement syncing is the player's own service: it runs whatever Global Privacy Control says, but honours the 429/403 backoff (drops the queue, loses those increments).
+- After each command GameUI hands it engine.counters() before and after; increments = the positive differences. Added to a running copy of totals; for each counter in COUNTERS order, each rung crossed (rungsCrossed) → a banner (non-blocking, like the milestone banner) with one of 3 wordings from MESSAGES.rungReached, or MESSAGES.rungNotoriety for a negative counter (wry, not congratulatory), {amount} {label}, Math.random pick; and rungsReached += 1 per rung, which can itself cross a rung (loop until none). A new game starts counters at 0 and a restored save carries them, so nothing is counted twice; play before sign-in isn't added to the account (no merge).
+- Server sync: on sign-in (or a stored sign-in at boot) fetch totals ({token}); increments made before the fetch returns are queued and announced against the fetched totals. Queued increments go by fetch keepalive every TELEMETRY_FLUSH_MS and on pagehide; sign-out flushes then stops.
+- The expanded pager's Achievements page (after Goals): only active achievements — counters with a total above 0 — nearest its next rung first (by (total − reached)/(next − reached), ties in table order), each with label, total, "Reached n" or "No mark yet", "Next n" and a progress bar; a row whose rung changed since the page was last drawn flashes once. Signed out where sign-in is offered: a line saying achievements are kept while signed in, with the sign-in button; where not offered (portals): a line that they need the game's site.
+- GameUI side: banners queue behind each other with the milestone and goal banners.
+
+Done when: R-rows on the stub DOM with a fake fetch and fake storage: increments from differences, rung banners and rungsReached cascade, notoriety wording on a negative counter, file:// localStorage persistence, signed-out counts nothing, the queued-before-fetch case, the Achievements page's active-only order; just cc-test passes.
+
+Design docs: reconcile ONTOLOGY + CRITERIA (new R-rows own test/R-n/) + RATIONALE (a D-n for the decisions below) + ARCHITECTURE_LOG + CLAUDE.md in the same change. RULES_VERSION stays 1. Starreach (../starreach, read only, never edit or commit there) has the model this follows: docs/ONTOLOGY.md "Counters", "Goal", "Ladder", "Goal selection", "Goal check", and docs/RATIONALE.md D-43 to D-49; app/src/achievements.ts; public/js/script.js drawAchievements.
+----
+Priority:   58
+Status: ToDo
+ID: achtelem-5rwx
+Created: 2026-11-22T20:04:21Z
+Updated: 2026-11-22T20:04:21Z
+
+Telemetry on achievements: record each rung reached, and report them.
+
+Goal: see which achievements players reach and how fast.
+
+Settled design (needs achclient):
+- GameTelemetry gets rung records in a new batch array rungs: [{gameKey, counter, rung, unixSeconds}], one per rung the achievements client announces (rungsReached's own included). Same recording rules as other telemetry (GPC off etc.) — unlike the sync itself.
+- worker/telemetry.js checks them (counter in ACHIEVEMENT_COUNTERS, rung a whole number > 0), writes table rungs (player, signed_in, game_key, counter, rung, unix_seconds), INSERT OR IGNORE on (player, counter, rung). Additive: TELEMETRY_FORMAT stays 1.
+- telemetry_report gets an Achievements section: per counter, players reaching each rung, and the highest rung seen.
+
+Done when: R-rows for recorder, Worker and report (fixtures + fake wrangler end to end); just cc-test passes.
+
+Design docs: reconcile ONTOLOGY + CRITERIA (new R-rows own test/R-n/) + RATIONALE (a D-n for the decisions below) + ARCHITECTURE_LOG + CLAUDE.md in the same change. RULES_VERSION stays 1. Starreach (../starreach, read only, never edit or commit there) has the model this follows: docs/ONTOLOGY.md "Counters", "Goal", "Ladder", "Goal selection", "Goal check", and docs/RATIONALE.md D-43 to D-49; app/src/achievements.ts; public/js/script.js drawAchievements.
+----
 Priority:   49
 Status: ToDo
 ID: run-stats-m6pe
@@ -130,3 +257,17 @@ Updated: 2026-11-17T02:45:16Z
 
 Add a "Forget my data" control that deletes only this game's saved run and settings.
 Done looks like: a button in Settings (or About, if Settings isn't built yet) that asks to confirm, then removes only this game's localStorage keys (the saved run and settings keys; never localStorage.clear()), in try/catch, and starts a fresh intro. SHIP.md item: SAVE-7. Done when `just cc-test` passes.
+----
+Priority:   40
+Status: ToDo
+ID: wordings20-d92w
+Created: 2026-11-22T20:04:21Z
+Updated: 2026-11-22T20:04:21Z
+
+Expand Thing Factory's goal and achievement messages from 3 wordings per kind to 20.
+
+Goal: variety, like starreach's WORDINGS_PER_KIND 20 (docs/RATIONALE.md D-46 there).
+
+Settled design: MESSAGES.goalMet, rungReached and rungNotoriety in displayartifacts.js each get 20 whole-sentence wordings with {amount} and {label}; rungNotoriety stays wry. A test checks each list has exactly 20 and every wording uses both placeholders and reads after a number. Docs updated.
+
+Done when: the test passes and just cc-test passes.
