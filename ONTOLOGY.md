@@ -104,7 +104,7 @@ A `Piece` (position, color, label) with two fields set by the engine. Each kind 
 | `id` | int | Unique, from `nextId`; events refer to it. |
 | `kind` | `'crate' \| 'bigcrate' \| 'gremlin'` | Key into `PIECES`. |
 | `label` | string | `PIECES[kind].label`: `'📦'` or `'👹'`. |
-| `color` | `#rrggbb` \| `CRATE_COLORS` name | Gremlins get a seeded palette color; a crate gets the color of the spawn slot that made it. Only its color's target takes it (Motion rule); the client draws it in its color's shape (`CRATE_SHAPES`, D-84) and shades. [D] |
+| `color` | `#rrggbb` \| `CRATE_COLORS` name | Gremlins get a seeded palette color; a crate gets the color of the spawn slot that made it. Only its color's target takes it (Motion rule); the client draws it in its color's shape (this game's pairing of `CRATE_SHAPES`, D-84) and shades. [D] |
 
 `PIECES[kind]` is the template:
 
@@ -122,8 +122,14 @@ A `Piece` (position, color, label) with two fields set by the engine. Each kind 
 A big crate is a crate in every rule but `value`: Things, ice, bumps, Traps, targets and
 gremlins treat it the same (D-34).
 
-**Look (client only, D-84):** a crate is drawn in its color's shape, `GameDisplayArtifacts.CRATE_SHAPES`
-(red `'cube'`, green `'cylinder'`, blue `'strapped'`, yellow `'bag'`), filled with its `CRATE_SHADES`
+**Look (client only, D-84):** a crate is drawn in its color's shape, one of `GameDisplayArtifacts.CRATE_SHAPES`
+(`'cube'`, `'cylinder'`, `'strapped'`, `'bag'`). Which color gets which is dealt once per game from its
+seed: `GameUI.crateShapesFor(seed)` shuffles the four over `CRATE_COLORS` with `Rando.stream` seeded by a
+32-bit mix of the seed and `CRATE_SHAPE_SALT` (never the shared stream, so play is untouched), at
+`startGame` and `restoreSaved` (`dealCrateShapes`, which also redraws Help's World page so its pictures wear
+the game's shapes; the same seed, the same pairing); with no game it's `CRATE_SHAPES_DEFAULT`
+(red cube, green cylinder, blue strapped, yellow bag). Within a game every color has one shape, all
+different. Each is filled with its `CRATE_SHADES`
 (lit top, mid left, dark right) and fitting the cube's footprint; `GameUI.drawCrate` dispatches
 through one table of shape drawers (`CRATE_DRAW`: `drawCube`, `drawCylinder`, `drawStrapped`,
 `drawBag`), and everything that draws a piece goes through `PIECE_DRAW` (the board, the tick
@@ -198,6 +204,7 @@ in one command (`bomb`, D-48).
 | `queue` | `TickQueue` — one held command (the latest wins) that came in during `anim`: X, the Discard all button (D-83), a card's × or Shift+number, a board click with a card picked, `D`, `B`; it runs when the animation ends, re-checking its own guards; picking or putting back a card and a new game clear it (D-49, D-50). |
 | `running` | bool — Go/Pause. While true, the client calls `wait()` `RUN_GAP_MS` after each animation ends, and holds while a card is picked, a hex is selected or an overlay is open; the tick that meets a goal set turns it off (D-76). [D] |
 | `sound` | `GameSound`, `Math.random` only; muted by the Sound button or `M`, remembered in `localStorage` (D-53). |
+| `crateShapes` | `{CRATE_COLORS name: shape}` — which `CRATE_SHAPES` drawer each color's crates use: `CRATE_SHAPES_DEFAULT` until a game starts, then `crateShapesFor(state.seed)`, set by `startGame` and `restoreSaved` through `dealCrateShapes`, which redraws Help's World page with it (D-84). View only: not saved, not sent. |
 | (crash screen) | Not GameUI state: `crash.js`, loaded before every other script, owns it, so it works if GameUI never booted or a script failed to load (D-63). Its window `error` / `unhandledrejection` handlers show `#crash-panel` once (`crashed`): the error, the version (`<html data-version>` or "dev") and, with a board, the seed, selectable; Go stops and keys stop reaching the game; Reload reloads; Start fresh removes only `localStorage[SAVE_KEY]` (`'thingfactory.run'`, the saved run's key, written only around the sign-in redirect, D-67) and reloads. The same first error sends one crash record (the Telemetry section's Crash report, D-71); nothing about the send shows on the card. |
 | (sign-in) | Not GameUI state: `GameSignIn` (signin.js) reads the sign-in from `localStorage[AUTH_KEY]` each time it's asked, and GameUI only shows it (`showSignIn`: the Sign in buttons or the handle label in the bar and both size panels, the bar's Sign out, About's line) and keeps `signedIn` (bool: what the spots show, so Sign out shows and acts, D-69). Offered only on `SIGNIN_SITES` origins (§9, D-68). |
 

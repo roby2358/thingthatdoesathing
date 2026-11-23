@@ -25,13 +25,8 @@ const GameEngine = (function () {
     const MOTION_COUNTS = { SPRING: 'springThrows', ROCKET: 'rocketFlights', CANNON: 'cannonLobs', PUSHER: 'pushes', PULLER: 'pulls' };
     const BIG_CRATE = 'bigcrate';   // the piece kind bigDelivered counts
     // The seed of goal set `set`'s side stream (D-75): a 32-bit mix of the game's seed and the
-    // set's number (murmur3's finalizer over both), so each set of a game draws differently.
-    const goalSeed = (seed, set) => {
-        let h = (seed ^ Math.imul(set + 1, 0x9E3779B1)) >>> 0;
-        h = Math.imul(h ^ (h >>> 16), 0x85EBCA6B);
-        h = Math.imul(h ^ (h >>> 13), 0xC2B2AE35);
-        return (h ^ (h >>> 16)) >>> 0;
-    };
+    // set's number (Rando.mix), so each set of a game draws differently.
+    const goalSeed = (seed, set) => Rando.mix(seed, Math.imul(set + 1, 0x9E3779B1));
     // Where each cargo loss is counted: open water, a gremlin's wreck, or anything else (D-74).
     const SUNK = 'cratesSunk', SMASHED = 'cratesSmashed', LOST_OTHER = 'cratesLostOther';
     // A wanderer's own step, as a push; `wrecks` comes from its piece template.

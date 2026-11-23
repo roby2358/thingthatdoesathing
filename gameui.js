@@ -10,12 +10,12 @@
 const GameUI = (function () {
     const {
         HEX_SIZE, COUNTER_SIZE, HOP_MS, RUN_GAP_MS, MILESTONE_MS, NOTICE_MS, REASONS, TERRAIN_COLORS, TERRAIN_NAMES, THING_LOOK,
-        PIECE_LOOK, CRATE_SHADES, CRATE_SHAPES, CRATE_TRIM, BIG_CRATE_SCALE, COLOR_INK, SPLAT_BLOTS, SOURCE_COLOR, PORT_NEUTRAL_MARK, PORT_OUTLINE,
+        PIECE_LOOK, CRATE_SHADES, CRATE_SHAPES, CRATE_SHAPES_DEFAULT, CRATE_SHAPE_SALT, CRATE_TRIM, BIG_CRATE_SCALE, COLOR_INK, SPLAT_BLOTS, SOURCE_COLOR, PORT_NEUTRAL_MARK, PORT_OUTLINE,
         PORT_MARK_WIDTH, PORT_RING_RADII, PORT_PLUS_REACH, PORT_OUTLINE_WIDTH, BG_COLOR, UI_FONT, REACH_COLOR, MAP_SIZE_NOTES,
         COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES, ABOUT, HELP_CARD_PX, HELP_PIECE_SCALE, HELP_LADDER_SHOWN, WORLD_LOOK,
         SAVE_KEY, SAVE_VERSION, SAVE_REDIRECT_MAX_AGE_S, MESSAGES, RUNG_BANNER_LINES, SELECT_HINTS
     } = GameDisplayArtifacts;
-    const { TERRAIN, THINGS, WHITE, HAND_SIZE, MAP_SIZES, CARDS, PIECES, MAX_SLIDE, GREMLIN_LUNGE_CHANCE, GOALS_PER_GAME, aims, cardOf, nextMilestone } = GameArtifacts;
+    const { TERRAIN, THINGS, WHITE, HAND_SIZE, MAP_SIZES, CARDS, CRATE_COLORS, PIECES, MAX_SLIDE, GREMLIN_LUNGE_CHANCE, GOALS_PER_GAME, aims, cardOf, nextMilestone } = GameArtifacts;
     const SIZE_KEYS = Object.keys(MAP_SIZES);
     // A splat burst's color, by piece kind: a gremlin's own color, a crate's side face.
     const SPLAT_COLOR = {
@@ -23,6 +23,20 @@ const GameUI = (function () {
         bigcrate: p => CRATE_SHADES[p.color].left,
         gremlin: p => p.color,
     };
+    // A game's crate shapes (D-84): CRATE_SHAPES shuffled over CRATE_COLORS by an independent
+    // stream seeded from Rando.mix(seed, CRATE_SHAPE_SALT). It never reads or moves the shared
+    // Rando stream, so play is untouched; the same seed always deals the same.
+    function crateShapesFor(seed) {
+        const rng = Rando.stream(Rando.mix(seed, CRATE_SHAPE_SALT));
+        const shapes = CRATE_SHAPES.slice();
+        for (let i = shapes.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            [shapes[i], shapes[j]] = [shapes[j], shapes[i]];
+        }
+        const out = {};
+        CRATE_COLORS.forEach((c, i) => { out[c] = shapes[i]; });
+        return out;
+    }
     const END_CUES = ['deliver', 'splat', 'sink'];   // the one sound a tick's endings play, by priority
     // A card's picture on a small canvas `px` square (the news panel and the milestone banner).
     function cardPicture(kind, px) {
@@ -513,6 +527,7 @@ const GameUI = (function () {
             this.canvas = canvas;
             this.ctx = canvas.getContext('2d');
             this.sound = new GameSound();
+            this.crateShapes = CRATE_SHAPES_DEFAULT;   // color → shape; the game's own once one starts (D-84)
 
             this.panX = 0;
             this.panY = 0;
@@ -554,6 +569,11 @@ const GameUI = (function () {
             this.bannerTimer = null; // hides the milestone banner
             this.handDrawn = null;   // what renderHand last drew, so it redraws only on change
             this.signedIn = false;   // the sign-in spots show a sign-in (showSignIn), so the bar's Sign out shows (D-69)
+        }
+
+        // A seed's crate shapes, color → shape (D-84): what startGame and restoreSaved deal.
+        static crateShapesFor(seed) {
+            return crateShapesFor(seed);
         }
 
         // ---- Lifecycle ----
@@ -706,6 +726,7 @@ const GameUI = (function () {
             const view = save.ui && typeof save.ui === 'object' ? save.ui : {};
             if (!Number.isSafeInteger(view.telemetrySeq) || view.telemetrySeq < 0) return false;
             if (!this.engine.restore(save.state).ok) return false;
+            this.dealCrateShapes();   // the same seed, the same shapes (D-84)
             GameTelemetry.resumeGame({ seed: this.state.seed, size: this.state.size, gameKey: view.telemetryGameKey, eventSeq: view.telemetrySeq });
             this.setRunning(false);   // Go waits for the player, who may not remember it was on
             this.canvas.width = window.innerWidth;
@@ -733,6 +754,7 @@ const GameUI = (function () {
         startGame(size) {
             const fromIntro = this.overlay === 'intro';
             this.engine.newGame(Math.floor(Math.random() * 0x100000000), size);
+            this.dealCrateShapes();   // this game's shapes (D-84)
             GameTelemetry.startGame({ seed: this.state.seed, size });   // telemetry starts here, never at page load (D-65)
             GameTelemetry.goalSet('start', this.state);                 // the new game's set 0 (D-77)
             this.picked = null;
@@ -789,6 +811,16 @@ const GameUI = (function () {
                 row.appendChild(text);
                 list.appendChild(row);
             }
+            this.buildWorld();
+            document.getElementById('bomb-wipes').textContent = String(cardOf('BOMB').wipes);
+            document.getElementById('help').addEventListener('click', () => this.showHelp());
+            this.helpPager.wire();
+        }
+
+        // Help's World page (D-61): one row per WORLD_LOOK entry, its picture drawn for the game
+        // on now, so its crates wear this game's shapes (D-84); built at attach and again
+        // whenever a game's pairing is dealt (dealCrateShapes).
+        buildWorld() {
             const world = document.getElementById('help-world');
             world.innerHTML = '';
             const numbers = worldNumbers();
@@ -808,9 +840,13 @@ const GameUI = (function () {
                 row.appendChild(text);
                 world.appendChild(row);
             }
-            document.getElementById('bomb-wipes').textContent = String(cardOf('BOMB').wipes);
-            document.getElementById('help').addEventListener('click', () => this.showHelp());
-            this.helpPager.wire();
+        }
+
+        // A game's crate shapes (D-84), from its seed: what startGame and restoreSaved deal, then
+        // Help's World page redrawn with them.
+        dealCrateShapes() {
+            this.crateShapes = crateShapesFor(this.state.seed);
+            this.buildWorld();
         }
 
         // A World row's picture (D-61) on a `px` canvas, drawn by the board's own code under a
@@ -2159,8 +2195,8 @@ const GameUI = (function () {
             PIECE_DRAW[p.kind](this, x, y, p, alpha, scale);
         }
 
-        // A crate of a CRATE_COLORS color centred on (cx, cy), in its color's shape (CRATE_SHAPES,
-        // D-84) and shades. Every shape fits the cube's footprint, cx ± w by cy ± w: a top face
+        // A crate of a CRATE_COLORS color centred on (cx, cy), in its color's shape (this game's
+        // crateShapes, D-84) and shades. Every shape fits the cube's footprint, cx ± w by cy ± w: a top face
         // 2w wide and w tall (centred on `top`) over sides d deep.
         drawCrate(cx, cy, color, alpha, scale) {
             const ctx = this.ctx;
@@ -2173,7 +2209,7 @@ const GameUI = (function () {
             ctx.strokeStyle = CRATE_TRIM.outline;
             ctx.lineWidth = 1;
             ctx.lineJoin = 'round';
-            CRATE_DRAW[CRATE_SHAPES[color]](this, g);
+            CRATE_DRAW[this.crateShapes[color]](this, g);
             ctx.restore();
         }
 

@@ -40,6 +40,15 @@ const Rando = (function () {
             Rando.seed(a);
         }
 
+        // A 32-bit mix of a seed and a salt (murmur3's finalizer over seed ^ salt): the seed of a
+        // side stream (stream) that draws differently per salt (the goals' D-75, the crate shapes' D-84).
+        static mix(seed, salt) {
+            let h = (seed ^ salt) >>> 0;
+            h = Math.imul(h ^ (h >>> 16), 0x85EBCA6B);
+            h = Math.imul(h ^ (h >>> 13), 0xC2B2AE35);
+            return (h ^ (h >>> 16)) >>> 0;
+        }
+
         // An independent mulberry32 generator seeded with n: a function returning floats in
         // [0, 1). It never reads or moves the shared stream (the goals' side stream, D-75).
         static stream(n) {

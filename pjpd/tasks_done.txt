@@ -886,6 +886,27 @@ Done when: R-79 checks the five new scales and their first rungs, R-85 checks th
 ----
 Priority:   55
 Status: Done
+ID: shapemix-q2vd
+Created: 2026-11-23T05:03:31Z
+Updated: 2026-11-23T05:11:32Z
+
+Shuffle which crate shape goes with which crate color, once per game, from the game's seed (the designer's call, 2026-11-23).
+
+Goal: variety between games while keeping D-84's point: within one game every color has one shape, so shapes still tell colors apart.
+
+Settled design:
+- Display only (GameUI / displayartifacts); no engine, GameState, save or telemetry change; RULES_VERSION stays 1.
+- The pairing is a permutation of the four shape keys over CRATE_COLORS, derived from state.seed: shuffle the shape list with Rando.stream(a 32-bit mix of the seed and a fixed display salt) — an independent generator that never reads or moves the shared Rando stream, so play is untouched. Same seed → same pairing, so a replay or a restored save (sign-in redirect) looks the same.
+- CRATE_SHAPES in displayartifacts.js becomes the list of the four shape keys (cube, cylinder, strapped, bag) plus the fixed default pairing used when there's no game yet (the intro, tests without a game); GameUI computes the game's pairing when a game starts or is restored (startGame, restoreSaved) and drawCrate looks the shape up there. One table of drawers stays (no if/else on color).
+- Everything that draws a crate follows the game's pairing: board, animation, Bomb bursts, screencaps, and Help's World page pictures (drawn for the current game).
+- Big crates keep their color's (shuffled) shape at BIG_CRATE_SCALE.
+
+Docs: ONTOLOGY look paragraph, CRITERIA (amend R-116 or a new R-row: the pairing is a permutation, deterministic per seed, varies across seeds, doesn't move Rando, every crate draw follows it), RATIONALE (amend D-84 with the shuffle and why; alternatives: a random shape per crate — rejected, loses the color cue; shape by value), ARCHITECTURE_LOG entry dated 2026-11-23, CLAUDE.md displayartifacts/gameui rows.
+
+Done when: tests show the pairing is a permutation of the four shapes, the same for the same seed (and after save/restore), different for some seeds, that computing it leaves Rando.state() unchanged, and that board drawing uses it; just cc-test passes.
+----
+Priority:   55
+Status: Done
 ID: discardall-5yq3
 Created: 2026-11-23T04:10:43Z
 Updated: 2026-11-23T04:46:37Z

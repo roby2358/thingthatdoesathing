@@ -199,9 +199,14 @@ const GameDisplayArtifacts = (function () {
         },
         CRATE_SHADES,                // built above: top / left / right faces, plus `light`
         BIG_CRATE_SCALE: 1.5,        // a big crate is drawn this much bigger than a crate (D-34)
-        // Each crate color's shape (D-84), so colors are told apart by shape as well as hue: a key
-        // into gameui.js's CRATE_DRAW. Every CRATE_COLORS name has one, each a different shape.
-        CRATE_SHAPES: { red: 'cube', green: 'cylinder', blue: 'strapped', yellow: 'bag' },
+        // The crate shapes (D-84), so colors are told apart by shape as well as hue: each a key
+        // into gameui.js's CRATE_DRAW. Each game deals them out over CRATE_COLORS once, shuffled
+        // from its seed (GameUI.crateShapesFor, salted with CRATE_SHAPE_SALT), so within a game
+        // every color has one shape, all different; CRATE_SHAPES_DEFAULT is the pairing used
+        // while there's no game (the intro).
+        CRATE_SHAPES: ['cube', 'cylinder', 'strapped', 'bag'],
+        CRATE_SHAPES_DEFAULT: { red: 'cube', green: 'cylinder', blue: 'strapped', yellow: 'bag' },
+        CRATE_SHAPE_SALT: 0x5AFE5EED,  // mixed into the seed for the shape shuffle's own stream
         // The non-color parts of the shapes: every shape's outline, the strapped cube's bands and
         // buckles, the bag's tie, the hoop and fold lines.
         CRATE_TRIM: { outline: '#000', strap: '#2a1f16', buckle: '#d8d8d0', cord: '#3a2814', line: 'rgba(0, 0, 0, 0.45)' },

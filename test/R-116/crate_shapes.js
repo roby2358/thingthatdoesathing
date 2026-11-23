@@ -1,5 +1,6 @@
-// R-116: each crate color has its own shape (D-84). CRATE_SHAPES names one per CRATE_COLORS
-// entry, all different; drawing a crate or a big crate of a color, through the board's own
+// R-116: each crate color has its own shape (D-84). CRATE_SHAPES lists the four shapes and
+// CRATE_SHAPES_DEFAULT names one per CRATE_COLORS entry, all different; in a game the pairing is
+// the game's own (GameUI.crateShapes, R-117), and drawing a crate or a big crate of a color, through the board's own
 // drawPiece (PIECE_DRAW), calls that shape's drawer and no other, at BIG_CRATE_SCALE for a big
 // one, filling with the color's CRATE_SHADES and staying inside the cube's footprint. A
 // recording 2D context stands in for the canvas. The board render and Help's World pictures
@@ -10,19 +11,23 @@ const { liveGame } = require('../helpers/goals');
 
 const p = liveGame('small');
 const COLORS = p.run('GameArtifacts.CRATE_COLORS');
-const SHAPES = p.run('GameDisplayArtifacts.CRATE_SHAPES');
+const SHAPE_LIST = p.run('GameDisplayArtifacts.CRATE_SHAPES');
+const DEFAULT = p.run('GameDisplayArtifacts.CRATE_SHAPES_DEFAULT');
+const SHAPES = p.ui.crateShapes;   // this game's pairing, which every crate draw follows
 const SHADES = p.run('GameDisplayArtifacts.CRATE_SHADES');
 const TRIM = p.run('GameDisplayArtifacts.CRATE_TRIM');
 const BIG = p.run('GameDisplayArtifacts.BIG_CRATE_SCALE');
 const COUNTER = p.run('GameDisplayArtifacts.COUNTER_SIZE');
 const DRAWER = { cube: 'drawCube', cylinder: 'drawCylinder', strapped: 'drawStrapped', bag: 'drawBag' };
 
-check('CRATE_SHAPES covers every CRATE_COLORS entry and nothing else',
-    COLORS.length === Object.keys(SHAPES).length && COLORS.every(c => c in SHAPES));
-check('the settled shapes: red cube, green cylinder, blue strapped, yellow bag',
-    SHAPES.red === 'cube' && SHAPES.green === 'cylinder' && SHAPES.blue === 'strapped' && SHAPES.yellow === 'bag');
-check('every color a different shape, each with a drawer', new Set(Object.values(SHAPES)).size === COLORS.length
-    && Object.values(SHAPES).every(s => typeof p.ui[DRAWER[s]] === 'function'));
+check('CRATE_SHAPES lists the four shapes, each with a drawer', SHAPE_LIST.length === 4 && new Set(SHAPE_LIST).size === 4
+    && SHAPE_LIST.every(s => s in DRAWER && typeof p.ui[DRAWER[s]] === 'function'));
+check('CRATE_SHAPES_DEFAULT covers every CRATE_COLORS entry and nothing else',
+    COLORS.length === Object.keys(DEFAULT).length && COLORS.every(c => c in DEFAULT));
+check('the default pairing: red cube, green cylinder, blue strapped, yellow bag',
+    DEFAULT.red === 'cube' && DEFAULT.green === 'cylinder' && DEFAULT.blue === 'strapped' && DEFAULT.yellow === 'bag');
+check('the game\'s pairing: every color a different one of the shapes', COLORS.length === Object.keys(SHAPES).length
+    && COLORS.every(c => SHAPE_LIST.includes(SHAPES[c])) && new Set(COLORS.map(c => SHAPES[c])).size === COLORS.length);
 
 // A 2D context that logs every call ([name, ...args]) and every fillStyle / strokeStyle set;
 // a gradient logs its stop colors as fills.

@@ -63,7 +63,7 @@ that comes onto a target dies there, so they can't camp it.
 
 ## UI
 
-- Each crate color has its own shape, so colors tell apart without the hue: red crates are plain cubes, green ones drums, blue ones cubes bound with dark straps, yellow ones tied sacks; a big crate is the same shape, bigger
+- Each crate color has its own shape, so colors tell apart without the hue: plain cubes, drums, cubes bound with dark straps, tied sacks; which color gets which is shuffled at each new game (the same seed, the same shapes), but within a game every color keeps one; a big crate is the same shape, bigger
 - A source fills its hex with the color of the crates it makes, with a light plus across it; a source that makes several colors is split into equal wedges, one per color, under a pale plus. A target fills its hex with its color, with two light rings. Both have a dark outline so they stand out from the land and water around them
 - `1` `2` `3` or click a card to pick it; legal hexes tint yellow
 - `R` / `Shift+R` / mouse wheel turn the Thing before placing
