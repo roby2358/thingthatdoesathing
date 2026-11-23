@@ -1,3 +1,27 @@
+Priority:   55
+Status: ToDo
+ID: lunge-sjuw
+Created: 2026-11-23T02:54:41Z
+Updated: 2026-11-23T02:54:41Z
+
+Gremlins lunge: a gremlin next to a crate has a 16% chance each tick to jump onto it and smash it, even when a Thing would carry the gremlin (the designer's call, 2026-11-23: "up the tension").
+
+Goal: crates near gremlins are in real danger, not only when a wandering gremlin happens to step their way; a gremlin riding a Belt beside a crate line is a threat.
+
+Settled design:
+- artifacts.js: GREMLIN_LUNGE_CHANCE = 0.16 (a tunable number, ONTOLOGY Numbers [T]).
+- Lunges run as the tick starts, before any claims (before Pushers/Pullers and the other Things claim pieces, before wanderers pick directions). For each gremlin in piece order (state.pieces order): if any of its 6 neighbors holds a cargo piece (crate or bigcrate), draw one Rando number; below GREMLIN_LUNGE_CHANCE it lunges onto a uniform Rando.choice of those neighboring crates. Gremlins with no neighboring crate draw nothing. Each later gremlin sees the board as the earlier lunges left it.
+- A lunge: the crate is destroyed exactly like a gremlin's wreck today (lost += its value, cratesSmashed via loseValue's SMASHED cause, a splat event by the gremlin), and the gremlin moves into the crate's hex at hop 1 (a move event, one hex). Lunges resolve before the hop simulation, so a crate can't dodge one by moving that tick.
+- The lunge ends the gremlin's movement for the tick: the gremlin is marked claimed, so no Thing (Belt, Spring, Pusher, Puller, …) moves it and it doesn't wander; the smashed crate gets no motion. The hex the gremlin left is empty for the rest of the tick.
+- On landing in the crate's hex the gremlin gets the ground-arrival rules that can apply there except sliding: a Trap kills it (trapped), a target kills it (as any gremlin coming onto a target). It does not slide on ice or a Slide (its movement has ended). A crate can never stand on open water, so there's no sinking case.
+- Big crates are lunged at and smashed the same way (value 10 lost).
+- This uses the shared Rando stream, so seeded play changes: update seeded tests to the new outcomes rather than loosening them, and rerun just cc-sim 200 small and just cc-sim-to 100 small 5; record the new figures in the decision. RULES_VERSION stays 1 (it changes only for a drastic, breaking change at the designer's call). The save format is unchanged.
+- Help's World page (WORLD_LOOK in displayartifacts.js, the gremlin entry, its says(n) reading the chance from GameArtifacts) mentions that a gremlin next to a crate may pounce on it; README/DYNAMICS gremlin lines too.
+
+Docs: ONTOLOGY (a Lunge rule in the Tick before claims, the gremlin template/Numbers, invariants if any), CRITERIA new R-row owning test/R-n/, RATIONALE new D-n (choice, alternatives: lunge inside the hop simulation where a moving crate could dodge — rejected because most crates ride Belts and would nearly always escape; the why: tension), ARCHITECTURE_LOG entry dated 2026-11-23, CLAUDE.md Tick bullet.
+
+Done when: tests on flatGame boards with a stubbed/forced Rando cover: a gremlin next to a crate lunges (crate gone, cratesSmashed +1, lost +value, gremlin on the crate's hex, splat and move events); no lunge above the chance (normal behaviour); a gremlin on a Belt beside a crate lunges and isn't carried; a crate on a Belt next to a gremlin is smashed before it moves; a gremlin lunging onto a crate standing on a Trap dies (trapped); no slide after lunging onto ice; a gremlin with no neighboring crate draws nothing from Rando; two gremlins next to one crate — the second sees it gone; just cc-test passes; cc-sim figures recorded.
+----
 Priority:   49
 Status: ToDo
 ID: run-stats-m6pe
