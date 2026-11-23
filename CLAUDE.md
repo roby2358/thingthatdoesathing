@@ -30,8 +30,8 @@ Cite stable IDs (`R-12`, `D-6`), never section numbers, and reconcile ONTOLOGY +
 
 ## Running / Developing
 
-No build or install step: double-click `index.html` to run from `file://` (or `npx serve .` /
-`python -m http.server 8000`). Recipes (`justfile`; wrangler is yuwakisacloud's pinned install, so that repo sits
+No build or install step: `just play` (or double-click `index.html`) runs it from `file://`; `npx serve .` or
+`python -m http.server 8000` serve it. Recipes (`justfile`; wrangler is yuwakisacloud's pinned install, so that repo sits
 next to this one):
 
 - `just cc-test [-v]`: the whole suite (`node test/run.js`). See the `thingfactory-tools` skill.
