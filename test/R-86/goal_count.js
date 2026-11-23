@@ -8,21 +8,21 @@ const { flatGame } = require('../helpers/load');
 
 const { g, state, engine } = flatGame();
 const { COUNTERS } = g.GameArtifacts;
-state.counts.placed = 7; state.counts.moved = 2; state.trapped = 4;
+state.counts.placed = 7; state.counts.moved = 2; state.trapped = 400;
 state.goals = { set: 0, base: engine.counters(), list: [
     { counter: 'placed', amount: 10, met: false },
     { counter: 'moved', amount: 2, met: false },
-    { counter: 'trapped', amount: 5, met: false },
+    { counter: 'trapped', amount: 500, met: false },
 ] };
 const gs = engine.goalStates();
 check('goalStates: one per goal, in order, with the counter\'s label', gs.length === 3 &&
     gs.map(x => x.counter).join() === 'placed,moved,trapped' &&
     gs.every(x => x.label === COUNTERS.find(c => c.key === x.counter).label));
 check('counts start at 0 from the base, not the game\'s totals', gs.every(x => x.count === 0 && x.met === false));
-check('amount carried', gs[0].amount === 10 && gs[1].amount === 2 && gs[2].amount === 5);
-state.counts.placed = 12; state.counts.moved = 3; state.trapped = 6;
+check('amount carried', gs[0].amount === 10 && gs[1].amount === 2 && gs[2].amount === 500);
+state.counts.placed = 12; state.counts.moved = 3; state.trapped = 600;
 const gs2 = engine.goalStates();
-check('a count is the counter now minus the base', gs2[0].count === 5 && gs2[1].count === 1 && gs2[2].count === 2);
+check('a count is the counter now minus the base', gs2[0].count === 5 && gs2[1].count === 1 && gs2[2].count === 200);
 const save = JSON.stringify(engine.save());
 engine.goalStates();
 check('goalStates changes nothing', JSON.stringify(engine.save()) === save);

@@ -36,15 +36,15 @@ const game = (key, o = {}) => ({ gameKey: key, playerId: 'h1', signedIn: true, f
 const rung = (key, player, counter, n, t = 10) => ({ gameKey: key, playerId: player, signedIn: true, counter, rung: n, unixSeconds: T0 + t });
 const empty = () => ({ games: [], events: [], milestones: [], crashes: [], goalSets: [], goalsMet: [], rungs: [] });
 
-/** h1 reached placed 10, 20, 50 and trapped 1; h2 placed 10, 20 and discards 10; h3 placed 10 and trapped 1, 2. */
+/** h1 reached placed 10, 20, 50 and trapped 100; h2 placed 10, 20 and discards 10; h3 placed 10 and trapped 100, 200. */
 function fixture() {
     return {
         ...empty(),
         games: [game('g1'), game('g2', { playerId: 'h2' }), game('g3', { playerId: 'h3', size: 'medium' })],
         rungs: [
-            rung('g1', 'h1', 'placed', 10), rung('g1', 'h1', 'placed', 20), rung('g1', 'h1', 'placed', 50), rung('g1', 'h1', 'trapped', 1),
+            rung('g1', 'h1', 'placed', 10), rung('g1', 'h1', 'placed', 20), rung('g1', 'h1', 'placed', 50), rung('g1', 'h1', 'trapped', 100),
             rung('g2', 'h2', 'placed', 10), rung('g2', 'h2', 'placed', 20), rung('g2', 'h2', 'discards', 10),
-            rung('g3', 'h3', 'placed', 10), rung('g3', 'h3', 'trapped', 1), rung('g3', 'h3', 'trapped', 2),
+            rung('g3', 'h3', 'placed', 10), rung('g3', 'h3', 'trapped', 100), rung('g3', 'h3', 'trapped', 200),
         ],
     };
 }
@@ -56,8 +56,8 @@ function fixture() {
     check('rung records and distinct players in all', f.rungs === 10 && f.players === 3);
     check('placed: 3 players, highest 50, per rung 10: 3, 20: 2, 50: 1', row('placed').players === 3 && row('placed').highest === 50 &&
         JSON.stringify(row('placed').perRung) === '[{"rung":10,"players":3},{"rung":20,"players":2},{"rung":50,"players":1}]');
-    check('trapped: 2 players, highest 2, per rung 1: 2, 2: 1', row('trapped').players === 2 && row('trapped').highest === 2 &&
-        row('trapped').perRung.map(r => r.rung + ':' + r.players).join() === '1:2,2:1');
+    check('trapped: 2 players, highest 200, per rung 100: 2, 200: 1', row('trapped').players === 2 && row('trapped').highest === 200 &&
+        row('trapped').perRung.map(r => r.rung + ':' + r.players).join() === '100:2,200:1');
     check('discards (a negative counter): 1 player, highest 10', row('discards').players === 1 && row('discards').highest === 10);
     check('most players first, ties by name', f.perCounter.map(r => r.counter).join() === 'placed,trapped,discards');
     const twice = fixture();
@@ -72,7 +72,7 @@ function fixture() {
     const text = report(fixture(), HEADING, SIZES);
     check('the Achievements title: rungs and players', text.includes('\nAchievements: 10 rungs reached by 3 players\n'));
     check('its table header', /\n  counter +players +highest rung +players per rung\n/.test(text));
-    check('a counter row', /\n  placed +3 +50 +10: 3, 20: 2, 50: 1\n/.test(text) && /\n  trapped +2 +2 +1: 2, 2: 1\n/.test(text));
+    check('a counter row', /\n  placed +3 +50 +10: 3, 20: 2, 50: 1\n/.test(text) && /\n  trapped +2 +200 +100: 2, 200: 1\n/.test(text));
     check('after Goals, before Volume', text.indexOf('\nAchievements:') > text.indexOf('\nGoals:') && text.indexOf('\nAchievements:') < text.indexOf('\nVolume:'));
     const bare = report({ ...empty(), games: [game('g')] }, HEADING, SIZES);
     check('no rung records: 0 rungs by 0 players, (none)', /\nAchievements: 0 rungs reached by 0 players\n  \(none\)/.test(bare));

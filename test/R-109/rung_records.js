@@ -48,7 +48,7 @@ check('the timer sends them with the batch, then the queue is empty', p.fire() =
 const N = p.GameDisplayArtifacts.TELEMETRY_FLUSH_RECORDS;
 p.T.rungs(Array.from({ length: N - 1 }, (_, i) => said('discards', 10 * (i + 1))));
 check('rung records count toward TELEMETRY_FLUSH_RECORDS: not yet at N − 1', p.sent.length === 1);
-p.T.rungs([said('trapped', 2)]);
+p.T.rungs([said('trapped', 200)]);
 check('… sent at once at N', p.sent.length === 2 && p.sent[1].rungs.length === N && p.T.pending() === null);
 
 // ---- the gates ----

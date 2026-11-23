@@ -31,7 +31,7 @@ const snap = { turn: 1, delivered: 0, lost: 0, exGremlins: 0, trapped: 0, things
 const event = (key, seq, t) => ({ gameKey: key, seq, playerId: 'p', signedIn: false, unixSeconds: t, command: 'place', accepted: true, ...snap, args: {}, deliveredByColor: [0, 0, 0, 0] });
 const milestone = (key, n, t) => ({ gameKey: key, milestone: n, playerId: 'p', signedIn: false, unixSeconds: t, ...snap, turn: n, delivered: n, deliveredByColor: [n, 0, 0, 0] });
 const goalSet = (key, set, t) => ({ gameKey: key, set, playerId: 'p', signedIn: false, how: 'start', turn: 1, unixSeconds: t,
-    goals: [{ counter: 'placed', amount: 5 }, { counter: 'trapped', amount: 5 }, { counter: 'cannonLobs', amount: 5 }] });
+    goals: [{ counter: 'placed', amount: 5 }, { counter: 'trapped', amount: 500 }, { counter: 'cannonLobs', amount: 5 }] });
 const goalMet = (key, set, index, t) => ({ gameKey: key, set, index, playerId: 'p', signedIn: false, counter: 'placed', amount: 5, turn: 9, unixSeconds: t });
 const rung = (key, t) => ({ gameKey: key, playerId: 'p', signedIn: true, counter: 'placed', rung: 10, unixSeconds: t });
 const crash = (id, t, gameKey = null) => ({ id, unixSeconds: t, gameKey, playerId: 'p', signedIn: false, version: 'v', message: 'boom' });

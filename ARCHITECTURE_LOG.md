@@ -2,6 +2,9 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-23 — Gremlins trapped on a scale of 100 (D-74)
+`COUNTERS`' `trapped` row: scale 1 → 100, the designer's call (trapped gremlins pile up at the same pace as ex-gremlins, so the two share a scale). Before, its ladder ran 1, 2, 5, 10, …; now 100, 200, 500, 1000, …, so a trapped goal deals 500 (small, level 3), 500 or 1000 (medium, large), 1000 (huge) instead of 5 or 10. `RULES_VERSION` stays 1. Tests: R-79 checks the scale, R-85 the trapped goal amounts by size beside exGremlins'; R-70, R-74, R-86, R-97, R-98, R-103, R-105, R-107, R-108, R-109 and R-111 moved their trapped amounts and rungs to the new ladder.
+
 ### 2026-11-23 — A Cannon's lob counts its mountains (D-74)
 `mountainsFlown` now also counts each mountain hex a Cannon's lob passes over, the designer's call: `passedOver` (the `over` phase's arrival in the hop simulation) counts it as the piece goes over, so a shot that doesn't fire counts nothing. Before, only a Spring's flight counted (`flewInto`), and D-74 call (3) said a lob over a mountain didn't. Play unchanged; `RULES_VERSION` stays 1. R-81's Cannon case now lobs over two mountains (adds 2), plus one coming down early on its 4th hex (2) and a no-fire case with mountains in its stretch (0). ONTOLOGY's Counters row, CRITERIA R-81 and D-74 follow.
 

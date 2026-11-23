@@ -27,8 +27,8 @@ for (const k of ['info', 'warn', 'error', 'debug']) console[k] = (...a) => logge
 
 const GAME = { gameKey: 'g1', startedUnixSeconds: 1763700000, seed: 4242, size: 'small', version: 'abc1234', rulesVersion: 1 };
 const SET = { gameKey: 'g1', set: 0, how: 'start', turn: 1, unixSeconds: 1763700001,
-    goals: [{ counter: 'cratesDelivered', amount: 50 }, { counter: 'trapped', amount: 5 }, { counter: 'placed', amount: 50 }] };
-const MET = { gameKey: 'g1', set: 0, index: 1, counter: 'trapped', amount: 5, turn: 40, unixSeconds: 1763700300, met: true };
+    goals: [{ counter: 'cratesDelivered', amount: 50 }, { counter: 'trapped', amount: 500 }, { counter: 'placed', amount: 50 }] };
+const MET = { gameKey: 'g1', set: 0, index: 1, counter: 'trapped', amount: 500, turn: 40, unixSeconds: 1763700300, met: true };
 
 let worker, mod;
 async function post(d1, body, headers = {}) {
@@ -59,10 +59,10 @@ async function post(d1, body, headers = {}) {
         check('one goal_sets row per set, its fields', sets.length === 2 && sets[0].game_key === 'g1' && sets[0].set_no === 0 && sets[0].how === 'start' &&
             sets[0].turn === 1 && sets[0].unix_seconds === 1763700001 && sets[1].how === 'reroll' && sets[1].turn === 20);
         check('… its three counters and amounts in the set\'s order', sets[0].counter1 === 'cratesDelivered' && sets[0].amount1 === 50 &&
-            sets[0].counter2 === 'trapped' && sets[0].amount2 === 5 && sets[0].counter3 === 'placed' && sets[0].amount3 === 50 && sets[1].counter3 === 'pushesPulls');
+            sets[0].counter2 === 'trapped' && sets[0].amount2 === 500 && sets[0].counter3 === 'placed' && sets[0].amount3 === 50 && sets[1].counter3 === 'pushesPulls');
         const met = d1.rows('goals_met', 'set_no, idx');
         check('one goals_met row per goal met, its fields', met.length === 2 && met[0].set_no === 0 && met[0].idx === 1 && met[0].counter === 'trapped' &&
-            met[0].amount === 5 && met[0].turn === 40 && met[0].unix_seconds === 1763700300 && met[1].set_no === 1 && met[1].idx === 0 && met[1].counter === 'cannonLobs');
+            met[0].amount === 500 && met[0].turn === 40 && met[0].unix_seconds === 1763700300 && met[1].set_no === 1 && met[1].idx === 0 && met[1].counter === 'cannonLobs');
         check('every goal row carries the batch identity', [...sets, ...met].every(r => r.player_id === 'p-one' && r.signed_in === 0));
         await post(d1, { format: 1, player: 'p-two', goalSets: [{ ...SET, turn: 99 }], goalsMet: [{ ...MET, turn: 99 }] });
         const again = d1.rows('goal_sets', 'set_no'), metAgain = d1.rows('goals_met', 'set_no, idx');

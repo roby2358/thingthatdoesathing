@@ -43,10 +43,10 @@ function fixture() {
         games: [game('g1'), game('g2', { size: 'medium' })],
         events: [], milestones: [], crashes: [],
         goalSets: [
-            set('g1', 0, 'start', 1, [['rocketFlights', 5], ['trapped', 5], ['placed', 50]]),
+            set('g1', 0, 'start', 1, [['rocketFlights', 5], ['trapped', 500], ['placed', 50]]),
             set('g1', 1, 'reroll', 30, [['rocketFlights', 5], ['slides', 50], ['moved', 5]]),
-            set('g1', 2, 'next', 90, [['trapped', 5], ['exGremlins', 500], ['placed', 50]]),
-            set('g2', 0, 'start', 1, [['rocketFlights', 5], ['trapped', 5], ['moved', 5]]),
+            set('g1', 2, 'next', 90, [['trapped', 500], ['exGremlins', 500], ['placed', 50]]),
+            set('g2', 0, 'start', 1, [['rocketFlights', 5], ['trapped', 500], ['moved', 5]]),
         ],
         goalsMet: [
             met('g1', 0, 0, 'rocketFlights', 21),                                                        // 20 turns after its deal
@@ -86,7 +86,7 @@ function fixture() {
     check('no goal records: 0 sets, (none)', /\nGoals: 0 sets dealt, 0 done\n  \(none\)/.test(empty));
     const play = fixture();
     play.games.push(game('old', { startedUnixSeconds: T0 - 10 * 86400 }));
-    play.goalSets.push(set('old', 0, 'start', 1, [['rocketFlights', 5], ['trapped', 5], ['placed', 50]]));
+    play.goalSets.push(set('old', 0, 'start', 1, [['rocketFlights', 5], ['trapped', 500], ['placed', 50]]));
     const kept = fig.inPeriod(play, T0 - 86400).play;
     check('the period drops an old game\'s goal sets', kept.goalSets.length === 4 && kept.goalsMet.length === 5);
     play.games[1].rulesVersion = 2;
@@ -98,11 +98,11 @@ function fixture() {
 // ---- rows → records ----
 {
     const s = records.goalSetFromRow({ game_key: 'g', set_no: 2, player_id: 'p', signed_in: 1, how: 'next', turn: 50, unix_seconds: 9,
-        counter1: 'rocketFlights', amount1: 5, counter2: 'trapped', amount2: 10, counter3: 'placed', amount3: 100 });
+        counter1: 'rocketFlights', amount1: 5, counter2: 'trapped', amount2: 1000, counter3: 'placed', amount3: 100 });
     check('goal_sets row → record, its three goals as a list', s.gameKey === 'g' && s.set === 2 && s.signedIn === true && s.how === 'next' && s.turn === 50 &&
-        JSON.stringify(s.goals) === '[{"counter":"rocketFlights","amount":5},{"counter":"trapped","amount":10},{"counter":"placed","amount":100}]');
-    const m = records.goalMetFromRow({ game_key: 'g', set_no: 2, idx: 1, player_id: 'p', signed_in: 0, counter: 'trapped', amount: 10, turn: 70, unix_seconds: 11 });
-    check('goals_met row → record', m.set === 2 && m.index === 1 && m.counter === 'trapped' && m.amount === 10 && m.turn === 70 && m.signedIn === false);
+        JSON.stringify(s.goals) === '[{"counter":"rocketFlights","amount":5},{"counter":"trapped","amount":1000},{"counter":"placed","amount":100}]');
+    const m = records.goalMetFromRow({ game_key: 'g', set_no: 2, idx: 1, player_id: 'p', signed_in: 0, counter: 'trapped', amount: 1000, turn: 70, unix_seconds: 11 });
+    check('goals_met row → record', m.set === 2 && m.index === 1 && m.counter === 'trapped' && m.amount === 1000 && m.turn === 70 && m.signedIn === false);
     const q = records.queries(100);
     check('the goal queries are SELECTs over the period', /^SELECT \* FROM goal_sets WHERE unix_seconds >= 100 ORDER BY/.test(q.goalSets) &&
         /^SELECT \* FROM goals_met WHERE unix_seconds >= 100 ORDER BY/.test(q.goalsMet));
@@ -145,8 +145,8 @@ process.stdout.write(JSON.stringify([{ results, success: true, meta: {} }]));
     const wire = (n, how, turn, counters) => ({ gameKey: 'e2e', set: n, how, turn, unixSeconds: now - 100 + turn, goals: counters.map(([counter, amount]) => ({ counter, amount })) });
     const statuses = [
         await post({ format: 1, player: 'load-1', games: [{ gameKey: 'e2e', startedUnixSeconds: now - 100, seed: 7, size: 'small', version: 'abc1234', rulesVersion: 1 }],
-            goalSets: [wire(0, 'start', 1, [['rocketFlights', 5], ['trapped', 5], ['placed', 50]])],
-            goalsMet: [{ gameKey: 'e2e', set: 0, index: 1, counter: 'trapped', amount: 5, turn: 13, unixSeconds: now - 80, met: true }] }),
+            goalSets: [wire(0, 'start', 1, [['rocketFlights', 5], ['trapped', 500], ['placed', 50]])],
+            goalsMet: [{ gameKey: 'e2e', set: 0, index: 1, counter: 'trapped', amount: 500, turn: 13, unixSeconds: now - 80, met: true }] }),
         await post({ format: 1, player: 'load-1', goalSets: [wire(1, 'reroll', 20, [['moved', 5], ['slides', 50], ['cannonLobs', 5]])] }),
     ];
     check('the Worker took the goal batches', statuses.every(s => s === 204));

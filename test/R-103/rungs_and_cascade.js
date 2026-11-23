@@ -30,9 +30,9 @@ check('play goes on: no overlay', p.ui.overlay === null);
 
 heard.length = 0;
 p.run('Math.random = () => 0');
-p.run(`GameAchievements.counted(${JSON.stringify(counts(p, {}))}, ${JSON.stringify(counts(p, { exGremlins: 500, trapped: 1 }))})`);
+p.run(`GameAchievements.counted(${JSON.stringify(counts(p, {}))}, ${JSON.stringify(counts(p, { exGremlins: 500, trapped: 100 }))})`);
 check('two counters in one command: COUNTERS order, rising, then rungsReached 3 → 7 crosses 5, and 8 crosses none',
-    JSON.stringify(heard.map(a => [a.counter, a.amount])) === JSON.stringify([['exGremlins', 100], ['exGremlins', 200], ['exGremlins', 500], ['trapped', 1], ['rungsReached', 5]]));
+    JSON.stringify(heard.map(a => [a.counter, a.amount])) === JSON.stringify([['exGremlins', 100], ['exGremlins', 200], ['exGremlins', 500], ['trapped', 100], ['rungsReached', 5]]));
 check('rungsReached totals 8', p.ach('totals()').rungsReached === 8);
 check('Math.random 0 picks the first wording', heard[0].line === fill(words[0], 100, 'ex-gremlins'));
 check('the banner still at most RUNG_BANNER_LINES, the rest waiting', bannerLines(p).length === MAX && p.ui.rungWaiting.length === 8 - MAX);

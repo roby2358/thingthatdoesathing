@@ -11,9 +11,9 @@ const storage = memoryStorage();
 const p = achGame({ storage });
 check('ACHIEVEMENTS_KEY is thingfactory.totals', p.run('GameDisplayArtifacts.ACHIEVEMENTS_KEY') === 'thingfactory.totals');
 check('nothing written before anything counted', !storage.map.has('thingfactory.totals'));
-p.run(`GameAchievements.counted(${JSON.stringify(counts(p, {}))}, ${JSON.stringify(counts(p, { placed: 7, trapped: 1 }))})`);
+p.run(`GameAchievements.counted(${JSON.stringify(counts(p, {}))}, ${JSON.stringify(counts(p, { placed: 7, trapped: 100 }))})`);
 const kept = JSON.parse(storage.map.get('thingfactory.totals'));
-check('after a change: the totals written, rungsReached too', kept.placed === 7 && kept.trapped === 1 && kept.rungsReached === 3);
+check('after a change: the totals written, rungsReached too', kept.placed === 7 && kept.trapped === 100 && kept.rungsReached === 3);
 check('no /achievements fetch from file://', p.fetcher.calls.length === 0);
 
 const again = achGame({ storage });

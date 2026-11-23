@@ -1,17 +1,3 @@
-Priority:   64
-Status: ToDo
-ID: trapscale-swp7
-Created: 2026-11-23T01:45:50Z
-Updated: 2026-11-23T01:45:50Z
-
-Put the gremlins-trapped counter on a scale of 100, the same as ex-gremlins, so its ladder runs 100, 200, 500, 1000, … (the designer's call, 2026-11-23).
-
-Goal: trapped gremlins pile up at the same pace as ex-gremlins, so they share its scale (D-74's exGremlins amendment: scale 100).
-
-Settled design: in artifacts.js COUNTERS, the trapped row's scale goes from 1 to 100; nothing else changes. Goal amounts follow from the ladder (level n = rung(scale, n − 1)): small (level 3) 500, medium and large 500 or 1000, huge 1000. Achievement rungs: 100, 200, 500, …. RULES_VERSION stays 1. Update whatever pins the old scale: tests (R-79 table, R-85 goal deal, fixtures using trapped amounts), the ONTOLOGY Counters table, its provenance tag and Numbers row, D-74 (an "amended 2026-11-23" note in its header and the scale bullet, alongside exGremlins'), and an ARCHITECTURE_LOG entry dated 2026-11-23.
-
-Done when: the trapped row has scale 100, a test checks it, a trapped goal deals 500/1000 by size as above, and just cc-test passes.
-----
 Priority:   49
 Status: ToDo
 ID: run-stats-m6pe

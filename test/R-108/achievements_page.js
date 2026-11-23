@@ -13,9 +13,9 @@ const { achGame, counts, el, shown, LIVE, PORTAL, signedIn, memoryStorage, flush
 
 (async () => {
     // exGremlins 400: reached 200, next 500 → 2/3; cratesDelivered 15 and springThrows 15: 10 → 20, 1/2 each
-    // (a tie: table order); discards 3: no mark, next 10 → 3/10; trapped 1: reached 1, next 2 → 0;
+    // (a tie: table order); discards 3: no mark, next 10 → 3/10; trapped 100: reached 100, next 200 → 0;
     // placed 0: not active.
-    const stored = { cratesDelivered: 15, exGremlins: 400, trapped: 1, springThrows: 15, discards: 3 };
+    const stored = { cratesDelivered: 15, exGremlins: 400, trapped: 100, springThrows: 15, discards: 3 };
     const p = achGame({ storage: memoryStorage({ 'thingfactory.totals': JSON.stringify({ ...stored, placed: 0 }) }) });
     const rows = () => el(p, 'achievements-view').children;
     const text = r => r.children.slice(0, 3).map(c => c.textContent);
@@ -37,11 +37,11 @@ const { achGame, counts, el, shown, LIVE, PORTAL, signedIn, memoryStorage, flush
         JSON.stringify(flashed.sort()) === JSON.stringify(['Achievements reached', 'Ex-gremlins']) && rows().some(r => text(r)[0] === 'Cards discarded' && text(r)[1] === '4'));
     check('rungsReached (now 1) shows as an active row', rows().some(r => text(r)[0] === 'Achievements reached'));
     p.key('q');
-    p.run(`GameAchievements.counted(${JSON.stringify(counts(p, {}))}, ${JSON.stringify(counts(p, { trapped: 1 }))})`);
+    p.run(`GameAchievements.counted(${JSON.stringify(counts(p, {}))}, ${JSON.stringify(counts(p, { trapped: 100 }))})`);
     p.els['goals-side-expand'].fire('click');
     p.key('ArrowRight');
     const again = rows().filter(r => r.classList.set.has('flash')).map(r => r.children[0].textContent);
-    check('changed while closed: flashes when next drawn (trapped 2; rungsReached 2)', again.includes('Gremlins trapped') && !again.includes('Ex-gremlins'));
+    check('changed while closed: flashes when next drawn (trapped 200; rungsReached 2)', again.includes('Gremlins trapped') && !again.includes('Ex-gremlins'));
     p.key('q');
 
     const none = achGame();
