@@ -52,8 +52,8 @@ async function post(d1, body, headers = {}) {
     {
         const d1 = sqliteD1();
         const res = await post(d1, { format: 1, player: 'p-one', games: [GAME],
-            goalSets: [SET, { ...SET, set: 1, how: 'reroll', turn: 20, goals: [{ counter: 'cannonLobs', amount: 5 }, { counter: 'slides', amount: 100 }, { counter: 'pushesPulls', amount: 50 }] }],
-            goalsMet: [MET, { ...MET, set: 1, index: 0, counter: 'cannonLobs', amount: 5, turn: 30 }] });
+            goalSets: [SET, { ...SET, set: 1, how: 'reroll', turn: 20, goals: [{ counter: 'cannonLobs', amount: 50 }, { counter: 'slides', amount: 1000 }, { counter: 'pushesPulls', amount: 50 }] }],
+            goalsMet: [MET, { ...MET, set: 1, index: 0, counter: 'cannonLobs', amount: 50, turn: 30 }] });
         check('a batch with goal records → 204', res.status === 204);
         const sets = d1.rows('goal_sets', 'set_no');
         check('one goal_sets row per set, its fields', sets.length === 2 && sets[0].game_key === 'g1' && sets[0].set_no === 0 && sets[0].how === 'start' &&

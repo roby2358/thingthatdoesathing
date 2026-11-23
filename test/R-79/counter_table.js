@@ -28,12 +28,16 @@ const READ = ['cratesDelivered', 'exGremlins', 'trapped', 'pushesPulls', 'milest
     check('bombs, milestones, goalsMet and rungsReached are not goals; every other non-negative row is',
         COUNTERS.filter(c => !c.goal && !c.negative).map(c => c.key).join() === 'bombs,milestones,goalsMet,rungsReached');
     check('only rungsReached is lifetime only', COUNTERS.filter(c => !c.perGame).map(c => c.key).join() === 'rungsReached');
-    check('first-guess scales: crates delivered 10, big 1, slides 10, discards 10',
-        row('cratesDelivered').scale === 10 && row('bigDelivered').scale === 1 && row('slides').scale === 10 && row('discards').scale === 10);
-    // exGremlins: ex'd en masse (Bombs, Rocket flights, slide-bump splats); trapped: piles up at the same pace.
-    for (const key of ['exGremlins', 'trapped'])
-        check(key + ' has scale 100; its ladder 100, 200, 500, 1000',
-            row(key).scale === 100 && [0, 1, 2, 3].map(i => g.GameArtifacts.rung(row(key).scale, i)).join() === '100,200,500,1000');
+    check('first-guess scales: crates delivered 10, big 1, discards 10',
+        row('cratesDelivered').scale === 10 && row('bigDelivered').scale === 1 && row('discards').scale === 10);
+    // The designer's scales (D-74). exGremlins: ex'd en masse (Bombs, Rocket flights, slide-bump
+    // splats); trapped: piles up at the same pace. The other five from the first telemetry
+    // (2026-11-23): goals on 10 and 1 were trivial for them.
+    const LADDERS = { 100: '100,200,500,1000', 10: '10,20,50,100' };
+    const DESIGNED = { exGremlins: 100, trapped: 100, springThrows: 100, slides: 100, mountainsFlown: 100, cannonLobs: 10, rocketFlights: 10 };
+    for (const [key, scale] of Object.entries(DESIGNED))
+        check(key + ' has scale ' + scale + '; its ladder ' + LADDERS[scale],
+            row(key).scale === scale && [0, 1, 2, 3].map(i => g.GameArtifacts.rung(scale, i)).join() === LADDERS[scale]);
     check('read counters are exactly the state-field and derived ones', Object.keys(COUNTER_READS).sort().join() === [...READ].sort().join());
     check('stored counters are every other perGame row', JSON.stringify(STORED_COUNTERS) ===
         JSON.stringify(ORDER.filter(k => k !== 'rungsReached' && !READ.includes(k))));

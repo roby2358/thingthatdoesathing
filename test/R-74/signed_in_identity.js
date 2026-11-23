@@ -51,7 +51,7 @@ const BATCH = { format: 1, player: 'random-player', games: [GAME],
     milestones: [{ gameKey: 'g1', milestone: 10, unixSeconds: 1763700002, ...SNAP }],
     crashes: [{ unixSeconds: 1763700003, message: 'oops' }],
     goalSets: [{ gameKey: 'g1', set: 0, how: 'start', turn: 1, unixSeconds: 1763700000,
-        goals: [{ counter: 'placed', amount: 5 }, { counter: 'trapped', amount: 500 }, { counter: 'cannonLobs', amount: 5 }] }],
+        goals: [{ counter: 'placed', amount: 5 }, { counter: 'trapped', amount: 500 }, { counter: 'cannonLobs', amount: 50 }] }],
     goalsMet: [{ gameKey: 'g1', set: 0, index: 0, counter: 'placed', amount: 5, turn: 3, unixSeconds: 1763700001, met: true }],
     rungs: [{ gameKey: 'g1', counter: 'placed', rung: 10, unixSeconds: 1763700001 }] };
 const TABLES = ['games', 'events', 'milestones', 'crashes', 'goal_sets', 'goals_met', 'rungs'];

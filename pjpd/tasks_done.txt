@@ -870,6 +870,20 @@ Docs: ONTOLOGY (GameUI view state / input: the selection hint), CRITERIA new R-r
 
 Done when: a stub-DOM test shows the banner with the right text for a selected turnable Thing, a selected non-turning Thing and an empty hex; the banner hides on deselect, Esc, D and picking a card; just cc-test passes.
 ----
+Priority:   56
+Status: Done
+ID: scales2-wizm
+Created: 2026-11-23T04:19:57Z
+Updated: 2026-11-23T04:36:38Z
+
+Retune five counter scales from the first telemetry (the designer's call, 2026-11-23): springThrows, slides and mountainsFlown 10 → 100; cannonLobs and rocketFlights 1 → 10.
+
+Why: in the first production report one player reached 500 Spring throws and hexes slid and 200 mountains flown over within a few sessions, so on scale 10 their goals (50/100) were trivial; Cannon lobs reached 50 and Rocket flights 20 on scale 1. The early-rung noise is accepted (the ladder's geometric spacing quiets it); this is about goal size and pace.
+
+Settled design: in artifacts.js COUNTERS change only those five scales; labels, goal flags and everything else unchanged. Goals follow the ladder (level n = rung(scale, n − 1)): springThrows/slides/mountainsFlown goals become 500 (small), 500 or 1000 (medium, large), 1000 (huge); cannonLobs/rocketFlights become 50, 50 or 100, 100. RULES_VERSION stays 1. Update tests and fixtures that pin these scales or amounts on the ladder (R-79, R-85, achievements/telemetry fixtures using those counters' rungs or goal amounts; leave raw tallies alone), the ONTOLOGY Counters table, provenance tag and Numbers row (these five now the designer's, from telemetry), D-74 (an "amended 2026-11-23" note and the scale bullet with the reason and the report's figures), and an ARCHITECTURE_LOG entry dated 2026-11-23.
+
+Done when: R-79 checks the five new scales and their first rungs, R-85 checks their goal amounts by size as above, and just cc-test passes.
+----
 Priority:   55
 Status: Done
 ID: lunge-sjuw

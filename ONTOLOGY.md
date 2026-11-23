@@ -546,7 +546,7 @@ counter in this order, `{key, label, scale, goal, negative, perGame}`: `label` r
 number ("12 crates delivered"); `scale` is the unit of its ladder (1, 10, 100 or 1000); `goal`:
 it may be a game's goal; `negative`: a bad thing, never a goal, its rung messages wry; `perGame`
 false only for `rungsReached`, which is lifetime only and counted by the achievements client.
-[D: the rows and fields, `exGremlins`' and `trapped`'s scale 100, `bombs` not a goal; T: the other scales, first guesses]
+[D: the rows and fields, `exGremlins`' and `trapped`'s scale 100, `bombs` not a goal, `springThrows`', `slides`' and `mountainsFlown`'s scale 100 and `cannonLobs`' and `rocketFlights`' 10 (from the first telemetry); T: the other scales, first guesses]
 
 | Key | Label | Scale | Goal | Counted where |
 |---|---|---|---|---|
@@ -555,13 +555,13 @@ false only for `rungsReached`, which is lifetime only and counted by the achieve
 | `exGremlins` | ex-gremlins | 100 | yes | `state.exGremlins` (scale 100: ex'd en masse, D-74) |
 | `trapped` | gremlins trapped | 100 | yes | `state.trapped` (scale 100: the same pace as `exGremlins`, D-74) |
 | `placed` | Things placed | 10 | yes | an accepted `place` |
-| `springThrows` | Spring throws | 10 | yes | a Spring's motion that moved its piece (at least one hex) |
-| `rocketFlights` | Rocket flights | 1 | yes | a Rocket's motion that moved its piece |
-| `cannonLobs` | Cannon lobs | 1 | yes | a Cannon's shot that fired |
+| `springThrows` | Spring throws | 100 | yes | a Spring's motion that moved its piece (at least one hex) |
+| `rocketFlights` | Rocket flights | 10 | yes | a Rocket's motion that moved its piece |
+| `cannonLobs` | Cannon lobs | 10 | yes | a Cannon's shot that fired |
 | `moved` | Things moved | 1 | yes | an accepted `move` (`scrap` doesn't count) |
 | `bombs` | Bombs set off | 1 | no | an accepted `bomb` (not a goal: the Bomb is rare and last to unlock, D-75) |
-| `slides` | hexes slid | 10 | yes | each slick hex (`isSlick`) a crate leaves by sliding, whatever it moves into (plains, water, its target, more slick ground): a free slide, a landing's skid, a bumped line's advance or its bumper's follow; not a powered step off it (a push, shove, pull, take-off), not a hex it's blocked or capped on (`MAX_SLIDE`); gremlins never (D-74) |
-| `mountainsFlown` | mountains flown over | 10 | yes | each mountain hex a Spring's flight or a Cannon's lob passes over (counted in the hop simulation as the piece goes over it: a Spring's flight entering it, `overMountains`, or a lob's `over` hex; a shot that doesn't fire counts none; a Rocket never passes one) |
+| `slides` | hexes slid | 100 | yes | each slick hex (`isSlick`) a crate leaves by sliding, whatever it moves into (plains, water, its target, more slick ground): a free slide, a landing's skid, a bumped line's advance or its bumper's follow; not a powered step off it (a push, shove, pull, take-off), not a hex it's blocked or capped on (`MAX_SLIDE`); gremlins never (D-74) |
+| `mountainsFlown` | mountains flown over | 100 | yes | each mountain hex a Spring's flight or a Cannon's lob passes over (counted in the hop simulation as the piece goes over it: a Spring's flight entering it, `overMountains`, or a lob's `over` hex; a shot that doesn't fire counts none; a Rocket never passes one) |
 | `pushes` | pushes | 10 | yes | a Pusher's motion that moved its piece |
 | `pulls` | pulls | 10 | yes | a Puller's motion that moved its piece |
 | `pushesPulls` | pushes and pulls | 10 | yes | `pushes + pulls`, derived |
@@ -704,7 +704,7 @@ The code constant in `GameArtifacts` is the single source. `RULES_VERSION` stays
 | `BIG_CRATE_KNEE` | 5 | milestones over which the chance rises in a straight line, START → AT_FIFTH; `bigCrateChance(m)` = START + (AT_FIFTH − START)·m / KNEE for m ≤ KNEE: 1, 1.8, 2.6, 3.4, 4.2, 5% (D-45) [D: the end points; T: the straight line] |
 | `BIG_CRATE_EASE` | 0.85 | past the knee, `bigCrateChance(m)` = 1 − (1 − AT_FIFTH)·this^(m − KNEE): 19% at 6, 31% at 7, 58% at 10, 81% at 15, toward 1, never 1 (D-45) [D: asymptotic to 1; T: the ratio] |
 | `PIECES.bigcrate.value` | 10 | crates a big crate is worth (D-34) [D] |
-| `COUNTERS.*.scale` | 100 exGremlins, trapped; 10 cratesDelivered, placed, springThrows, slides, mountainsFlown, pushes, pulls, pushesPulls, discards; 1 the rest | the unit of each counter's ladder (Counters rule, D-74) [D: exGremlins and trapped 100, the designer's calls; T: the rest first guesses, the designer tunes] |
+| `COUNTERS.*.scale` | 100 exGremlins, trapped, springThrows, slides, mountainsFlown; 10 cratesDelivered, placed, rocketFlights, cannonLobs, pushes, pulls, pushesPulls, discards; 1 the rest | the unit of each counter's ladder (Counters rule, D-74) [D: exGremlins and trapped 100, the designer's calls; springThrows, slides, mountainsFlown 100 and rocketFlights, cannonLobs 10, the designer's, from the first telemetry; T: the rest first guesses, the designer tunes] |
 | `LADDER_STEPS` | 1, 2, 5 | a ladder's rungs: scale × these × 10^k (D-74) [D] |
 | `GOALS_PER_GAME` | 3 | goals in a set (Goals rule, D-75) [D] |
 | `MAP_SIZES.*.goalLevels` | [3] / [3, 4] / [3, 4] / [4] | the ladder levels a goal's amount may be (D-75) [D] |

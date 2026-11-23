@@ -176,13 +176,13 @@ const GameArtifacts = (function () {
         counter('exGremlins', 'ex-gremlins', 100, true, false, true),                   // state.exGremlins: ex'd en masse (D-74)
         counter('trapped', 'gremlins trapped', 100, true, false, true),                 // state.trapped: same pace as exGremlins (D-74)
         counter('placed', 'Things placed', 10, true, false, true),
-        counter('springThrows', 'Spring throws', 10, true, false, true),
-        counter('rocketFlights', 'Rocket flights', 1, true, false, true),
-        counter('cannonLobs', 'Cannon lobs', 1, true, false, true),
+        counter('springThrows', 'Spring throws', 100, true, false, true),     // from telemetry (D-74)
+        counter('rocketFlights', 'Rocket flights', 10, true, false, true),    // from telemetry (D-74)
+        counter('cannonLobs', 'Cannon lobs', 10, true, false, true),          // from telemetry (D-74)
         counter('moved', 'Things moved', 1, true, false, true),
         counter('bombs', 'Bombs set off', 1, false, false, true),            // not a goal: rare and last to unlock (D-75)
-        counter('slides', 'hexes slid', 10, true, false, true),
-        counter('mountainsFlown', 'mountains flown over', 10, true, false, true),
+        counter('slides', 'hexes slid', 100, true, false, true),              // from telemetry (D-74)
+        counter('mountainsFlown', 'mountains flown over', 100, true, false, true),  // from telemetry (D-74)
         counter('pushes', 'pushes', 10, true, false, true),
         counter('pulls', 'pulls', 10, true, false, true),
         counter('pushesPulls', 'pushes and pulls', 10, true, false, true),              // pushes + pulls

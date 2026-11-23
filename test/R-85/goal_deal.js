@@ -65,17 +65,21 @@ for (const size of ['small', 'medium', 'large']) {
     check('huge: amounts are level-4 rungs', state.goals.list.every(x => levelOf(g, x, 'huge') === 4));
 }
 {
-    // exGremlins and trapped (scale 100): small deals 500, medium and large 500 or 1000, huge 1000.
-    const want = { small: '500', medium: '500,1000', large: '500,1000', huge: '1000' };
-    for (const size of Object.keys(want)) {
+    // Scale 100 (exGremlins, trapped, springThrows, slides, mountainsFlown): small deals 500, medium
+    // and large 500 or 1000, huge 1000. Scale 10 (cannonLobs, rocketFlights): 50; 50 or 100; 100.
+    const HUNDREDS = { small: '500', medium: '500,1000', large: '500,1000', huge: '1000' };
+    const TENS = { small: '50', medium: '50,100', large: '50,100', huge: '100' };
+    const want = { exGremlins: HUNDREDS, trapped: HUNDREDS, springThrows: HUNDREDS, slides: HUNDREDS, mountainsFlown: HUNDREDS,
+        cannonLobs: TENS, rocketFlights: TENS };
+    for (const size of Object.keys(HUNDREDS)) {
         const { state, engine } = newGame(SEEDS[0], size);
-        const amounts = { exGremlins: new Set(), trapped: new Set() };
+        const amounts = Object.fromEntries(Object.keys(want).map(c => [c, new Set()]));
         for (let k = 0; k < 300; k++) {
             engine.dealGoals(k);
             state.goals.list.filter(x => x.counter in amounts).forEach(x => amounts[x.counter].add(x.amount));
         }
-        for (const c of Object.keys(amounts))
-            check(size + ': ' + c + ' goals deal ' + want[size], [...amounts[c]].sort((a, b) => a - b).join() === want[size]);
+        for (const c of Object.keys(want))
+            check(size + ': ' + c + ' goals deal ' + want[c][size], [...amounts[c]].sort((a, b) => a - b).join() === want[c][size]);
     }
 }
 {

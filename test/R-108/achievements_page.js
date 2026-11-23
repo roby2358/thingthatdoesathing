@@ -12,10 +12,10 @@ const { check, done } = require('../helpers/check');
 const { achGame, counts, el, shown, LIVE, PORTAL, signedIn, memoryStorage, flushPromises } = require('../helpers/achievements');
 
 (async () => {
-    // exGremlins 400: reached 200, next 500 → 2/3; cratesDelivered 15 and springThrows 15: 10 → 20, 1/2 each
+    // exGremlins 400: reached 200, next 500 → 2/3; cratesDelivered 15: 10 → 20 and springThrows 150: 100 → 200, 1/2 each
     // (a tie: table order); discards 3: no mark, next 10 → 3/10; trapped 100: reached 100, next 200 → 0;
     // placed 0: not active.
-    const stored = { cratesDelivered: 15, exGremlins: 400, trapped: 100, springThrows: 15, discards: 3 };
+    const stored = { cratesDelivered: 15, exGremlins: 400, trapped: 100, springThrows: 150, discards: 3 };
     const p = achGame({ storage: memoryStorage({ 'thingfactory.totals': JSON.stringify({ ...stored, placed: 0 }) }) });
     const rows = () => el(p, 'achievements-view').children;
     const text = r => r.children.slice(0, 3).map(c => c.textContent);

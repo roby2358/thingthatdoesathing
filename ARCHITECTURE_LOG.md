@@ -2,6 +2,9 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-23 — Five counter scales from the first telemetry (D-74)
+`COUNTERS`' scales, the designer's call from the first production report: `springThrows`, `slides` and `mountainsFlown` 10 → 100; `cannonLobs` and `rocketFlights` 1 → 10 (one player reached 500 Spring throws and hexes slid and 200 mountains flown over within a few sessions; Cannon lobs 50, Rocket flights 20). Before, their goals dealt 50 or 100 (scale 10) and 5 or 10 (scale 1); now 500 (small), 500 or 1000 (medium, large), 1000 (huge), and 50, 50 or 100, 100. Labels and goal flags unchanged; `RULES_VERSION` stays 1. Tests: R-79 checks the five scales and their first rungs, R-85 their goal amounts by size; R-70, R-74, R-97, R-98 and R-108 moved those counters' goal amounts and rungs to the new ladders. ONTOLOGY's Counters table, provenance tag and Numbers row, CRITERIA R-79 and R-85, D-74 follow.
+
 ### 2026-11-23 — The selection hint (D-82)
 New: `#select-hint` (last in index.html's `#banners`, a steady `panel`, styled in index.css like `#goal-banner` but in `--text`), `GameDisplayArtifacts.SELECT_HINTS` (`turns`, `fixed`, `empty`) and `GameUI.drawSelectHint()`, called from `updateHUD` (every `render`, each animation frame included, so `D`'s remove hides it on the tick's first frame). Before, a selected hex showed only its outline, and the Go hold it causes was invisible (the designer couldn't tell why Go stopped). Selection, `rotate`, `D` and Go are unchanged; `RULES_VERSION` stays 1. New R-113 (stub DOM) and the manual U-44; ONTOLOGY (GameUI view state's `selected` row), README, UI_CONTROLS and CLAUDE.md follow.
 
