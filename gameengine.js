@@ -1438,6 +1438,15 @@ const GameEngine = (function () {
             return this.tick(CARD_FIRST);
         }
 
+        // Throw the whole hand away (D-83): every slot redrawn, in slot order (so the draws
+        // come slot 0, then 1, then 2), every card counted as a discard, and ONE tick for the lot.
+        discardAll() {
+            const s = this.state;
+            for (let i = 0; i < s.hand.length; i++) s.hand[i] = this.draw();
+            this.count('discards', s.hand.length);
+            return this.tick(CARD_FIRST);
+        }
+
         wait() {
             return this.tick(NOTHING_FIRST);
         }

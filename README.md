@@ -67,14 +67,15 @@ that comes onto a target dies there, so they can't camp it.
 - `1` `2` `3` or click a card to pick it; legal hexes tint yellow
 - `R` / `Shift+R` / mouse wheel turn the Thing before placing
 - A Pusher or Puller asks for its crate color after you click its hex: click a swatch or press `1`–`4`; Esc, right-click or a click elsewhere backs out with the card still picked
-- The Mover: pick it, then click a Thing on the board (they tint yellow) to pick it up; the card becomes that Thing, and you place it like any card (one tick for the whole move). Esc or right-click before picking up puts the card back; after, it scraps the Thing (one tick), as Discard / `X` does. A click on a bare hex does nothing
-- The Bomb: pick it, then click hexes with something on them (they tint yellow): each click blows its hex up on the spot, Thing, crate and gremlin, with no tick. Esc or right-click before the first boom puts the card back. The first boom spends the card; the fifth, or Esc / right-click / Discard after fewer, ends the bomb and the world ticks once. A click on a bare hex does nothing
+- The Mover: pick it, then click a Thing on the board (they tint yellow) to pick it up; the card becomes that Thing, and you place it like any card (one tick for the whole move). Esc or right-click before picking up puts the card back; after, it scraps the Thing (one tick), as `X` / Discard all does. A click on a bare hex does nothing
+- The Bomb: pick it, then click hexes with something on them (they tint yellow): each click blows its hex up on the spot, Thing, crate and gremlin, with no tick. Esc or right-click before the first boom puts the card back. The first boom spends the card; the fifth, or Esc / right-click / `X` / Discard all after fewer, ends the bomb and the world ticks once. A click on a bare hex does nothing
 - Click a yellow hex to place it; the world ticks once and animates. A yellow hex with a dashed ring holds a Thing: placing there replaces it (the old Thing's card is gone)
 - With no card picked, click a hex to select it: it lights up, a mover shows a white arrow, and Go holds. Click it again to turn a Belt/Spring/Rocket/Cannon/Pusher/Puller clockwise (free: no tick); click anywhere else (or Esc) to let go. While a hex is selected, a banner at the top says what you can do with it ("Click to turn, click outside to deselect, D to delete", or the parts of that which fit)
 - `D` removes the Thing on the selected hex (click it first), leaving the hex bare and letting go of it; the card is gone and the world ticks once. With nothing selected, `D` does nothing
 - Ten ticks in a row without placing or discarding a card redraws one card at random (it glows)
 - `B` blows up the crate under the cursor (a stuck line); it counts as lost and the world ticks once
-- Pick a card, then click Discard (right of the cards) or press `X` to throw it away; the world ticks once
+- Pick a card, then press `X` to throw it away; the world ticks once
+- Click Discard all (right of the cards) to throw away all three cards at once and draw three new ones; the world ticks once for the lot (a picked card goes back first; while the Mover carries a Thing it scraps it, and after a Bomb's first boom it ends the bomb, as `X` does)
 - Or throw a card away in one go: click the small red × in its corner, or press `Shift+1` / `Shift+2` / `Shift+3`; the world ticks once (not while the Mover carries a Thing or a Bomb has gone off)
 - Space: one tick, then stop. With Go running, Space finishes the tick in flight and turns Go off
 - Wait: let it run one tick

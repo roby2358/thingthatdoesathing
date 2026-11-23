@@ -359,16 +359,18 @@ run('input is ignored mid-animation', () => {
 });
 
 // Play a full game through the UI: the sim bot's plan, executed with clicks.
-run('the Discard spot throws away the picked card and ticks; X does too', () => {
+run('the Discard all button throws away the whole hand in one tick (D-83); X throws away the picked card', () => {
     const s = ui.state;
     const things = s.things.length;
     let turn = s.turn;
+    const discards = s.counts.discards;
     els.discard.fire('click');
-    if (s.turn !== turn) throw new Error('Discard with no card picked must do nothing');
+    if (s.turn !== turn + 1 || s.counts.discards !== discards + 3) throw new Error('Discard all with no card picked must discard all three in one tick');
+    settle();
+    turn = s.turn;
     key('2');
-    if (!els.discard.classList.set.has('armed')) throw new Error('Discard not armed while a card is picked');
     els.discard.fire('click');
-    if (s.turn !== turn + 1 || ui.picked || s.things.length !== things) throw new Error('Discard click did not discard');
+    if (s.turn !== turn + 1 || ui.picked || s.things.length !== things || s.counts.discards !== discards + 6) throw new Error('Discard all with a card picked must put it back and discard all three');
     settle();
     turn = s.turn;
     key('1'); key('x');

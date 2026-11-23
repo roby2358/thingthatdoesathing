@@ -77,7 +77,7 @@ function commandsSection({ commands }) {
         section('Commands (wait and rotate are not recorded)', table(['command', 'count', 'refused'], tallyRows(commands.perCommand, 'command'))),
         section('Place, by card kind', table(['kind', 'places', 'refused'], tallyRows(commands.placeByKind, 'kind'))),
         section('Discard, by card kind', table(['kind', 'discards', 'refused'], tallyRows(commands.discardByKind, 'kind'))),
-        section("Discard, by how ('pick': picked then Discard or X; 'slot': the card's x or Shift+1/2/3)",
+        section("Discard, by how ('pick': picked then X, or Discard before D-83; 'slot': the card's x or Shift+1/2/3; 'all': the Discard all button, one per card)",
             table(['how', 'discards'], commands.discardByHow.map(r => [r.how, r.discards]))),
     ].join('\n\n');
 }

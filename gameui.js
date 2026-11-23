@@ -102,7 +102,7 @@ const GameUI = (function () {
     // starts in `pickup`, where its first click must take a hex the engine's legalPicks allows,
     // and AFTER_PICK[kind] says what that pick leads to (the Mover: `carry`, holding the picked
     // Thing as a card; the Bomb: `bomb`, blowing up hexes one click at a time, D-48). Per mode: `click` on a board hex (a lookup in `picked.legal`), `back`
-    // (Esc, right-click), `discard` (the Discard spot, X), `legal` (the hexes it may click,
+    // (Esc, right-click), `discard` (X; the Discard all button while the hand is locked), `legal` (the hexes it may click,
     // for the kind it holds), why the hand is `locked` (the card is already spent: the `REASONS` line the hover bar shows; null when it isn't), whether
     // legal hexes get a ghost and replace `rings` (`ghostAnywhere`: the ghost follows the mouse
     // over every board hex, not only legal ones), and the hover bar's `hint` over a Thing (by the
@@ -131,7 +131,7 @@ const GameUI = (function () {
         },
         // The Bomb after its first boom (D-48): the card is spent; each click on a filled hex
         // not yet blown up blows it up at once (in the view); the last of its `wipes` booms,
-        // Esc, right-click or Discard ends the bomb (one command, one tick).
+        // Esc, right-click, X or the Discard all button ends the bomb (one command, one tick).
         bomb: {
             click: (ui, hex, legal) => { if (legal) ui.boom(hex); else ui.notify(REASONS.bombHex); },   // a bare or blown-up hex does nothing but say why
             back: ui => ui.endBomb(),
@@ -1165,7 +1165,11 @@ const GameUI = (function () {
                 [p.id, { q: p.q, r: p.r, color: p.color, label: p.label, kind: p.kind }]));
             const counts = this.engine.counters();
             const res = fn();
-            GameTelemetry.command(record.command, record.args, res, this.state);
+            // An array of records is one command the recorder hears as several (discardAll's three
+            // discards, D-83): each gets the result and the snapshot after the one tick; only the
+            // first carries the tick's events, so a milestone or goal in it is recorded once.
+            [].concat(record).forEach((r, i) =>
+                GameTelemetry.command(r.command, r.args, i === 0 ? res : { ...res, events: [] }, this.state));
             if (!res.ok) { this.render(); return false; }
             this.picked = null;
             this.notice = null;
@@ -1289,7 +1293,7 @@ const GameUI = (function () {
             if (!this.commit(() => this.engine.blast(q, r), () => {}, { command: 'blast', args: { q, r } })) this.notify(REASONS.noCrate);
         }
 
-        // The Discard spot or X: throw the card in play away, as its mode says; it ticks like
+        // X (and the Discard all button while the hand is locked): throw the card in play away, as its mode says; it ticks like
         // any command. Mid-animation it waits for the tick to end, then runs, if the same card
         // is still in play.
         discardPicked() {
@@ -1304,8 +1308,27 @@ const GameUI = (function () {
                 { command: 'discard', args: { kind: this.picked.card, how: 'pick' } });
         }
 
+        // The Discard button (D-83): throw the whole hand away, one tick. A card in play in build
+        // or pickup mode goes back first (as Esc); in carry or bomb mode (the hand locked) it does
+        // what X does there (scrap, end the bomb). Ignored under an overlay; mid-animation it waits
+        // in the one-slot queue (latest wins) and re-checks when the tick ends.
+        discardButton() {
+            if (this.overlay) return;
+            if (this.handLocked()) { this.discardPicked(); return; }
+            if (this.queue.defer(() => this.discardButton())) return;
+            if (this.picked) this.unpick();
+            this.discardAll();
+        }
+
+        // Every hand card discarded in one engine command; telemetry hears one ordinary
+        // 'discard' per old card, how 'all' (D-83).
+        discardAll() {
+            const records = this.state.hand.map(c => ({ command: 'discard', args: { kind: c.kind, how: 'all' } }));
+            this.commit(() => this.engine.discardAll(), () => this.sound.discard(), records);
+        }
+
         // A card's red X or Shift+1/2/3: throw that card away in one action, without picking it
-        // (D-50); the same discard and tick as pick-then-Discard. A different card in play goes
+        // (D-50); the same discard and tick as pick-then-X. A different card in play goes
         // back first. Not while the hand is locked (a carry, a bomb gone off) or an overlay is
         // open; mid-animation it waits in the one-slot queue and re-checks when the tick ends (D-49).
         discardSlot(slot) {
@@ -2241,7 +2264,6 @@ const GameUI = (function () {
         renderHand() {
             const el = document.getElementById('cards');
             const s = this.state;
-            document.getElementById('discard').classList.toggle('armed', !!this.picked);
             const p = this.picked;
             const shown = JSON.stringify([s.hand, p && [p.slot, p.kind, p.color, p.booms.length], this.facing]);
             if (shown === this.handDrawn && el.children.length === HAND_SIZE) return;
@@ -2291,7 +2313,7 @@ const GameUI = (function () {
             document.getElementById('end-turn').addEventListener('click', () => this.primaryAction());
             document.getElementById('go').addEventListener('click', () => this.toggleRun());
             document.getElementById('new-game').addEventListener('click', () => this.newGame());
-            document.getElementById('discard').addEventListener('click', () => this.discardPicked());
+            document.getElementById('discard').addEventListener('click', () => this.discardButton());
             document.getElementById('size-cancel').addEventListener('click', () => this.dismissOverlay());
             document.getElementById('news-panel').addEventListener('click', () => this.closeNews());
             document.getElementById('sound').addEventListener('click', () => this.toggleMute());

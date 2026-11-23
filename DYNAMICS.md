@@ -59,7 +59,8 @@ Then a gremlin rides your belt into the sea, and you laugh and fix it.
   onto it is done for, and the Trapped count climbs. A new one climbs out on the shore,
   so a Trap thins traffic beside your line rather than clearing it.
 - **Discard (`X`)** → feeds scarcity of agency: a card you can't use costs a turn to throw
-  away, so the choice between building the odd card and binning it stays real.
+  away, so the choice between building the odd card and binning it stays real. Discard all
+  throws the whole hand for one turn (D-83): good cards go with the bad.
 - **Rotate** → makes a misplaced mover fixable without undo, and costs nothing: no tick,
   so you can try a facing, look, and turn again.
 - **Remove (`D`)** → makes any misplacement fixable at the price of the card and a turn,
@@ -139,7 +140,7 @@ Then a gremlin rides your belt into the sea, and you laugh and fix it.
 | Build on the target to block gremlins | Nothing may be built on a target (R-8) |
 | Ignore new colors and keep feeding one line | Each open color has its own slot in the cycle, so an unrouted color's crates keep coming, jam its source, fill the board to the cap or wander into the sea (R-19) |
 | Spam Wait forever for a perfect hand | Waiting also counts on the turn score; the hand never changes on Wait |
-| Discard until the hand is all Belts | Each discard is a tick (D-16), so cycling the hand costs turns |
+| Discard until the hand is all Belts | Each discard is a tick (D-16), so cycling the hand costs turns; Discard all is three cards a tick, but takes the good cards too (D-83) |
 
 ### Strategy ↔ mechanic cross-check
 

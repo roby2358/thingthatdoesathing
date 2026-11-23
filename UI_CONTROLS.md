@@ -188,6 +188,11 @@ is a *synonym* for the click, never a parallel code path. At this layer that is 
 primary action (button ⇄ Space/Enter); it becomes more valuable once there is an action bar
 (Layer 4).
 
+*Thing Factory:* one deliberate exception. `X` discards the picked card, but the Discard
+all button beside the hand discards the whole hand in one tick (D-83), so they are not twins:
+the button has no key cap, and its tooltip and Help's Keys page tell the two apart. While the
+hand is locked (the Mover carrying, a Bomb gone off) both do the mode's own ending.
+
 **Why:** routing both the device and its hotkey through one activator means keyboard and
 mouse interleave freely with no special cases, and there is one place where each action's
 legality and effect live.
