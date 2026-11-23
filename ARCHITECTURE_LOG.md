@@ -2,6 +2,9 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-23 — No Bomb goals (D-75)
+`COUNTERS`' `bombs` row: `goal` true → false, the designer's call (the Bomb is a rare card and the last in `UNLOCKS`, so a Bomb goal was out of reach for most of a session). Before, every size's goal pool held "Bombs set off"; now none does (`goalExcludes` unchanged), so the pool has 14 counters (was 15) and a seed may deal different sets than before. `bombs` is still counted per game and keeps its scale, label and achievement ladder. worker/telemetry.js's `GOAL_COUNTERS` drops `bombs` (a goal record naming it is now refused with 400). `RULES_VERSION` stays 1. Tests: R-85 checks `bombs` is never dealt on any size and still counts and has rungs; R-79 lists it among the non-goals; R-70, R-74, R-86, R-87, R-97 and R-98's fixtures use other goal counters where they had `bombs` as a goal. ONTOLOGY's Counters table and `GOAL_COUNTERS` row, CRITERIA R-79 and R-85, D-74 and D-75 follow.
+
 ### 2026-11-23 — Ex-gremlins on a scale of 100 (D-74)
 `COUNTERS`' `exGremlins` row: scale 1 → 100, the designer's call (gremlins are ex'd en masse by Bombs, Rocket flights and slide-bump splats, so the count outruns a scale of 1; 10 was weighed). Before, its ladder ran 1, 2, 5, 10, …; now 100, 200, 500, 1000, …, so an exGremlins goal deals 500 (small, level 3), 500 or 1000 (medium, large), 1000 (huge) instead of 5 or 10. `RULES_VERSION` stays 1. Tests: R-79 checks the scale, R-85 the exGremlins goal amounts by size; R-103, R-106, R-108 and R-98's fixtures moved their exGremlins amounts to the new ladder.
 

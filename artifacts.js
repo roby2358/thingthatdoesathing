@@ -178,7 +178,7 @@ const GameArtifacts = (function () {
         counter('rocketFlights', 'Rocket flights', 1, true, false, true),
         counter('cannonLobs', 'Cannon lobs', 1, true, false, true),
         counter('moved', 'Things moved', 1, true, false, true),
-        counter('bombs', 'Bombs set off', 1, true, false, true),
+        counter('bombs', 'Bombs set off', 1, false, false, true),            // not a goal: rare and last to unlock (D-75)
         counter('slides', 'hexes slid', 10, true, false, true),
         counter('mountainsFlown', 'mountains flown over', 10, true, false, true),
         counter('pushes', 'pushes', 10, true, false, true),

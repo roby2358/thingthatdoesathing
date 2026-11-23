@@ -533,7 +533,7 @@ counter in this order, `{key, label, scale, goal, negative, perGame}`: `label` r
 number ("12 crates delivered"); `scale` is the unit of its ladder (1, 10, 100 or 1000); `goal`:
 it may be a game's goal; `negative`: a bad thing, never a goal, its rung messages wry; `perGame`
 false only for `rungsReached`, which is lifetime only and counted by the achievements client.
-[D: the rows and fields, `exGremlins`' scale 100; T: the other scales, first guesses]
+[D: the rows and fields, `exGremlins`' scale 100, `bombs` not a goal; T: the other scales, first guesses]
 
 | Key | Label | Scale | Goal | Counted where |
 |---|---|---|---|---|
@@ -546,7 +546,7 @@ false only for `rungsReached`, which is lifetime only and counted by the achieve
 | `rocketFlights` | Rocket flights | 1 | yes | a Rocket's motion that moved its piece |
 | `cannonLobs` | Cannon lobs | 1 | yes | a Cannon's shot that fired |
 | `moved` | Things moved | 1 | yes | an accepted `move` (`scrap` doesn't count) |
-| `bombs` | Bombs set off | 1 | yes | an accepted `bomb` |
+| `bombs` | Bombs set off | 1 | no | an accepted `bomb` (not a goal: the Bomb is rare and last to unlock, D-75) |
 | `slides` | hexes slid | 10 | yes | each slick-to-slick move of a ground motion or a landing's skid (the D-52 count) |
 | `mountainsFlown` | mountains flown over | 10 | yes | each mountain hex a flight enters (only a Spring's, `overMountains`, ever does) |
 | `pushes` | pushes | 10 | yes | a Pusher's motion that moved its piece |
@@ -1101,7 +1101,7 @@ Sections, in order (a table with no rows prints `(none)`):
 | `TELEMETRY_FORMAT` | 1 | the batch format this build sends and reads |
 | `MAX_BODY_BYTES` | 64 KB | the largest batch body |
 | `MAX_RECORDS` | 200 | records per batch, all seven lists together (the goal lists too, D-77, and rungs, D-80) |
-| `GOAL_COUNTERS`, `GOALS_PER_SET` | the 15 goal counter keys / 3 | worker/telemetry.js's twins of `COUNTERS`' goal keys and `GOALS_PER_GAME` (R-97 checks them equal, D-77) |
+| `GOAL_COUNTERS`, `GOALS_PER_SET` | the 14 goal counter keys / 3 | worker/telemetry.js's twins of `COUNTERS`' goal keys and `GOALS_PER_GAME` (R-97 checks them equal, D-77) |
 | `CRASH_MESSAGE_CHARS` | 500 | a crash's message is cut to this |
 | `CRASH_STACK_CHARS` | 2000 | a crash's stack is cut to this (its first lines) |
 | `TELEMETRY_FLUSH_MS` | 30000 | ms the recorder waits before sending what it has queued (`GameDisplayArtifacts`, D-65) |

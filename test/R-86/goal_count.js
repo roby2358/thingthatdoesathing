@@ -32,7 +32,7 @@ const gs3 = engine.goalStates();
 check('met, the count keeps rising past the amount', gs3[1].met === true && gs3[1].count === 3 && gs3[1].amount === 2);
 check('a goal on a derived counter (pushesPulls) counts from its base too', (() => {
     state.counts.pushes = 3; state.counts.pulls = 4;
-    state.goals = { set: 1, base: engine.counters(), list: [{ counter: 'pushesPulls', amount: 10, met: false }, { counter: 'bombs', amount: 1, met: false }, { counter: 'slides', amount: 10, met: false }] };
+    state.goals = { set: 1, base: engine.counters(), list: [{ counter: 'pushesPulls', amount: 10, met: false }, { counter: 'cannonLobs', amount: 1, met: false }, { counter: 'slides', amount: 10, met: false }] };
     state.counts.pulls = 6;
     return engine.goalStates()[0].count === 2;
 })());

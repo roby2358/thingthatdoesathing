@@ -11,7 +11,7 @@ const { flatGame, DIR } = require('../helpers/load');
     const { state, engine, put } = flatGame();
     state.goals = { set: 2, base: engine.counters(), list: [
         { counter: 'moved', amount: 2, met: false },
-        { counter: 'bombs', amount: 1, met: false },
+        { counter: 'cannonLobs', amount: 1, met: false },
         { counter: 'rocketFlights', amount: 1, met: false },
     ] };
     const goalEvents = res => res.events.filter(e => e.type === 'goal' || e.type === 'goalsDone');
@@ -23,14 +23,14 @@ const { flatGame, DIR } = require('../helpers/load');
         state.goals.list[0].met && engine.counters().goalsMet === 1);
     state.counts.moved = 9;
     check('a met goal is not announced again', goalEvents(engine.wait()).length === 0 && engine.counters().goalsMet === 1);
-    state.counts.bombs = 1; state.counts.rocketFlights = 1;
+    state.counts.cannonLobs = 1; state.counts.rocketFlights = 1;
     put('BELT', 3, 4, DIR.E);
     check('a rotate checks nothing', engine.rotate(3, 4).ok && !state.goals.list[1].met);
     check('a refused command checks nothing', engine.discard(7).ok === false && engine.remove(1, 1).ok === false && !state.goals.list[1].met);
     const r2 = engine.wait();
     const ge = goalEvents(r2);
     check('two in one tick, in order, then goalsDone{set}', JSON.stringify(ge) === JSON.stringify([
-        { type: 'goal', index: 1, counter: 'bombs', amount: 1 },
+        { type: 'goal', index: 1, counter: 'cannonLobs', amount: 1 },
         { type: 'goal', index: 2, counter: 'rocketFlights', amount: 1 },
         { type: 'goalsDone', set: 2 }]));
     check('they end the tick\'s events', JSON.stringify(r2.events.slice(-3)) === JSON.stringify(ge));
@@ -44,7 +44,7 @@ const { flatGame, DIR } = require('../helpers/load');
     state.delivered = 9;
     state.goals = { set: 0, base: engine.counters(), list: [
         { counter: 'cratesDelivered', amount: 1, met: false },
-        { counter: 'bombs', amount: 1, met: false },
+        { counter: 'cannonLobs', amount: 1, met: false },
         { counter: 'moved', amount: 1, met: false },
     ] };
     put('BELT', 9, 8, DIR.E);
@@ -59,7 +59,7 @@ const { flatGame, DIR } = require('../helpers/load');
     const { state, engine } = flatGame();
     state.goals = { set: 0, base: engine.counters(), list: [
         { counter: 'placed', amount: 1, met: false },
-        { counter: 'bombs', amount: 1, met: false },
+        { counter: 'cannonLobs', amount: 1, met: false },
         { counter: 'moved', amount: 1, met: false },
     ] };
     state.hand[0] = { kind: 'BELT' };

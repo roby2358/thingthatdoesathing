@@ -52,8 +52,8 @@ async function post(d1, body, headers = {}) {
     {
         const d1 = sqliteD1();
         const res = await post(d1, { format: 1, player: 'p-one', games: [GAME],
-            goalSets: [SET, { ...SET, set: 1, how: 'reroll', turn: 20, goals: [{ counter: 'bombs', amount: 5 }, { counter: 'slides', amount: 100 }, { counter: 'pushesPulls', amount: 50 }] }],
-            goalsMet: [MET, { ...MET, set: 1, index: 0, counter: 'bombs', amount: 5, turn: 30 }] });
+            goalSets: [SET, { ...SET, set: 1, how: 'reroll', turn: 20, goals: [{ counter: 'cannonLobs', amount: 5 }, { counter: 'slides', amount: 100 }, { counter: 'pushesPulls', amount: 50 }] }],
+            goalsMet: [MET, { ...MET, set: 1, index: 0, counter: 'cannonLobs', amount: 5, turn: 30 }] });
         check('a batch with goal records → 204', res.status === 204);
         const sets = d1.rows('goal_sets', 'set_no');
         check('one goal_sets row per set, its fields', sets.length === 2 && sets[0].game_key === 'g1' && sets[0].set_no === 0 && sets[0].how === 'start' &&
@@ -62,7 +62,7 @@ async function post(d1, body, headers = {}) {
             sets[0].counter2 === 'trapped' && sets[0].amount2 === 5 && sets[0].counter3 === 'placed' && sets[0].amount3 === 50 && sets[1].counter3 === 'pushesPulls');
         const met = d1.rows('goals_met', 'set_no, idx');
         check('one goals_met row per goal met, its fields', met.length === 2 && met[0].set_no === 0 && met[0].idx === 1 && met[0].counter === 'trapped' &&
-            met[0].amount === 5 && met[0].turn === 40 && met[0].unix_seconds === 1763700300 && met[1].set_no === 1 && met[1].idx === 0 && met[1].counter === 'bombs');
+            met[0].amount === 5 && met[0].turn === 40 && met[0].unix_seconds === 1763700300 && met[1].set_no === 1 && met[1].idx === 0 && met[1].counter === 'cannonLobs');
         check('every goal row carries the batch identity', [...sets, ...met].every(r => r.player_id === 'p-one' && r.signed_in === 0));
         await post(d1, { format: 1, player: 'p-two', goalSets: [{ ...SET, turn: 99 }], goalsMet: [{ ...MET, turn: 99 }] });
         const again = d1.rows('goal_sets', 'set_no'), metAgain = d1.rows('goals_met', 'set_no, idx');
@@ -97,8 +97,8 @@ async function post(d1, body, headers = {}) {
         ['4 goals', { goalSets: [{ ...SET, goals: goals4 }] }, 'goalSets[0].goals'],
         ['an unknown counter', { goalSets: [{ ...SET, goals: [SET.goals[0], { counter: 'teleports', amount: 5 }, SET.goals[2]] }] }, 'goalSets[0].goals[1].counter'],
         ['a counter that is never a goal', { goalSets: [{ ...SET, goals: [SET.goals[0], SET.goals[1], { counter: 'discards', amount: 10 }] }] }, 'goalSets[0].goals[2].counter'],
-        ['an amount 0', { goalSets: [{ ...SET, goals: [{ counter: 'bombs', amount: 0 }, SET.goals[1], SET.goals[2]] }] }, 'goalSets[0].goals[0].amount'],
-        ['a fractional amount', { goalSets: [{ ...SET, goals: [{ counter: 'bombs', amount: 2.5 }, SET.goals[1], SET.goals[2]] }] }, 'goalSets[0].goals[0].amount'],
+        ['an amount 0', { goalSets: [{ ...SET, goals: [{ counter: 'cannonLobs', amount: 0 }, SET.goals[1], SET.goals[2]] }] }, 'goalSets[0].goals[0].amount'],
+        ['a fractional amount', { goalSets: [{ ...SET, goals: [{ counter: 'cannonLobs', amount: 2.5 }, SET.goals[1], SET.goals[2]] }] }, 'goalSets[0].goals[0].amount'],
         ['a goal that isn\'t an object', { goalSets: [{ ...SET, goals: [null, SET.goals[1], SET.goals[2]] }] }, 'goalSets[0].goals[0]'],
         ['a goal met: index 3', { goalsMet: [{ ...MET, index: 3 }] }, 'goalsMet[0].index'],
         ['a goal met: index -1', { goalsMet: [{ ...MET, index: -1 }] }, 'goalsMet[0].index'],

@@ -55,7 +55,7 @@ export const CRASH_STACK_CHARS = 2000;
 /** The goal counters a goal record may name (D-77): GameArtifacts.COUNTERS' keys with `goal` true,
  *  in table order, restated here (the Worker can't load the game's scripts; R-97 checks they match). */
 export const GOAL_COUNTERS = ['cratesDelivered', 'bigDelivered', 'exGremlins', 'trapped', 'placed', 'springThrows',
-    'rocketFlights', 'cannonLobs', 'moved', 'bombs', 'slides', 'mountainsFlown', 'pushes', 'pulls', 'pushesPulls'];
+    'rocketFlights', 'cannonLobs', 'moved', 'slides', 'mountainsFlown', 'pushes', 'pulls', 'pushesPulls'];
 /** Goals in a set: GameArtifacts.GOALS_PER_GAME (R-97 checks it). */
 export const GOALS_PER_SET = 3;
 /** How a goal set came: a new game's set 0, New goals with goals unmet, New goals after a set all met. */

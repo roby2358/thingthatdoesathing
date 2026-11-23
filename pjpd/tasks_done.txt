@@ -497,6 +497,20 @@ Thing Factory: fix "Uncaught TypeError: Cannot read properties of null (reading 
 ----
 Priority:   68
 Status: Done
+ID: nobombgoal-hbjw
+Created: 2026-11-23T01:18:37Z
+Updated: 2026-11-23T01:52:31Z
+
+Stop dealing "Bombs set off" as a goal (the designer's call, 2026-11-23).
+
+Goal: the Bomb is a rare card and the last in UNLOCKS, so a Bomb goal is out of reach for most of a session; take it out of the goal pool. It stays a counter and keeps its achievement ladder.
+
+Settled design: in artifacts.js COUNTERS, the bombs row's goal flag goes from true to false; scale, label and everything else unchanged. Every size's goal pool loses it (MAP_SIZES goalExcludes unchanged). Because the goal pool shrinks, sets dealt from a given seed may differ: that's expected; R-85 and any test pinning a dealt set are updated to the new deals, not loosened. The worker's GOAL_COUNTERS twin (worker/telemetry.js) drops bombs too, and its equality test with artifacts.js stays. RULES_VERSION stays 1. Docs: ONTOLOGY Counters table, D-74/D-75 (note the call and why), ARCHITECTURE_LOG entry dated 2026-11-23, CLAUDE.md if it names the goal counters.
+
+Done when: a test checks bombs is never dealt as a goal on any size (many seeds and sets), bombs still counts and still has rungs, and just cc-test passes.
+----
+Priority:   68
+Status: Done
 ID: goalsengine-j9up
 Created: 2026-11-22T20:04:21Z
 Updated: 2026-11-22T20:24:03Z

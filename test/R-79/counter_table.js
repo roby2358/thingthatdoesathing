@@ -25,8 +25,8 @@ const READ = ['cratesDelivered', 'exGremlins', 'trapped', 'pushesPulls', 'milest
     check('a negative counter is never a goal; the four negatives are the losses and discards',
         COUNTERS.every(c => !(c.negative && c.goal)) &&
         COUNTERS.filter(c => c.negative).map(c => c.key).join() === 'cratesSunk,cratesSmashed,cratesLostOther,discards');
-    check('milestones, goalsMet and rungsReached are not goals; every other non-negative row is',
-        COUNTERS.filter(c => !c.goal && !c.negative).map(c => c.key).join() === 'milestones,goalsMet,rungsReached');
+    check('bombs, milestones, goalsMet and rungsReached are not goals; every other non-negative row is',
+        COUNTERS.filter(c => !c.goal && !c.negative).map(c => c.key).join() === 'bombs,milestones,goalsMet,rungsReached');
     check('only rungsReached is lifetime only', COUNTERS.filter(c => !c.perGame).map(c => c.key).join() === 'rungsReached');
     check('first-guess scales: crates delivered 10, big 1, slides 10, discards 10',
         row('cratesDelivered').scale === 10 && row('bigDelivered').scale === 1 && row('slides').scale === 10 && row('discards').scale === 10);

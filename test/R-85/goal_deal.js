@@ -3,10 +3,10 @@
 // rung at one of the size's goalLevels (small 3; medium, large 3 or 4; huge 4), met false. newGame
 // deals set 0 with base = counters() (all 0). Set k draws from Rando.stream(a mix of seed and k):
 // the same seed and set give the same goals; dealing never moves the shared Rando stream, so a
-// game plays exactly as it would without goals.
+// game plays exactly as it would without goals. Bombs set off is never dealt (D-75, 2026-11-23).
 'use strict';
 const { check, done } = require('../helpers/check');
-const { newGame, load, SEEDS } = require('../helpers/load');
+const { newGame, flatGame, load, SEEDS } = require('../helpers/load');
 
 // The level of the size's goalLevels whose rung is this goal's amount (undefined: none is).
 const levelOf = (g, x, size) => {
@@ -54,7 +54,7 @@ for (const size of ['small', 'medium', 'large']) {
         list.forEach(x => { seen.add(x.counter); levelsSeen.add(levelOf(g, x, size)); });
     }
     check(size + ': 300 sets, each 3 distinct counters', distinct);
-    check(size + ': only goal counters (never negative, milestones, goalsMet, rungsReached)', goals);
+    check(size + ': only goal counters (never negative, bombs, milestones, goalsMet, rungsReached)', goals);
     check(size + ': each amount a rung at one of the size\'s goalLevels', levels);
     check(size + ': no excluded counter is ever dealt', excluded);
     check(size + ': every offered counter turns up', seen.size === goalKeys.size - MAP_SIZES[size].goalExcludes.length);
@@ -76,6 +76,32 @@ for (const size of ['small', 'medium', 'large']) {
         }
         check(size + ': an exGremlins goal deals ' + want[size], [...amounts].sort((a, b) => a - b).join() === want[size]);
     }
+}
+{
+    // Bombs set off is never a goal (D-75, 2026-11-23): the Bomb is rare and last to unlock. It
+    // stays a counter, counted by a bomb, with its achievement ladder.
+    const { g } = newGame(SEEDS[0], 'small');
+    const { COUNTERS, STORED_COUNTERS, rung, rungsCrossed } = g.GameArtifacts;
+    const row = COUNTERS.find(c => c.key === 'bombs');
+    check('bombs: goal false, still a perGame counter of scale 1, stored', row.goal === false && row.perGame === true &&
+        row.scale === 1 && !row.negative && STORED_COUNTERS.includes('bombs'));
+    check('bombs still has rungs: 1, 2, 5, 10, 20; 0 → 5 crosses 1, 2, 5', [0, 1, 2, 3, 4].map(i => rung(row.scale, i)).join() === '1,2,5,10,20' &&
+        rungsCrossed(row.scale, 0, 5).join() === '1,2,5');
+    let dealt = 0;
+    for (const size of ['small', 'medium', 'large', 'huge']) {
+        for (const seed of SEEDS.slice(0, size === 'huge' ? 3 : 10)) {
+            const { state, engine } = newGame(seed, size);
+            for (let k = 0; k < 100; k++) {
+                engine.dealGoals(k);
+                if (state.goals.list.some(x => x.counter === 'bombs')) dealt++;
+            }
+        }
+    }
+    check('bombs is never dealt as a goal: every size, many seeds, 100 sets each', dealt === 0);
+    const f = flatGame();
+    f.put('WALL', 6, 6);
+    f.state.hand[0] = { kind: 'BOMB' };
+    check('a bomb still counts bombs 1', f.engine.bomb(0, [{ q: 6, r: 6 }]).ok && f.engine.counters().bombs === 1);
 }
 {
     const a = newGame(SEEDS[3], 'medium'), b = newGame(SEEDS[3], 'medium');
