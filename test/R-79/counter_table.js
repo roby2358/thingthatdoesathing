@@ -30,6 +30,8 @@ const READ = ['cratesDelivered', 'exGremlins', 'trapped', 'pushesPulls', 'milest
     check('only rungsReached is lifetime only', COUNTERS.filter(c => !c.perGame).map(c => c.key).join() === 'rungsReached');
     check('first-guess scales: crates delivered 10, big 1, slides 10, discards 10',
         row('cratesDelivered').scale === 10 && row('bigDelivered').scale === 1 && row('slides').scale === 10 && row('discards').scale === 10);
+    check('exGremlins has scale 100 (ex\'d en masse: Bombs, Rocket flights, slide-bump splats); its ladder 100, 200, 500, 1000',
+        row('exGremlins').scale === 100 && [0, 1, 2, 3].map(i => g.GameArtifacts.rung(100, i)).join() === '100,200,500,1000');
     check('read counters are exactly the state-field and derived ones', Object.keys(COUNTER_READS).sort().join() === [...READ].sort().join());
     check('stored counters are every other perGame row', JSON.stringify(STORED_COUNTERS) ===
         JSON.stringify(ORDER.filter(k => k !== 'rungsReached' && !READ.includes(k))));

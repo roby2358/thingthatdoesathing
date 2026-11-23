@@ -45,7 +45,7 @@ function fixture() {
         goalSets: [
             set('g1', 0, 'start', 1, [['bombs', 5], ['trapped', 5], ['placed', 50]]),
             set('g1', 1, 'reroll', 30, [['bombs', 5], ['slides', 50], ['moved', 5]]),
-            set('g1', 2, 'next', 90, [['trapped', 5], ['exGremlins', 5], ['placed', 50]]),
+            set('g1', 2, 'next', 90, [['trapped', 5], ['exGremlins', 500], ['placed', 50]]),
             set('g2', 0, 'start', 1, [['bombs', 5], ['trapped', 5], ['moved', 5]]),
         ],
         goalsMet: [

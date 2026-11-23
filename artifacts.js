@@ -171,7 +171,7 @@ const GameArtifacts = (function () {
     const COUNTERS = [
         counter('cratesDelivered', 'crates delivered', 10, true, false, true),          // state.delivered: a big crate counts its value
         counter('bigDelivered', 'big crates delivered', 1, true, false, true),
-        counter('exGremlins', 'ex-gremlins', 1, true, false, true),                     // state.exGremlins
+        counter('exGremlins', 'ex-gremlins', 100, true, false, true),                   // state.exGremlins: ex'd en masse (D-74)
         counter('trapped', 'gremlins trapped', 1, true, false, true),                   // state.trapped
         counter('placed', 'Things placed', 10, true, false, true),
         counter('springThrows', 'Spring throws', 10, true, false, true),

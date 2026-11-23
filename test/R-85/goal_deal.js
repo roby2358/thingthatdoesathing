@@ -65,6 +65,19 @@ for (const size of ['small', 'medium', 'large']) {
     check('huge: amounts are level-4 rungs', state.goals.list.every(x => levelOf(g, x, 'huge') === 4));
 }
 {
+    // exGremlins (scale 100): small deals 500, medium and large 500 or 1000, huge 1000.
+    const want = { small: '500', medium: '500,1000', large: '500,1000', huge: '1000' };
+    for (const size of Object.keys(want)) {
+        const { state, engine } = newGame(SEEDS[0], size);
+        const amounts = new Set();
+        for (let k = 0; k < 300; k++) {
+            engine.dealGoals(k);
+            state.goals.list.filter(x => x.counter === 'exGremlins').forEach(x => amounts.add(x.amount));
+        }
+        check(size + ': an exGremlins goal deals ' + want[size], [...amounts].sort((a, b) => a - b).join() === want[size]);
+    }
+}
+{
     const a = newGame(SEEDS[3], 'medium'), b = newGame(SEEDS[3], 'medium');
     check('the same seed deals the same set 0', goalsOf(a.engine) === goalsOf(b.engine));
     a.engine.dealGoals(4); b.engine.dealGoals(4);

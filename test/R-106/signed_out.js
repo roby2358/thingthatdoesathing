@@ -11,7 +11,7 @@ const { achGame, counts, bannerLines, LIVE, PORTAL, signedIn, memoryStorage, flu
         ['the dev page (localhost)', { origin: 'http://localhost:8000' }]]) {
         const storage = opts.storage || memoryStorage();
         const p = achGame({ ...opts, storage });
-        p.run(`GameAchievements.counted(${JSON.stringify(counts(p, {}))}, ${JSON.stringify(counts(p, { placed: 50, exGremlins: 5 }))})`);
+        p.run(`GameAchievements.counted(${JSON.stringify(counts(p, {}))}, ${JSON.stringify(counts(p, { placed: 50, exGremlins: 500 }))})`);
         p.ui.discardSlot(0);
         p.settle();
         p.advance(60000);

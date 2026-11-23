@@ -1,3 +1,47 @@
+Priority:   68
+Status: ToDo
+ID: nobombgoal-hbjw
+Created: 2026-11-23T01:18:37Z
+Updated: 2026-11-23T01:18:37Z
+
+Stop dealing "Bombs set off" as a goal (the designer's call, 2026-11-23).
+
+Goal: the Bomb is a rare card and the last in UNLOCKS, so a Bomb goal is out of reach for most of a session; take it out of the goal pool. It stays a counter and keeps its achievement ladder.
+
+Settled design: in artifacts.js COUNTERS, the bombs row's goal flag goes from true to false; scale, label and everything else unchanged. Every size's goal pool loses it (MAP_SIZES goalExcludes unchanged). Because the goal pool shrinks, sets dealt from a given seed may differ: that's expected; R-85 and any test pinning a dealt set are updated to the new deals, not loosened. The worker's GOAL_COUNTERS twin (worker/telemetry.js) drops bombs too, and its equality test with artifacts.js stays. RULES_VERSION stays 1. Docs: ONTOLOGY Counters table, D-74/D-75 (note the call and why), ARCHITECTURE_LOG entry dated 2026-11-23, CLAUDE.md if it names the goal counters.
+
+Done when: a test checks bombs is never dealt as a goal on any size (many seeds and sets), bombs still counts and still has rungs, and just cc-test passes.
+----
+Priority:   66
+Status: ToDo
+ID: cannonmtn-5c9z
+Created: 2026-11-23T01:23:16Z
+Updated: 2026-11-23T01:23:16Z
+
+Count a Cannon lob's mountains in mountainsFlown (the designer's call, 2026-11-23).
+
+Why it doesn't count now: the counters task said "one per mountain hex a Spring's flight passes over", so the build counted only in the flight path (gameengine.js flewInto, ~line 1065: "only a flight overMountains is ever over one"), and D-74 unreviewed call (3) says "a Cannon's lob over a mountain doesn't count". A Cannon's shot runs in the 'over' phase (aimShot, newMotion(..., 'over', how.clears)), which never reaches that line.
+
+Settled design: mountainsFlown counts every mountain hex a piece passes over in the air, whether it's a Spring's flight (as now) or a Cannon lob's 'over' hexes (its first clears = 4 hexes). Count each mountain hex as the lobbed piece actually goes over it during the hop simulation (where the 'over' motion advances), so a lob that doesn't fire counts nothing, and a lob that comes down early on the 4th hex counts only the mountains it passed. The label stays "mountains flown over". Rockets can't pass mountains (overMountains false), so nothing changes for them. RULES_VERSION stays 1; play is unchanged (the sim gives the same numbers).
+
+Docs: ONTOLOGY Counters table row for mountainsFlown ("each mountain hex a Spring's flight or a Cannon's lob passes over"), the D-74 unreviewed call (3) rewritten to the designer's decision, the CRITERIA row for R-81 and an ARCHITECTURE_LOG entry dated 2026-11-23.
+
+Done when: R-81 has a case where a Cannon lobs over two mountains (adds 2 to mountainsFlown), one where the Cannon doesn't fire (adds 0), and the Spring cases still pass; just cc-test passes.
+----
+Priority:   64
+Status: ToDo
+ID: trapscale-swp7
+Created: 2026-11-23T01:45:50Z
+Updated: 2026-11-23T01:45:50Z
+
+Put the gremlins-trapped counter on a scale of 100, the same as ex-gremlins, so its ladder runs 100, 200, 500, 1000, … (the designer's call, 2026-11-23).
+
+Goal: trapped gremlins pile up at the same pace as ex-gremlins, so they share its scale (D-74's exGremlins amendment: scale 100).
+
+Settled design: in artifacts.js COUNTERS, the trapped row's scale goes from 1 to 100; nothing else changes. Goal amounts follow from the ladder (level n = rung(scale, n − 1)): small (level 3) 500, medium and large 500 or 1000, huge 1000. Achievement rungs: 100, 200, 500, …. RULES_VERSION stays 1. Update whatever pins the old scale: tests (R-79 table, R-85 goal deal, fixtures using trapped amounts), the ONTOLOGY Counters table, its provenance tag and Numbers row, D-74 (an "amended 2026-11-23" note in its header and the scale bullet, alongside exGremlins'), and an ARCHITECTURE_LOG entry dated 2026-11-23.
+
+Done when: the trapped row has scale 100, a test checks it, a trapped goal deals 500/1000 by size as above, and just cc-test passes.
+----
 Priority:   49
 Status: ToDo
 ID: run-stats-m6pe

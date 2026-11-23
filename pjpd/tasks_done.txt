@@ -333,6 +333,20 @@ Done when: just cc-test passes with the new rows and the uiboot test.
 ----
 Priority:   70
 Status: Done
+ID: exgremscale-uzy3
+Created: 2026-11-23T01:16:07Z
+Updated: 2026-11-23T01:45:22Z
+
+Put the ex-gremlins counter on a scale of 100, so its ladder runs 100, 200, 500, 1000, … (the designer's call, 2026-11-23).
+
+Goal: gremlins can be ex'd en masse (a Bomb, a Rocket's flight, slide-bump splats), so the count climbs far faster than the first-guess scale of 1 assumed; the designer weighed 10 and chose 100 for that reason. Record that reason in the docs.
+
+Settled design: in artifacts.js COUNTERS, the exGremlins row's scale goes from 1 to 100; nothing else changes. Goal amounts follow from the ladder as for every counter (level n = rung(scale, n − 1)): small (level 3) 500, medium and large 500 or 1000, huge 1000. Achievement rungs: 100, 200, 500, …. RULES_VERSION stays 1. Update whatever pins the old scale: tests (R-79 table, R-85 goal deal, any fixture using exGremlins amounts), the ONTOLOGY Counters table and Numbers, and a note in D-74 (or a new line in its tuning list) plus an ARCHITECTURE_LOG entry dated 2026-11-23.
+
+Done when: the exGremlins row has scale 100, a test checks it, an exGremlins goal deals 500/1000 by size as above, and just cc-test passes.
+----
+Priority:   70
+Status: Done
 ID: counters-9s8e
 Created: 2026-11-22T20:04:20Z
 Updated: 2026-11-22T20:15:08Z
