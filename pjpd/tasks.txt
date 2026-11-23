@@ -1,3 +1,58 @@
+Priority:   57
+Status: ToDo
+ID: selhint-t84e
+Created: 2026-11-23T04:22:00Z
+Updated: 2026-11-23T04:23:46Z
+
+Show a hint banner while a hex is selected, so the player knows how to act on it and why Go has stopped (the designer's call, 2026-11-23: a selected Thing held Go and the designer couldn't tell why).
+
+Settled design:
+- While GameUI.selected is set (a no-card click selected a hex), show a persistent, non-blocking banner (it never eats input), in the #banners column with the milestone/goal/achievement banners, styled like them but steady (no timeout). It hides the moment the selection clears (click elsewhere, Esc, D removing the Thing, a card picked, New game, an overlay that clears selection), and comes back if a hex is selected again.
+- Text, from a new GameDisplayArtifacts entry (e.g. SELECT_HINTS), whole sentences:
+  - a selected Thing that turns (a mover with a facing: any Thing whose template aims, aims(kind)): "Click to turn, click outside to deselect, D to delete"
+  - a selected Thing that doesn't turn (Wall, Trap, Slide, …): "Click outside to deselect, D to delete"
+  - a selected hex with no Thing: "Click outside to deselect"
+- The text updates when the selection changes (e.g. in updateHUD/render). No change to what selection, rotate, D or Go do. RULES_VERSION stays 1.
+
+Docs: ONTOLOGY (GameUI view state / input: the selection hint), CRITERIA new R-row owning test/R-n/ (stub-DOM test), a U-row for the look if it fits, RATIONALE new D-n (why: Go holding on a selection was invisible; alternatives: a hover tooltip, flashing the Go button, dropping the Go hold, a second line saying Go waits (the designer judged players will work that out once they see the hint)), ARCHITECTURE_LOG entry dated 2026-11-23, CLAUDE.md input architecture (L1.2 selection line), README/UI_CONTROLS.
+
+Done when: a stub-DOM test shows the banner with the right text for a selected turnable Thing, a selected non-turning Thing and an empty hex; the banner hides on deselect, Esc, D and picking a card; just cc-test passes.
+----
+Priority:   56
+Status: ToDo
+ID: scales2-wizm
+Created: 2026-11-23T04:19:57Z
+Updated: 2026-11-23T04:19:57Z
+
+Retune five counter scales from the first telemetry (the designer's call, 2026-11-23): springThrows, slides and mountainsFlown 10 → 100; cannonLobs and rocketFlights 1 → 10.
+
+Why: in the first production report one player reached 500 Spring throws and hexes slid and 200 mountains flown over within a few sessions, so on scale 10 their goals (50/100) were trivial; Cannon lobs reached 50 and Rocket flights 20 on scale 1. The early-rung noise is accepted (the ladder's geometric spacing quiets it); this is about goal size and pace.
+
+Settled design: in artifacts.js COUNTERS change only those five scales; labels, goal flags and everything else unchanged. Goals follow the ladder (level n = rung(scale, n − 1)): springThrows/slides/mountainsFlown goals become 500 (small), 500 or 1000 (medium, large), 1000 (huge); cannonLobs/rocketFlights become 50, 50 or 100, 100. RULES_VERSION stays 1. Update tests and fixtures that pin these scales or amounts on the ladder (R-79, R-85, achievements/telemetry fixtures using those counters' rungs or goal amounts; leave raw tallies alone), the ONTOLOGY Counters table, provenance tag and Numbers row (these five now the designer's, from telemetry), D-74 (an "amended 2026-11-23" note and the scale bullet with the reason and the report's figures), and an ARCHITECTURE_LOG entry dated 2026-11-23.
+
+Done when: R-79 checks the five new scales and their first rungs, R-85 checks their goal amounts by size as above, and just cc-test passes.
+----
+Priority:   55
+Status: ToDo
+ID: discardall-5yq3
+Created: 2026-11-23T04:10:43Z
+Updated: 2026-11-23T04:12:14Z
+
+The Discard button beside the hand throws away all three cards at once, and puts back any card the player is holding first (the designer's call, 2026-11-23).
+
+Goal: one click to clear a bad hand, instead of three discards.
+
+Settled design:
+- Engine: a new command GameEngine.discardAll(): every hand slot is redrawn, slot 0 then 1 then 2 (each this.draw(), so the Rando draws come in slot order), counts.discards += the hand size (3), then ONE tick (CARD_FIRST, like discard). Returns {ok, events} like the other commands. A single discard(slot) is unchanged.
+- UI, the Discard button (#discard) only: a click with no card picked, or with a card picked in the build or pickup mode, puts the picked card back (as Esc does: unpick, no tick) and sends discardAll. In the carry and bomb modes (the hand is locked: the Mover holding a Thing, a Bomb part-placed) the button keeps doing what it does now (scrap / end the bomb), since the hand can't be thrown away then. The button is ignored under an overlay; mid-animation it's queued in the one-slot TickQueue like X (latest wins). It's no longer only 'armed' with a card picked: style it as always live while the hand is unlocked.
+- Unchanged: X discards just the picked card; Shift+1/2/3 and a card's red × discard just that slot.
+- Telemetry: no new command in telemetry. GameUI hands GameTelemetry three ordinary 'discard' command records for the one discardAll, one per old card, args {kind: that card's kind, how: 'all'}, each with the command's result and the snapshot after its one tick (three events, three seq numbers), so the existing discard telemetry and the report's Commands section count +3 discards. The Worker's KNOWN_COMMANDS is unchanged; if the Worker or the report restricts args.how's values, add 'all' there.
+- Labels: the button's title/tooltip says it discards all three cards; Help's Keys page (and README/UI_CONTROLS) describe the button vs X. RULES_VERSION stays 1. The sim bot (test/sim.js) keeps using discard(slot).
+
+Docs: ONTOLOGY (Commands: discardAll; Input/UI), CRITERIA new R-row(s) owning test/R-n/ (engine command; UI button), RATIONALE new D-n (why one tick for the lot, why X stays single, why carry/bomb keep their meaning), ARCHITECTURE_LOG entry dated 2026-11-23, CLAUDE.md (engine commands list, input architecture L1.2 line), UI_CONTROLS.
+
+Done when: tests cover discardAll (three new cards, discards +3, exactly one tick, refused cases leave Rando untouched if any), the button with no card picked, with a picked card (card released, then all three discarded, one tick), in carry mode (still scraps), under an overlay (ignored), mid-animation (queued); X and the red × still discard one; one discardAll queues three discard telemetry events (how 'all') and the Worker accepts them; just cc-test passes.
+----
 Priority:   49
 Status: ToDo
 ID: run-stats-m6pe
