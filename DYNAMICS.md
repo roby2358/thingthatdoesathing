@@ -43,8 +43,9 @@ Then a gremlin rides your belt into the sea, and you laugh and fix it.
   isn't touched; the new card turns up in later draws.
 - **Gremlins** → feed comedy and keep routes from going stale. A drowned one climbs back
   out somewhere on the shore as a new gremlin. They ride movers and block
-  without malice, until one steps onto a crate and wrecks it: a crate sitting still near a
-  gremlin is a crate at risk, which is what Walls and Traps beside a line are for.
+  without malice, until one steps onto a crate and wrecks it, or pounces on one beside it
+  (a lunge, D-81: a chance each tick, even riding a Belt): any crate next to a gremlin, still
+  or moving, is a crate at risk, which is what Walls and Traps beside a line are for.
 - **Rocket** → feeds windfall and comedy at once: eight hexes in one tick, over lakes, is a
   shortcut no belt paid for, and one that comes down on ice skids on, wherever it lands (D-37), but a crate that
   comes down in a lake or flies off the coast is gone. It splats gremlins it
@@ -95,7 +96,7 @@ Then a gremlin rides your belt into the sea, and you laugh and fix it.
 
 1. You **place** a card (on a bare hex or over a Thing, which it replaces), **discard** one, **remove** a Thing, or **wait**. You may also
    **rotate** movers first, as many as you like: turning doesn't tick.
-2. **Tick:** Pushers and Pullers claim first, then the other Things, each in placement order (Belts, Springs and Rockets the piece on them, Pushers the piece in front, Pullers the
+2. **Tick:** first, a gremlin next to a crate may pounce on it and smash it (D-81); then Pushers and Pullers claim, then the other Things, each in placement order (Belts, Springs and Rockets the piece on them, Pushers the piece in front, Pullers the
    piece two hexes ahead), each piece getting one motion; unclaimed gremlins pick a way to
    wander. Then everything moves together, one hex per hop: a packed train moves as one, and
    when two pieces want one hex the earlier Thing wins (D-38).

@@ -56,7 +56,9 @@ Terrain: water sinks pieces, ice makes them slide (over at most 4 ice hexes in a
 another standing on ice (or a Slide), on the ground or out of the air, shoves it and the
 pieces right behind it two hexes on, and comes to rest right behind them. Gremlins wander and
 ride your belts, and a gremlin that steps onto a crate wrecks it (one pushed into a crate
-is just stopped, or bumps it on if the crate is on ice). A gremlin
+is just stopped, or bumps it on if the crate is on ice). A gremlin next to a crate may also
+pounce on it (16% a tick, before anything moves, even from a Belt that was carrying it) and
+smash it. A gremlin
 that comes onto a target dies there, so they can't camp it.
 
 ## UI

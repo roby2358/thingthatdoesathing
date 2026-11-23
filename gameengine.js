@@ -8,7 +8,7 @@
 const GameEngine = (function () {
     const {
         TERRAIN, THINGS, TOOLS, CARDS, cardOf, UNLOCKS, PIECES, CRATE_COLORS, WHITE, aims, nextMilestone, MAP_SIZES, ENHANCE_CHANCE, HAND_SIZE, IDLE_REDRAW_TICKS, BUMP_ADVANCE, MAX_SLIDE,
-        gremlinDice, GREMLIN_DICE_SIDES, crateCap, milestonesReached, bigCrateChance, COUNTERS, COUNTER_READS,
+        gremlinDice, GREMLIN_DICE_SIDES, GREMLIN_LUNGE_CHANCE, crateCap, milestonesReached, bigCrateChance, COUNTERS, COUNTER_READS,
         GOALS_PER_GAME, rung,
         GEN_MAX_ATTEMPTS, HEIGHTMAP_ROUGHNESS,
         WATER_PCT, MOUNTAIN_PCT, ICE_FRAC, PLACE_SLICE_FRAC, PLACE_SLICE_MIN
@@ -992,7 +992,7 @@ const GameEngine = (function () {
         }
 
         splatBump(m, first, run) {
-            if (PIECES[first.kind].splatsOnSlideBump) this.destroy(first, m.piece.id, run, LOST_OTHER);
+            if (PIECES[first.kind].splatsOnSlideBump) this.destroy(first, m.piece.id, run, LOST_OTHER, run.hop);
             else this.advanceLine(m, first, run);
             this.crash(m, run, first.id);
         }
@@ -1019,7 +1019,7 @@ const GameEngine = (function () {
             const moving = props.filter(p => VACATES.has(fates.get(p.m).kind));
             for (const p of moving) {
                 const { victim } = fates.get(p.m);
-                if (victim) this.destroy(victim, p.m.piece.id, run, fates.get(p.m).kind === 'wreck' ? SMASHED : LOST_OTHER);
+                if (victim) this.destroy(victim, p.m.piece.id, run, fates.get(p.m).kind === 'wreck' ? SMASHED : LOST_OTHER, run.hop);
                 this.countSlideOff(p.m);
                 p.m.piece.moveTo(p.hex.q, p.hex.r);
                 this.record(p.m, p.hex, run.hop);
@@ -1029,14 +1029,14 @@ const GameEngine = (function () {
             for (const p of stopped) this[STOPPED[p.m.phase]](p.m, run);
         }
 
-        // A piece a mover splatted or wrecked: gone, its value lost (counted in `cause`), its
-        // motion over.
-        destroy(victim, by, run, cause) {
+        // A piece a mover splatted or wrecked at `hop`: gone, its value lost (counted in
+        // `cause`), its motion over.
+        destroy(victim, by, run, cause, hop) {
             this.removePiece(victim);
             this.loseValue(victim, cause);
             const vm = run.byId.get(victim.id);
             if (vm) vm.phase = 'done';
-            run.ends.push({ type: 'splat', id: victim.id, by, trap: false, hop: run.hop });
+            run.ends.push({ type: 'splat', id: victim.id, by, trap: false, hop });
         }
 
         // Add `hex` to `m`'s path at `hop`, one entry per hop since its first: a hop it sat out
@@ -1197,6 +1197,36 @@ const GameEngine = (function () {
             m.phase = 'done';
         }
 
+        // ---- Lunges (D-81) ----
+        // As the tick starts, before any claim: each piece that wrecks (a gremlin), in piece
+        // order, with cargo on a neighboring hex draws once; under GREMLIN_LUNGE_CHANCE it jumps
+        // onto one of them (a uniform choice) at hop 1, smashing it. Its motion is over: it's
+        // claimed, so no Thing carries it and it doesn't wander, and it doesn't slide; a Trap or
+        // a target there still kills it. One with no cargo beside it draws nothing. Each lunge
+        // leaves the board as the next gremlin sees it.
+        lunges(run) {
+            for (const g of this.state.pieces.filter(p => PIECES[p.kind].wrecks)) {
+                const prey = this.board.neighbors(g.q, g.r)
+                    .map(hex => this.pieceAt(hex.q, hex.r))
+                    .filter(p => p && PIECES[p.kind].cargo);
+                if (!prey.length || Rando.random() >= GREMLIN_LUNGE_CHANCE) continue;
+                this.lunge(run, g, Rando.choice(prey));
+            }
+        }
+
+        // `g` jumps onto `crate`'s hex at hop 1 and smashes it, as a wreck does.
+        lunge(run, g, crate) {
+            const LUNGE_HOP = 1;
+            const hex = this.hexOf(crate);
+            this.destroy(crate, g.id, run, SMASHED, LUNGE_HOP);
+            const m = this.newMotion(run, g, null, -1, 'ground', 0);
+            g.moveTo(hex.q, hex.r);
+            this.record(m, hex, LUNGE_HOP);
+            m.phase = 'done';
+            const res = this.groundResult(g, hex);
+            if (res !== 'moved') run.ends.push(this.endEvent(g, res, LUNGE_HOP));
+        }
+
         // ---- The tick: every Thing does its thing ----
         // `first` is what the command did before ticking (NOTHING_FIRST, or remove's sink):
         // its events lead, and its sunk kinds emerge with the tick's own.
@@ -1207,6 +1237,9 @@ const GameEngine = (function () {
             const kindOf = new Map(s.pieces.map(p => [p.id, p.kind]));
             const events = [];
             const run = { hop: 0, motions: [], byId: new Map(), claimed: new Set(), ends: [] };
+
+            // Lunges, before any claim (D-81): a gremlin beside a crate may jump onto it.
+            this.lunges(run);
 
             // Claims, as the tick starts: Things that reach ahead (Pusher, Puller) first, so one
             // beside a moving line catches the crate in front before a Belt carries it on; then

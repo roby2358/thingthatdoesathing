@@ -646,7 +646,7 @@ run('Help\'s World page (D-61): one row per part of the world; every number in e
     const EXPECT = {
         CRATE: [],
         BIG_CRATE: [A.PIECES.bigcrate.value],
-        GREMLIN: [],
+        GREMLIN: [Math.round(A.GREMLIN_LUNGE_CHANCE * 100)],
         SLICK: [A.MAX_SLIDE],
         WATER: [],
         MILESTONE: [...ladder, Math.max(...Object.values(A.MAP_SIZES).map(m => m.colors))],

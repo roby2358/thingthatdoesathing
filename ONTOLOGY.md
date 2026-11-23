@@ -115,7 +115,7 @@ A `Piece` (position, color, label) with two fields set by the engine. Each kind 
 | `value` | 1 | 10 | 0 | What a delivery adds to `delivered` and its target's count, and what losing it (sunk, wrecked, blasted) adds to `lost`. Toward the crate cap every cargo piece counts one (D-34). [D: pjpd big-crate] |
 | `wanders` | no | no | yes | Takes a random step on a tick when no Thing claimed it, its direction picked from the board as the tick starts (D-38). |
 | `splats` | no | no | yes | A Rocket's flight destroys it: the piece the flier lands on, and the launched piece once it lands; so does coming onto a Trap (Motion rule). [D] |
-| `wrecks` | no | no | yes | Its own wandering step into a cargo piece's hex destroys that piece (counted in `lost`) and takes the hex; pushed, pulled or flung into one, it's just blocked (Motion rule). [D] |
+| `wrecks` | no | no | yes | Its own wandering step into a cargo piece's hex destroys that piece (counted in `lost`) and takes the hex; pushed, pulled or flung into one, it's just blocked (Motion rule). It also lunges: beside a cargo piece as the tick starts, `GREMLIN_LUNGE_CHANCE` to jump onto it and smash it, whatever Thing stood to carry it (Tick rule, D-81). [D] |
 | `reemerges` | no | no | yes | When one sinks or splats, a new one climbs out on a shore hex (Emerge rule). |
 | `splatsOnSlideBump` | no | no | yes | Sliding into a bump (a skid, or a ground motion that came onto slick ground free), it splats where it is at that hop instead of following; the bumped line still advances, unless the bumped piece has `splatsOnSlideBump` too, and then both splat and nothing moves on (Bump, D-54). [D: pjpd grem-splat] |
 
@@ -472,10 +472,17 @@ are. A gremlin dies on a Trap however it comes onto it (a wander, a push, a slid
 but not when a flight carries it over one, and not when a Trap is built under it. A slide or a
 flight always ends: a straight line reaches the water edge.
 
-### Tick — `tick()` [P; lockstep D-38]
+### Tick — `tick()` [P; lockstep D-38; lunge D-81]
 *Serves:* G-1. Runs once per command.
 ```
 phase = 'tick'; deliveredBefore = delivered; claimed = {}
+for g in pieces with PIECES[kind].wrecks (piece order):   # Lunge, D-81
+    prey = cargo pieces on g's 6 neighbors, as earlier lunges left the board
+    if prey and Rando.random() < GREMLIN_LUNGE_CHANCE:            # no prey: no draw
+        c = Rando.choice(prey); remove c; lost += c.value; cratesSmashed += c.value
+        emit (with the tick's ends) splat{id: c, by: g, trap: false, hop: 1}
+        claimed += g; g moves to c's hex at hop 1 (a one-hex move); its motion is over
+        ground arrival there, no slide: a Trap kills it (splat, trap); a target would too
 for thing in things with shove or pull, then the rest (each in placement order), rank = its index:   # D-24
     mover:  p = piece on thing's hex;  dir = facing;            n = push
     Pusher: p = piece on hex 1 ahead;  dir = facing;            n = shove
@@ -513,6 +520,12 @@ purpose, but a gremlin that wanders onto ice, or is pulled into water, goes in. 
 ignores pieces on its own hex and on the near hex; a pulled piece that lands on bare ice slides
 on toward the Puller and stops on it (a Thing covers its hex). A Pusher ignores a piece on its
 own hex. A gremlin that comes onto a target dies there, the same way as on a Trap.
+
+A lunge (D-81) comes before every claim, so neither piece can get away that tick: the crate gets
+no motion (a Belt under it has nothing to carry), and the gremlin has had its motion (a Belt
+under it doesn't carry it, a bump can't move it). The hex it left is empty for the rest of the
+tick. A crate never stands on open water or a target, so a lunge can't sink or deliver; it can
+end on ice or a Slide, where the gremlin stays put.
 
 ### Milestones — `nextMilestone(delivered)` [D]
 *Serves:* accumulation (a factory that keeps paying off), G-1.
@@ -556,7 +569,7 @@ false only for `rungsReached`, which is lifetime only and counted by the achieve
 | `goalsMet` | goals met | 1 | no | the goal check: 1 per goal met (Goals rule, D-75) |
 | `rungsReached` | achievements reached | 1 | no | lifetime only (`perGame` false): the achievements client |
 | `cratesSunk` | crates sunk | 1 | negative | `loseValue` from `sink`: cargo value lost to open water |
-| `cratesSmashed` | crates smashed by gremlins | 1 | negative | `loseValue` from a gremlin's wreck |
+| `cratesSmashed` | crates smashed by gremlins | 1 | negative | `loseValue` from a gremlin's wreck or lunge (D-81) |
 | `cratesLostOther` | crates lost otherwise | 1 | negative | every other `loseValue`: blast, Bomb, a mid-air crash or slide-bump splat, a new endpoint clearing it |
 | `discards` | cards discarded | 10 | negative | an accepted `discard` |
 
@@ -664,7 +677,8 @@ wait():        always legal; tick()
 *Serves:* comedy, routes going stale. Gremlins use the same `step` as everything else. They
 know only the board and occupancy. They pick a random free land or covered-water (Bridge, Slide) neighbor, or
 stay, and a crate on a neighbor counts as free: stepping there wrecks it. They never push
-crates; a gremlin in the way is a wall until it moves, unless it steps onto the crate.
+crates; a gremlin in the way is a wall until it moves, unless it steps onto the crate. As
+the tick starts one beside a crate may lunge onto it and smash it, even riding a mover (D-81).
 Pushed or pulled into a crate, a gremlin is only blocked, unless the crate stands on slick
 ground: then it bumps it (D-33), and a gremlin on slick ground gets bumped like a crate, or carried along in a bumped line. A gremlin that bumps while sliding goes splat instead of following, and a gremlin it bumps splats with it (D-54). A gremlin standing on a
 mover (a Bridge too) gets carried. One that drowns or splats is replaced by a new one on the shore.
@@ -698,6 +712,7 @@ The code constant in `GameArtifacts` is the single source. `RULES_VERSION` stays
 | `HAND_SIZE` | 3 | cards |
 | `BUMP_ADVANCE` | 2 | hexes a bumped line advances; its bumper follows to one hex behind it (D-33) [D] |
 | `MAX_SLIDE` | 3 | moves from a slick hex (bare ice or a Slide) onto a slick hex one ground motion or skid makes; it stops on the 3rd, so at most 4 slick hexes in a row (D-52) [D] |
+| `GREMLIN_LUNGE_CHANCE` | 0.16 | chance per tick a gremlin with a crate beside it lunges onto one and smashes it (Tick rule, D-81) [D: the designer's 2026-11-23 number] |
 | `IDLE_REDRAW_TICKS` | 10 | ticks in a row with no card used before one random card is redrawn (D-26) |
 | `CRATE_COLORS` | red, green, blue, yellow | the colors a game can open; their count is the spawn cycle's length (one crate chance per color per round, D-43) [D] |
 | `WHITE` | white | the color of a Thing that acts on every piece [D] |
@@ -770,7 +785,7 @@ Illegal → `{ ok:false }` and nothing changed (hand and `Rando` included).
 | `move` | `id, path: [{q,r}…], hop, over` — one per piece that moved: one hex per hop from hop `hop` (the hop it entered `path[0]`), in order, including slides and a bumper's follow; a hop it sat out (a bumper waiting on its contact hop, a flight about to drop back) repeats its hex. `over` is how many of the first hexes it passed over (a Cannon's shot, unseen, D-36), else 0. Every `move` comes before every end, a bumped line's after its bumper's (D-38) |
 | `sink` | `id, hop` (the piece is gone from that hop on, after its last `move`, or where it stood, at hop 0, if the Bridge or Slide under it was removed, moved or scrapped) |
 | `deliver` | `id, hop` |
-| `splat` | `id, by, trap, hop` — a piece destroyed by a Rocket's flight, a Trap, a target, a gremlin's step, a mid-air crash, or `blast` or `bomb` (hop 0), or a newly opened source or target (the tick's last hop, D-44): `by` is the flier or gremlin that landed on it, or the other flight it crashed into (D-38), or null for the launched piece itself, a trapped piece (after its `move`), a shot or flight with nowhere to come down, a blasted crate, a bombed piece, or a cleared piece; `trap` is true only when a Trap killed it |
+| `splat` | `id, by, trap, hop` — a piece destroyed by a Rocket's flight, a Trap, a target, a gremlin's step or lunge (hop 1, D-81), a mid-air crash, or `blast` or `bomb` (hop 0), or a newly opened source or target (the tick's last hop, D-44): `by` is the flier or gremlin that landed on it, or the other flight it crashed into (D-38), or null for the launched piece itself, a trapped piece (after its `move`), a shot or flight with nowhere to come down, a blasted crate, a bombed piece, or a cleared piece; `trap` is true only when a Trap killed it |
 | `spawn` | `id, q, r` — a new crate on a source, or a gremlin climbing out on the shore |
 | `redraw` | `slot` — the hand slot the idle rule redrew this tick |
 | `milestone` | `count` — a milestone this tick's deliveries reached (after the tick's other events) |

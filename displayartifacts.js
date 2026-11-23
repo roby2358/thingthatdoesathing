@@ -163,7 +163,7 @@ const GameDisplayArtifacts = (function () {
             { id: 'BIG_CRATE', name: 'Big crate',      picture: [{ terrain: T.PLAINS, piece: 'bigcrate', color: 'red' }],
               says: n => `counts as ${n.bigValue} crates delivered` },
             { id: 'GREMLIN',   name: 'Gremlin',        picture: [{ terrain: T.PLAINS, piece: 'gremlin', color: '#b05cd6' }],
-              says: () => 'wanders, smashes crates it walks into, and gets caught in Traps' },
+              says: n => `wanders, smashes crates it walks into, and gets caught in Traps; next to a crate it may pounce on it and smash it (${n.lungePct}% a tick), even off a moving Belt` },
             { id: 'SLICK',     name: 'Ice',            picture: [{ terrain: T.ICE }],
               says: n => `what comes onto it slides on, up to ${n.maxSlide} more slick hexes; a piece standing still on it gets bumped along` },
             { id: 'WATER',     name: 'Open water',     picture: [{ terrain: T.WATER }],
@@ -177,7 +177,7 @@ const GameDisplayArtifacts = (function () {
         PIECE_LOOK: {
             crate:   { name: 'Crate' },
             bigcrate: { name: 'Big crate' },   // the hover adds " — worth N" from PIECES' value
-            gremlin: { name: 'Gremlin — wanders' },
+            gremlin: { name: 'Gremlin — wanders, pounces on crates' },
         },
         // The About panel (D-59): who made it and where the way back goes. feedbackUrl stays
         // empty until the game's GitHub Issues page is up (it'll point there); the feedback

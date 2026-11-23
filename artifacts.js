@@ -96,7 +96,9 @@ const GameArtifacts = (function () {
     //   splats    — a splatting push (the Rocket) destroys it: the piece it lands on, and the
     //               piece it launches once that one lands; so does coming onto a Trap
     //   wrecks    — its own wandering step into a cargo piece's hex destroys that piece (lost)
-    //               and takes the hex; being pushed, pulled or flung into one doesn't
+    //               and takes the hex; being pushed, pulled or flung into one doesn't. It also
+    //               lunges: beside a cargo piece as the tick starts, GREMLIN_LUNGE_CHANCE to jump
+    //               onto it and smash it, whatever would have carried it (D-81)
     //   reemerges — when one sinks or splats (counted in exGremlins or trapped), a new one climbs out on a shore hex at the end
     //               of the tick
     //   splatsOnSlideBump — sliding (a skid, or a ground motion that came onto slick ground
@@ -291,6 +293,7 @@ const GameArtifacts = (function () {
         HAND_SIZE: 3,
         BUMP_ADVANCE: 2,             // hexes a bumped line advances; its bumper follows to one behind it (D-33)
         MAX_SLIDE: 3,                // slick-to-slick moves one ground motion or skid may make before it stops: at most 4 slick hexes in a row (D-52)
+        GREMLIN_LUNGE_CHANCE: 0.16,  // per tick, a gremlin beside a crate jumps onto it and smashes it, before any claim (D-81)
         IDLE_REDRAW_TICKS: 10,       // ticks in a row with no card used (place, discard, move, scrap, bomb) before one random card is redrawn
         GREMLIN_HEXES_PER_DIE,
         GREMLIN_DICE_SIDES: 4,

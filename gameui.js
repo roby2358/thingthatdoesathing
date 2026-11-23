@@ -15,7 +15,7 @@ const GameUI = (function () {
         COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES, ABOUT, HELP_CARD_PX, HELP_PIECE_SCALE, HELP_LADDER_SHOWN, WORLD_LOOK,
         SAVE_KEY, SAVE_VERSION, SAVE_REDIRECT_MAX_AGE_S, MESSAGES, RUNG_BANNER_LINES
     } = GameDisplayArtifacts;
-    const { TERRAIN, THINGS, WHITE, HAND_SIZE, MAP_SIZES, CARDS, PIECES, MAX_SLIDE, GOALS_PER_GAME, aims, cardOf, nextMilestone } = GameArtifacts;
+    const { TERRAIN, THINGS, WHITE, HAND_SIZE, MAP_SIZES, CARDS, PIECES, MAX_SLIDE, GREMLIN_LUNGE_CHANCE, GOALS_PER_GAME, aims, cardOf, nextMilestone } = GameArtifacts;
     const SIZE_KEYS = Object.keys(MAP_SIZES);
     // A splat burst's color, by piece kind: a gremlin's own color, a crate's side face.
     const SPLAT_COLOR = {
@@ -82,6 +82,7 @@ const GameUI = (function () {
         return {
             bigValue: PIECES.bigcrate.value,
             maxSlide: MAX_SLIDE,
+            lungePct: Math.round(GREMLIN_LUNGE_CHANCE * 100),
             ladder,
             colors: Math.max(...Object.values(MAP_SIZES).map(m => m.colors)),
         };
