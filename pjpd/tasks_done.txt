@@ -258,6 +258,27 @@ DONE WHEN: ONTOLOGY/CRITERIA/RATIONALE/ARCHITECTURE_LOG reconciled (new D-n for 
 ----
 Priority:   78
 Status: Done
+ID: prunelog-sjnt
+Created: 2026-11-23T05:57:15Z
+Updated: 2026-11-23T07:06:29Z
+
+Prune ARCHITECTURE_LOG.md: keep the valuable history, collapse the little things to one-liners or drop them (the designer's call, 2026-11-23). It's 108,650 bytes.
+
+Goal: a log that's quick to read for "when and why did this change", without step-by-step trivia that the decision records (RATIONALE D-n) and git history already hold.
+
+Settled design:
+- Target: under 45,000 bytes (wc -c).
+- Keep every dated entry's date and its D-n / R-n / U-n IDs, newest first as now, so anything that cites the log still finds its date.
+- An entry whose substance is a decision now recorded in RATIONALE becomes one line: date — what changed in a phrase — D-n (and R-n). Keep longer prose only where the log holds something RATIONALE doesn't: a reversal and its reason, a measured before → after (sim figures, sizes), an incident (a production fix, a data migration), or a design path that was tried and abandoned.
+- Drop outright: lists of files touched, test-helper refactors, reviewer tidy-ups, wording fixes, "docs updated to match" lines, and repeated statements that RULES_VERSION stayed 1.
+- Same-day minor entries on one topic can merge into one line.
+- Don't edit RATIONALE or other docs except to fix a citation the pruning breaks (search for references to the log: RATIONALE.md, SHIP.md, CLAUDE.md).
+- No code changes.
+
+Done when: wc -c ARCHITECTURE_LOG.md is under 45,000; every D-n that appeared in the log still appears there with its date; no citation elsewhere points at removed text; just cc-test passes.
+----
+Priority:   78
+Status: Done
 ID: privacydocs-ntj5
 Created: 2026-11-21T08:36:52Z
 Updated: 2026-11-21T09:40:46Z
