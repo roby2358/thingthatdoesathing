@@ -210,6 +210,10 @@ const GameDisplayArtifacts = (function () {
         // The non-color parts of the shapes: every shape's outline, the strapped cube's bands and
         // buckles, the bag's tie, the hoop and fold lines.
         CRATE_TRIM: { outline: '#000', strap: '#2a1f16', buckle: '#d8d8d0', cord: '#3a2814', line: 'rgba(0, 0, 0, 0.45)' },
+        // The bag's outer silhouette is stroked this many times the other shapes' outline width,
+        // times the crate's draw scale (a big crate's is thicker too); its cord, folds and tuft keep
+        // the plain width. A sack's soft edge read faint on the board at the cube's width (D-84).
+        BAG_OUTLINE_WIDTH: 2,
         SPLAT_BLOTS: 8,              // drops in a splat burst
         // Sources and targets (D-42): a fill with light marks and a dark outline, since
         // several crate colors sit close to the terrain they border.

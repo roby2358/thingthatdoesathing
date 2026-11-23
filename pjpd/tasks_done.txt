@@ -333,6 +333,20 @@ Done when: just cc-test passes with the new rows and the uiboot test.
 ----
 Priority:   70
 Status: Done
+ID: bagoutline-gy9p
+Created: 2026-11-23T05:47:18Z
+Updated: 2026-11-23T05:52:00Z
+
+Make the bag crate's outer outline thicker so it reads better on the board (the designer, 2026-11-23: "a little hard to see").
+
+Settled design: in gameui.js drawBag, the bag's outer silhouette stroke gets a thicker line width than now (about double the cube's outline width, scaled with the crate's size so big crates scale too); the interior detail lines (cord, folds, tuft) keep their current width so the bag doesn't look heavy. Put the width in displayartifacts.js beside CRATE_TRIM (e.g. a BAG_OUTLINE_WIDTH factor), not a literal in the draw code. Other shapes unchanged. Display only; RULES_VERSION stays 1.
+
+Docs: ONTOLOGY look paragraph if it describes line widths, D-84 (one line: the bag's heavier outline and why), ARCHITECTURE_LOG entry dated 2026-11-23, CLAUDE.md displayartifacts row if the new constant belongs there.
+
+Done when: R-116's recording-canvas check confirms the bag's outline stroke uses the new, thicker width (relative to the cube's) for a crate and a big crate, and just cc-test passes.
+----
+Priority:   70
+Status: Done
 ID: exgremscale-uzy3
 Created: 2026-11-23T01:16:07Z
 Updated: 2026-11-23T01:45:22Z

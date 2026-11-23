@@ -10,7 +10,7 @@
 const GameUI = (function () {
     const {
         HEX_SIZE, COUNTER_SIZE, HOP_MS, RUN_GAP_MS, MILESTONE_MS, NOTICE_MS, REASONS, TERRAIN_COLORS, TERRAIN_NAMES, THING_LOOK,
-        PIECE_LOOK, CRATE_SHADES, CRATE_SHAPES, CRATE_SHAPES_DEFAULT, CRATE_SHAPE_SALT, CRATE_TRIM, BIG_CRATE_SCALE, COLOR_INK, SPLAT_BLOTS, SOURCE_COLOR, PORT_NEUTRAL_MARK, PORT_OUTLINE,
+        PIECE_LOOK, CRATE_SHADES, CRATE_SHAPES, CRATE_SHAPES_DEFAULT, CRATE_SHAPE_SALT, CRATE_TRIM, BAG_OUTLINE_WIDTH, BIG_CRATE_SCALE, COLOR_INK, SPLAT_BLOTS, SOURCE_COLOR, PORT_NEUTRAL_MARK, PORT_OUTLINE,
         PORT_MARK_WIDTH, PORT_RING_RADII, PORT_PLUS_REACH, PORT_OUTLINE_WIDTH, BG_COLOR, UI_FONT, REACH_COLOR, MAP_SIZE_NOTES,
         COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES, ABOUT, HELP_CARD_PX, HELP_PIECE_SCALE, HELP_LADDER_SHOWN, WORLD_LOOK,
         SAVE_KEY, SAVE_VERSION, SAVE_REDIRECT_MAX_AGE_S, MESSAGES, RUNG_BANNER_LINES, SELECT_HINTS
@@ -2203,7 +2203,7 @@ const GameUI = (function () {
             const w = COUNTER_SIZE * scale * 0.45;     // half-width
             const h = w / 2;                           // half-height of the top rhombus
             const d = w;                               // side-face depth
-            const g = { cx, cy, w, h, d, top: cy - d / 2, shades: CRATE_SHADES[color] };
+            const g = { cx, cy, w, h, d, top: cy - d / 2, scale, shades: CRATE_SHADES[color] };
             ctx.save();
             ctx.globalAlpha = alpha;
             ctx.strokeStyle = CRATE_TRIM.outline;
@@ -2297,7 +2297,7 @@ const GameUI = (function () {
 
         // A sack: a squat body wider at the bottom, its right side in shadow and its upper left
         // lit, a gathered neck tied with a cord, a tuft above the tie and two fold lines.
-        drawBag({ cx, cy, w, shades }) {
+        drawBag({ cx, cy, w, scale, shades }) {
             const ctx = this.ctx;
             const neckY = cy - w * 0.45, nw = w * 0.24, baseY = cy + w * 0.82;
             const body = () => {
@@ -2324,7 +2324,10 @@ const GameUI = (function () {
             ctx.fill();
             ctx.restore();
             body();
+            const outline = ctx.lineWidth;                   // the silhouette heavier (BAG_OUTLINE_WIDTH), the detail lines not
+            ctx.lineWidth = outline * BAG_OUTLINE_WIDTH * scale;
             ctx.stroke();
+            ctx.lineWidth = outline;
             ctx.strokeStyle = CRATE_TRIM.line;               // folds down from the neck
             for (const s of [-1, 1]) {
                 ctx.beginPath();

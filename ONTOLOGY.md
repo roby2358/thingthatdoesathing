@@ -134,7 +134,7 @@ different. Each is filled with its `CRATE_SHADES`
 through one table of shape drawers (`CRATE_DRAW`: `drawCube`, `drawCylinder`, `drawStrapped`,
 `drawBag`), and everything that draws a piece goes through `PIECE_DRAW` (the board, the tick
 animation, Bomb bursts, Help's World pictures, screencaps). A big crate is its color's shape at
-`BIG_CRATE_SCALE`. Sources and targets keep their look (D-42). No rule, state or save reads it.
+`BIG_CRATE_SCALE`. The bag's outer outline is stroked `BAG_OUTLINE_WIDTH` times the other shapes' outline width, times the crate's draw scale; its cord, folds and tuft are not. Sources and targets keep their look (D-42). No rule, state or save reads it.
 
 ### Thing — a placed fixture (plain object)
 *Serves:* G-1, G-2. Templates over snowflakes: every kind is a row of `THINGS` (§6).

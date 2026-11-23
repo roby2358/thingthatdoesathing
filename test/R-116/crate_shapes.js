@@ -4,7 +4,8 @@
 // drawPiece (PIECE_DRAW), calls that shape's drawer and no other, at BIG_CRATE_SCALE for a big
 // one, filling with the color's CRATE_SHADES and staying inside the cube's footprint. A
 // recording 2D context stands in for the canvas. The board render and Help's World pictures
-// reach the same drawers.
+// reach the same drawers. The bag's outer outline is stroked BAG_OUTLINE_WIDTH times the cube's
+// outline width, times the crate's draw scale (big crates too); its detail lines keep the cube's width.
 'use strict';
 const { check, done } = require('../helpers/check');
 const { liveGame } = require('../helpers/goals');
@@ -17,6 +18,7 @@ const SHAPES = p.ui.crateShapes;   // this game's pairing, which every crate dra
 const SHADES = p.run('GameDisplayArtifacts.CRATE_SHADES');
 const TRIM = p.run('GameDisplayArtifacts.CRATE_TRIM');
 const BIG = p.run('GameDisplayArtifacts.BIG_CRATE_SCALE');
+const BAG_OUTLINE = p.run('GameDisplayArtifacts.BAG_OUTLINE_WIDTH');
 const COUNTER = p.run('GameDisplayArtifacts.COUNTER_SIZE');
 const DRAWER = { cube: 'drawCube', cylinder: 'drawCylinder', strapped: 'drawStrapped', bag: 'drawBag' };
 
@@ -30,18 +32,19 @@ check('the game\'s pairing: every color a different one of the shapes', COLORS.l
     && COLORS.every(c => SHAPE_LIST.includes(SHAPES[c])) && new Set(COLORS.map(c => SHAPES[c])).size === COLORS.length);
 
 // A 2D context that logs every call ([name, ...args]) and every fillStyle / strokeStyle set;
-// a gradient logs its stop colors as fills.
+// a gradient logs its stop colors as fills; each stroke logs the lineWidth and strokeStyle it ran with.
 function recorder() {
-    const log = [], fills = [];
+    const log = [], fills = [], strokes = [];
     const ctx = new Proxy({}, {
         get: (t, k) => (k in t ? t[k] : (...args) => {
             log.push([k, ...args]);
+            if (k === 'stroke') strokes.push({ width: t.lineWidth, style: t.strokeStyle });
             if (k === 'createLinearGradient' || k === 'createRadialGradient') return { addColorStop: (o, c) => fills.push(c) };
             return undefined;
         }),
         set: (t, k, v) => { if (k === 'fillStyle' && typeof v === 'string') fills.push(v); t[k] = v; return true; },
     });
-    return { ctx, log, fills };
+    return { ctx, log, fills, strokes };
 }
 
 // The drawers each color's crate calls, in order: the strapped cube is the cube with straps on.
@@ -78,6 +81,7 @@ function extents(log) {
 
 const cx = 200, cy = 100;
 const sizes = {};
+const cubeOutline = {}, bagStrokes = {};   // per kind: the widths a cube's strokes used; a bag's strokes
 for (const color of COLORS) {
     for (const kind of ['crate', 'bigcrate']) {
         const rec = recorder();
@@ -109,7 +113,21 @@ for (const color of COLORS) {
             bag: () => n('bezierCurveTo') >= 2 && n('quadraticCurveTo') >= 1 && n('clip') === 1,
         }[shape];
         check(`a ${color} ${kind} draws its ${shape} shape on the canvas`, tell());
+        if (shape === 'cube') cubeOutline[kind] = new Set(rec.strokes.map(s => s.width));
+        if (shape === 'bag') bagStrokes[kind] = rec.strokes;
     }
+}
+// The bag's outline against the cube's: its first stroke is the body's silhouette, its last the cord.
+for (const kind of ['crate', 'bigcrate']) {
+    const cube = cubeOutline[kind], bag = bagStrokes[kind];
+    const plain = cube && cube.size === 1 ? [...cube][0] : NaN;
+    const scale = kind === 'bigcrate' ? BIG : 1;
+    check(`a cube ${kind} strokes every edge at one outline width`, Number.isFinite(plain));
+    check(`a bag ${kind}'s outer outline is BAG_OUTLINE_WIDTH (${BAG_OUTLINE}) × ${scale === 1 ? '' : 'BIG_CRATE_SCALE × '}the cube's outline, in the outline color`,
+        BAG_OUTLINE > 1 && bag && Math.abs(bag[0].width - plain * BAG_OUTLINE * scale) < 1e-9 && bag[0].style === TRIM.outline);
+    const details = bag ? bag.slice(1, -1) : [];
+    check(`a bag ${kind}'s folds and tuft keep the cube's outline width, then its cord in CRATE_TRIM.cord`,
+        details.length >= 3 && details.every(s => s.width === plain) && bag[bag.length - 1].style === TRIM.cord);
 }
 check('every big crate is BIG_CRATE_SCALE × its color\'s crate', COLORS.every(c => Math.abs(sizes[c].bigcrate / sizes[c].crate - BIG) < 1e-9));
 

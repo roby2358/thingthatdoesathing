@@ -2,6 +2,9 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-23 — The bag crate's outline is heavier (D-84)
+New `GameDisplayArtifacts.BAG_OUTLINE_WIDTH` (2), the designer's call (pjpd bagoutline-gy9p: the bag was "a little hard to see"): `drawBag` strokes the sack's outer silhouette at the plain outline width (1, set in `drawCrate`) × `BAG_OUTLINE_WIDTH` × the crate's draw scale, which `drawCrate` now passes in its geometry (`g.scale`), so a big crate's is `BIG_CRATE_SCALE` times thicker. Before, the bag's outline was 1px like every shape's. The cord, folds and tuft keep their widths; the cube, cylinder and strapped cube are unchanged. Display only: `RULES_VERSION` stays 1. R-116 checks the bag's outline stroke against the cube's for a crate and a big crate; RATIONALE D-84 and CLAUDE.md follow.
+
 ### 2026-11-23 — A new color usually gets its own source (D-21)
 `ENHANCE_CHANCE` 0.5 → 0.16, the designer's call (pjpd enhance16-c9py): a newly opened crate color comes out of an existing source 16% of the time, otherwise out of a new source of its own. Before, it was half and half. `openColor` is unchanged (the same draw, the same fallbacks); `RULES_VERSION` stays 1. Seeded play shifts after the first opened color; the sims reach the fifth milestone more often (D-21's figures). R-38 adds the value and a 400-seed check that about 16% (11–21%) of opened colors share a source (it replaces the old 40-seed both-outcomes check, which that range covers); RATIONALE D-21 (status line, Why, a dated note with the call and the sim figures) and D-61's Milestones call ("usually its own source") follow; ONTOLOGY's Numbers row, CRITERIA R-38, README, DYNAMICS and Help's World line for Milestones ("sometimes its own source" → "usually its own source") follow.
 
