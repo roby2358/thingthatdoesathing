@@ -2,8 +2,10 @@
 // Cannon's motion that moves its piece at least one hex adds 1 to springThrows, rocketFlights or
 // cannonLobs; one that doesn't move (a throw with nowhere to go, a shot that doesn't fire) adds
 // nothing. Each mountain hex a Spring's flight enters or a Cannon's lob passes over adds 1 to
-// mountainsFlown. Each slick-to-slick move (the D-52 count: a ground motion's or a landing's
-// skid) adds 1 to slides.
+// mountainsFlown. Each slick hex (bare ice or a Slide) a crate leaves by sliding adds 1 to slides,
+// whatever it moves into (plains, water, more slick ground): a free slide, a landing's skid, a
+// bumped line's advance or its bumper's follow (D-33). A powered step off a slick hex, a hex a
+// crate is blocked or capped on, and anything a gremlin does count nothing.
 // A Pusher or Puller that moves its piece adds 1 to pushes or pulls; pushesPulls is their sum.
 'use strict';
 const { check, done } = require('../helpers/check');
@@ -28,17 +30,82 @@ const shoot = (kind, setup) => {
     check('a Spring with a Wall in front doesn\'t throw: springThrows 0', c.isAt(0, 4) && engine.counters().springThrows === 0);
 }
 {
-    const { engine, c } = shoot('SPRING', ({ terrain, T }) => [3, 4, 5].forEach(q => terrain(q, 4, T.ICE)));
-    const n = engine.counters();
-    check('a Spring landing on ice skids 3 → 5 then onto plains: slides 2 (its slick-to-slick moves)', c.isAt(6, 4) && n.slides === 2 && n.springThrows === 1);
+    const { engine, c } = shoot('BELT', ({ terrain, T }) => [1, 2, 3].forEach(q => terrain(q, 4, T.ICE)));
+    check('a Belt onto three ice hexes, the crate sliding off onto plains: slides 3', c.isAt(4, 4) && engine.counters().slides === 3);
 }
 {
-    const { engine, c } = shoot('BELT', ({ terrain, T }) => [1, 2].forEach(q => terrain(q, 4, T.ICE)));
-    check('a Belt onto two ice hexes: slides 1 (plains → ice isn\'t a slide)', c.isAt(3, 4) && engine.counters().slides === 1);
+    const { engine, c } = shoot('SPRING', ({ terrain, T }) => [3, 4, 5].forEach(q => terrain(q, 4, T.ICE)));
+    const n = engine.counters();
+    check('a Spring landing on ice skids 3 → 5 then off onto plains: slides 3 (each slick hex left)', c.isAt(6, 4) && n.slides === 3 && n.springThrows === 1);
+}
+{
+    const { engine, c } = shoot('SPRING', ({ terrain, T }) => terrain(3, 4, T.ICE));
+    check('a Spring landing on one ice hex skids off onto plains: slides 1', c.isAt(4, 4) && engine.counters().slides === 1);
+}
+{
+    const { engine, state, c } = shoot('BELT', ({ terrain, T }) => { terrain(1, 4, T.ICE); terrain(2, 4, T.WATER); });
+    const n = engine.counters();
+    check('a crate sliding off ice into water: slides 1, and sunk', !state.pieces.includes(c) && n.slides === 1 && n.cratesSunk === 1);
+}
+{
+    const { engine, c } = shoot('BELT', ({ terrain, T, put }) => { terrain(1, 4, T.ICE); put('WALL', 2, 4); });
+    check('a crate pushed onto ice and blocked there: slides 0', c.isAt(1, 4) && engine.counters().slides === 0);
 }
 {
     const { engine, c } = shoot('BELT', ({ put }) => [1, 2, 3, 4, 5, 6].forEach(q => put('SLIDE', q, 4)));
-    check('a Belt onto six Slides stops on its MAX_SLIDE-th slide: slides 3', c.isAt(4, 4) && engine.counters().slides === 3);
+    check('a Belt onto six Slides stops at the MAX_SLIDE cap on its 4th: slides 3 (the hex it stops on isn\'t left)', c.isAt(4, 4) && engine.counters().slides === 3);
+}
+{
+    const { engine, c } = shoot('SPRING', ({ terrain, T }) => [3, 4, 5, 6, 7, 8].forEach(q => terrain(q, 4, T.ICE)));
+    check('a skid stopped by the MAX_SLIDE cap: slides 3 (3 → 6, its last hex not counted)', c.isAt(6, 4) && engine.counters().slides === 3);
+}
+{
+    // The Belt pushes A onto ice at 1; at 2 it bumps B (still, on ice): B's line advances 2 → 4,
+    // A follows 1 → 3. B leaves 2 and 3, A leaves 1 and 2: all slick.
+    const { engine, put, piece, terrain, T } = flatGame();
+    put('BELT', 0, 4, DIR.E); [1, 2, 3].forEach(q => terrain(q, 4, T.ICE));
+    const a = piece('crate', 0, 4), b = piece('crate', 2, 4);
+    engine.wait();
+    check('a bump line on ice: the bumped crate and the following crate count their slick hexes left: slides 4',
+        b.isAt(4, 4) && a.isAt(3, 4) && engine.counters().slides === 4);
+}
+{
+    const { engine, put, piece, terrain, T } = flatGame();
+    put('PUSHER', 0, 4, DIR.E); [1, 2].forEach(q => terrain(q, 4, T.ICE));
+    const c = piece('crate', 1, 4);
+    engine.wait();
+    check('a Pusher shoving a crate off ice onto ice, then a free slide off onto plains: slides 1 (the powered step isn\'t a slide)',
+        c.isAt(3, 4) && engine.counters().slides === 1);
+}
+{
+    // A Belt or Bridge covers the ground (never slick), so it can't push a crate off a slick hex;
+    // the Pusher's shove stands in for a powered step off one.
+    const { engine, put, piece, terrain, T } = flatGame();
+    put('PUSHER', 0, 4, DIR.E); terrain(1, 4, T.ICE);
+    const c = piece('crate', 1, 4);
+    engine.wait();
+    check('a Pusher shoving a crate off ice onto plains: slides 0', c.isAt(2, 4) && engine.counters().slides === 0);
+}
+{
+    const { engine, put, piece, terrain, T } = flatGame();
+    put('BELT', 0, 4, DIR.E); [1, 2, 3].forEach(q => terrain(q, 4, T.ICE));
+    const gr = piece('gremlin', 0, 4);
+    engine.wait();
+    check('a gremlin sliding across ice: slides 0', gr.isAt(4, 4) && engine.counters().slides === 0);
+}
+{
+    // The gremlin on ice at 3 can't wander (walls, open water at 4, and a gremlin at 2 as the
+    // tick starts, which the Pusher moves off on hop 1, as in R-66). The belted crate slides
+    // 1 → 2 and bumps it: the gremlin is bumped off the ice into the water at 4, the crate
+    // follows 2 → 3. The crate leaves 1 and 2; the gremlin's ice hex doesn't count.
+    const { state, engine, put, piece, terrain, T } = flatGame();
+    put('BELT', 0, 4, DIR.E); [1, 2, 3].forEach(q => terrain(q, 4, T.ICE)); terrain(4, 4, T.WATER);
+    for (const [q, r] of [[4, 3], [3, 3], [3, 5]]) put('WALL', q, r);
+    terrain(2, 5, T.MOUNTAIN); put('PUSHER', 2, 5, DIR.NW);
+    const c = piece('crate', 0, 4), blocker = piece('gremlin', 2, 4), gr = piece('gremlin', 3, 4);
+    engine.wait();
+    check('(setup) the gremlin at 2 was pushed off the crate\'s path', blocker.isAt(2, 3));
+    check('a gremlin bumped off ice: slides 2, the crate\'s only', !state.pieces.includes(gr) && c.isAt(3, 4) && engine.counters().slides === 2);
 }
 {
     const { engine, c } = shoot('ROCKET', () => {});

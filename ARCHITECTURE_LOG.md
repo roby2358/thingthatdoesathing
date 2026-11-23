@@ -2,6 +2,9 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-23 — "Hexes slid" counts every slick hex a crate slides off (D-74)
+`slides` now counts 1 for each slick hex a crate (`cargo`) leaves by sliding, whatever it moves into, the designer's call: a free slide, a landing's skid, a bumped line's advance and its bumper's follow (D-33); a powered step off a slick hex counts nothing, nor a hex a crate is blocked or capped on, nor anything a gremlin does. Before, it was D-52's slick-to-slick count in `slidInto` (any piece, gremlins included, and a powered step from ice onto ice counted), so a crate skidding off ice onto plains or sliding into water counted nothing. The count moved to `countSlideOff` in `applyHop` (a `bumpLine` column on `PHASES`, and `isSliding` shared with `splatsOnBump`); `slidInto` keeps only D-52's `slid` cap, so play is unchanged and `RULES_VERSION` stays 1. R-81's slide cases rewritten (sliding off onto plains, skids, into water, blocked, the cap, a bump line, a Pusher's shove, gremlins); ONTOLOGY's Counters row, CRITERIA R-81 and D-74 call (2) follow.
+
 ### 2026-11-23 — Gremlins trapped on a scale of 100 (D-74)
 `COUNTERS`' `trapped` row: scale 1 → 100, the designer's call (trapped gremlins pile up at the same pace as ex-gremlins, so the two share a scale). Before, its ladder ran 1, 2, 5, 10, …; now 100, 200, 500, 1000, …, so a trapped goal deals 500 (small, level 3), 500 or 1000 (medium, large), 1000 (huge) instead of 5 or 10. `RULES_VERSION` stays 1. Tests: R-79 checks the scale, R-85 the trapped goal amounts by size beside exGremlins'; R-70, R-74, R-86, R-97, R-98, R-103, R-105, R-107, R-108, R-109 and R-111 moved their trapped amounts and rungs to the new ladder.
 

@@ -547,7 +547,7 @@ false only for `rungsReached`, which is lifetime only and counted by the achieve
 | `cannonLobs` | Cannon lobs | 1 | yes | a Cannon's shot that fired |
 | `moved` | Things moved | 1 | yes | an accepted `move` (`scrap` doesn't count) |
 | `bombs` | Bombs set off | 1 | no | an accepted `bomb` (not a goal: the Bomb is rare and last to unlock, D-75) |
-| `slides` | hexes slid | 10 | yes | each slick-to-slick move of a ground motion or a landing's skid (the D-52 count) |
+| `slides` | hexes slid | 10 | yes | each slick hex (`isSlick`) a crate leaves by sliding, whatever it moves into (plains, water, its target, more slick ground): a free slide, a landing's skid, a bumped line's advance or its bumper's follow; not a powered step off it (a push, shove, pull, take-off), not a hex it's blocked or capped on (`MAX_SLIDE`); gremlins never (D-74) |
 | `mountainsFlown` | mountains flown over | 10 | yes | each mountain hex a Spring's flight or a Cannon's lob passes over (counted in the hop simulation as the piece goes over it: a Spring's flight entering it, `overMountains`, or a lob's `over` hex; a shot that doesn't fire counts none; a Rocket never passes one) |
 | `pushes` | pushes | 10 | yes | a Pusher's motion that moved its piece |
 | `pulls` | pulls | 10 | yes | a Puller's motion that moved its piece |

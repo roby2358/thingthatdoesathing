@@ -668,6 +668,28 @@ Design docs: reconcile ONTOLOGY + CRITERIA (new R-rows own test/R-n/) + RATIONAL
 ----
 Priority:   62
 Status: Done
+ID: slidecount-s8v9
+Created: 2026-11-23T02:16:41Z
+Updated: 2026-11-23T02:25:51Z
+
+Make "hexes slid" count every slick hex a crate slides off, not just slick-to-slick moves (the designer's call, 2026-11-23).
+
+Why: the slides counter today is D-52's slick-to-slick count (D-74 unreviewed call (2)), so a crate that skids off the ice onto plains, or slides off the ice into water, counts nothing. To the player those are slides.
+
+Settled design:
+- slides counts 1 for each slick hex (bare ice or a Slide, isSlick) a CRATE leaves by sliding, whatever it moves into: plains, water (it still sinks and still counts in cratesSunk), a target (still delivered), more slick ground.
+- "By sliding" means a free slide or a landing skid (D-37, D-52), or a bump line on slick ground (D-33): the bumped line advancing, and the bumper following behind it. Bumps count because on plains the piece wouldn't have moved. An ordinary powered step off a slick hex (a Belt/Bridge push, a Pusher shove, a Puller pull, a flight or lob taking off) is not a slide and counts nothing.
+- Crates only: crate and bigcrate pieces (PIECES cargo true). Gremlins never count, sliding or bumped.
+- A crate that comes onto slick ground and is blocked there, or stops on its last slick hex at the MAX_SLIDE cap, gets nothing for that hex: it didn't slide off.
+- How the crate got onto the ice doesn't matter: a push, a shove, a landing, being bumped.
+- The label stays "hexes slid", scale 10, a goal counter. RULES_VERSION stays 1; play is unchanged (cc-sim gives the same numbers).
+
+Docs: ONTOLOGY Counters row for slides, D-74 (an "amended 2026-11-23" note, and call (2) rewritten to this decision), the CRITERIA row R-81, and an ARCHITECTURE_LOG entry dated 2026-11-23.
+
+Done when: R-81 covers a crate sliding 3 slick hexes and ending on plains (3), a crate skidding off ice onto plains after a landing (1 per slick hex left), a crate sliding off ice into water (1, and sunk), a crate blocked on ice (0), a crate stopped by the MAX_SLIDE cap (its last hex not counted), a bump line on slick ground (the bumped crate and a following crate count their slick hexes left), a Belt pushing a crate off a slick hex (0), and a gremlin sliding or bumped across ice (0); just cc-test passes.
+----
+Priority:   62
+Status: Done
 ID: achserver-a2az
 Created: 2026-11-22T20:04:21Z
 Updated: 2026-11-22T21:06:34Z

@@ -44,15 +44,16 @@ const GameEngine = (function () {
     //   line   — a bumped line's advance; follow — the bumper following it (D-33);
     //   drop   — a flight stopped over a mountain dropping back (D-35)
     // `lift` is how it meets other pieces; `bumps`: stopped by a still piece on slick ground,
-    // it bumps it.
+    // it bumps it; `bumpLine`: a bumped line's advance or its bumper's follow (D-33), whose
+    // every step off slick ground is a slide (slides counter, D-74).
     const PHASES = {
-        over:   { lift: 'over',   bumps: false },
-        air:    { lift: 'air',    bumps: true },
-        ground: { lift: 'ground', bumps: true },
-        skid:   { lift: 'ground', bumps: true },
-        line:   { lift: 'ground', bumps: false },
-        follow: { lift: 'ground', bumps: false },
-        drop:   { lift: 'ground', bumps: false },
+        over:   { lift: 'over',   bumps: false, bumpLine: false },
+        air:    { lift: 'air',    bumps: true,  bumpLine: false },
+        ground: { lift: 'ground', bumps: true,  bumpLine: false },
+        skid:   { lift: 'ground', bumps: true,  bumpLine: false },
+        line:   { lift: 'ground', bumps: false, bumpLine: true },
+        follow: { lift: 'ground', bumps: false, bumpLine: true },
+        drop:   { lift: 'ground', bumps: false, bumpLine: false },
     };
     // Is the proposed hex open to a motion, by lift, before pieces count? A shot's cleared
     // hex always (aimed at launch), a flight's while it has hexes left (its length was set at
@@ -979,10 +980,14 @@ const GameEngine = (function () {
             m.waitHop = run.hop;
         }
 
-        // Is `m` a sliding piece that splats when it bumps (D-54)? Sliding: a skid, or a ground
-        // motion whose last arrival was free onto slick ground (`sliding`, D-52).
+        // Is `m` a sliding piece that splats when it bumps (D-54)?
         splatsOnBump(m) {
-            if (!PIECES[m.piece.kind].splatsOnSlideBump) return false;
+            return PIECES[m.piece.kind].splatsOnSlideBump && this.isSliding(m);
+        }
+
+        // Is `m` sliding (D-52): a skid, or a ground motion whose last arrival was onto slick
+        // ground (`sliding`), so its next step is free?
+        isSliding(m) {
             return m.phase === 'skid' || (m.phase === 'ground' && m.sliding);
         }
 
@@ -1015,6 +1020,7 @@ const GameEngine = (function () {
             for (const p of moving) {
                 const { victim } = fates.get(p.m);
                 if (victim) this.destroy(victim, p.m.piece.id, run, fates.get(p.m).kind === 'wreck' ? SMASHED : LOST_OTHER);
+                this.countSlideOff(p.m);
                 p.m.piece.moveTo(p.hex.q, p.hex.r);
                 this.record(p.m, p.hex, run.hop);
             }
@@ -1088,13 +1094,22 @@ const GameEngine = (function () {
         }
 
         // Did `m` come onto `hex` by sliding (slick ground, free)? Only a move from a slick hex
-        // to a slick hex counts, per motion: a ground motion or skid stops on its MAX_SLIDE-th
-        // (D-52), so it covers at most MAX_SLIDE + 1 slick hexes in a row.
+        // to a slick hex counts toward the cap, per motion: a ground motion or skid stops on its
+        // MAX_SLIDE-th (D-52), so it covers at most MAX_SLIDE + 1 slick hexes in a row.
         slidInto(m, hex, fromSlick) {
             m.onSlick = m.sliding = this.isSlick(hex);
             if (!m.sliding) return false;
-            if (fromSlick) { m.slid++; this.count('slides', 1); }
+            if (fromSlick) m.slid++;
             return true;
+        }
+
+        // slides (D-74): `m`'s crate is about to leave its slick hex by sliding (`isSliding`, or a
+        // bump line's step), whatever it moves into; a powered step off it isn't a slide.
+        // Gremlins never count; nor does a piece still up in the air over the hex.
+        countSlideOff(m) {
+            if (!PIECES[m.piece.kind].cargo || m.aloft || m.overhead) return;
+            if (!this.isSlick(this.hexOf(m.piece))) return;
+            if (this.isSliding(m) || PHASES[m.phase].bumpLine) this.count('slides', 1);
         }
 
         advancedInto(m, hex, run) {
