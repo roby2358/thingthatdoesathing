@@ -886,6 +886,20 @@ Done when: R-79 checks the five new scales and their first rungs, R-85 checks th
 ----
 Priority:   55
 Status: Done
+ID: enhance16-c9py
+Created: 2026-11-23T05:36:15Z
+Updated: 2026-11-23T05:46:16Z
+
+A newly opened crate color comes out of an existing source only 16% of the time (the designer's call, 2026-11-23); otherwise it gets a new source of its own.
+
+Settled design: in artifacts.js, ENHANCE_CHANCE ("a newly opened color comes out of an existing source, else a new one") goes from 0.5 to 0.16. Nothing else in openColor changes: the same Rando draw decides it, and every fallback that exists today (e.g. no room for a new source) stays as it is. RULES_VERSION stays 1. The draw outcome shifts, so update seeded tests that pin which source a color opened at to the new outcomes (don't loosen them); rerun just cc-sim-to 100 medium 5 (or the size that opens colors) and record the figures.
+
+Docs: ONTOLOGY Numbers row for ENHANCE_CHANCE (and any rule text quoting 50%), the RATIONALE decision that owns it (D-44 or whichever — amend it with the date, the call and why: more sources spread the board out), DYNAMICS/README/Help text if they quote the chance, ARCHITECTURE_LOG entry dated 2026-11-23.
+
+Done when: ENHANCE_CHANCE is 0.16, a test checks the value and that over many seeds about 16% of opened colors share an existing source (within a tolerance), just cc-test passes, and the sim figures are recorded.
+----
+Priority:   55
+Status: Done
 ID: shapemix-q2vd
 Created: 2026-11-23T05:03:31Z
 Updated: 2026-11-23T05:11:32Z

@@ -289,7 +289,7 @@ const GameArtifacts = (function () {
         BIG_CRATE_AT_FIFTH,
         BIG_CRATE_EASE,
         BIG_CRATE_KNEE,
-        ENHANCE_CHANCE: 0.5,         // a newly opened color comes out of an existing source, else a new one
+        ENHANCE_CHANCE: 0.16,        // a newly opened color comes out of an existing source, else a new one
         HAND_SIZE: 3,
         BUMP_ADVANCE: 2,             // hexes a bumped line advances; its bumper follows to one behind it (D-33)
         MAX_SLIDE: 3,                // slick-to-slick moves one ground motion or skid may make before it stops: at most 4 slick hexes in a row (D-52)

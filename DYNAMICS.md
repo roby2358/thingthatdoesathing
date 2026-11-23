@@ -81,7 +81,8 @@ Then a gremlin rides your belt into the sea, and you laugh and fix it.
 - **Targets kill gremlins** → keep the payoff flowing: a gremlin that wanders or rides onto a
   target dies there, so it can't camp the end of your line.
 - **Colors** (bigger boards) → feed escalating commitment and comedy: each milestone can open
-  a new color with its own target, sometimes out of the source your line already runs
+  a new color with its own target, usually out of a new source of its own (spreading the
+  factory across the board), now and then (`ENHANCE_CHANCE`) out of the source your line already runs
   from. The working factory now has to share the board, and a shared source has to be
   split. A crate at the wrong target just sits there, jamming, which you can read at a glance.
 - **Endless milestones** (10, 20, 50, 100, …) → feed accumulation: the machine keeps paying

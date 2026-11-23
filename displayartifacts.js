@@ -176,7 +176,7 @@ const GameDisplayArtifacts = (function () {
               says: n => `what comes onto it slides on, up to ${n.maxSlide} more slick hexes; a piece standing still on it gets bumped along` },
             { id: 'WATER',     name: 'Open water',     picture: [{ terrain: T.WATER }],
               says: () => 'sinks whatever goes in' },
-            { id: 'MILESTONE', name: 'Milestones',     says: n => `${n.ladder.join(', ')}, and on: each unlocks new cards until every card is unlocked, and on bigger boards the first ones also open a new crate color (up to ${n.colors} in all), with its own target and sometimes its own source` },
+            { id: 'MILESTONE', name: 'Milestones',     says: n => `${n.ladder.join(', ')}, and on: each unlocks new cards until every card is unlocked, and on bigger boards the first ones also open a new crate color (up to ${n.colors} in all), with its own target and usually its own source` },
         ],
         // Accent per color for colored kinds: white (a card), or the crate color's lit face.
         COLOR_PICKER_PX: 84,   // the color picker's width and height (D-32), for placing it beside the hex

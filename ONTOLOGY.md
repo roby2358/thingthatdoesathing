@@ -714,7 +714,7 @@ The code constant in `GameArtifacts` is the single source. `RULES_VERSION` stays
 | `MAP_SIZES.*.heightmap` | 33 / 33 / 33 / 65 | diamond-square grid side (2ⁿ+1, ≥ the longer side) |
 | `MAP_SIZES.*.knownGoodSeed` | 1 at every size | seed (must pass R-23) |
 | `MAP_SIZES.*.colors` | 1 / 2 / 3 / 4 | most colors the board opens [D] |
-| `ENHANCE_CHANCE` | 0.5 | chance a new color comes out of an existing source [D] |
+| `ENHANCE_CHANCE` | 0.16 | chance a new color comes out of an existing source, else a new source of its own (D-21) [D] |
 | `FIRST_MILESTONE` | 10 | crates (then the 1-2-5 series, forever) |
 | `MAP_SIZES.*.crates` | 2 / 3 / 4 / 5 | crates the board holds at once before any milestone; `crateCap(size)` returns it; +1 per milestone reached (D-31) [D] |
 | `BIG_CRATE_START` | 0.01 | big-crate chance with no milestones reached (D-45) [D] |

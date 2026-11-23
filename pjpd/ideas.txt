@@ -1,3 +1,12 @@
+Score:   70
+ID: villages-zrgw
+Created: 2026-11-23T05:41:13Z
+Updated: 2026-11-23T05:42:43Z
+
+Villages (designer, 2026-11-23). Villages are on the map from the start of the game (amended: not after the Bomb), as many villages as the board has colors (MAP_SIZES.colors). Supplying villages is a counter ("villages supplied"), scale 10, and IS a goal counter (amended: since they're on the board from the start). A village has an input color and an output color.
+
+Open questions before this becomes tasks: what supplying does (take a crate of the input color, send out a crate of the output color?); since only the first color is open at the start (and small has one color), what a village whose input or output color isn't open yet does (dormant until both open? input = output allowed on small?); where it's placed; how input/output colors are picked; whether supplied crates count as delivered / toward milestones; whether output crates count against the crate cap; how gremlins, Bombs and Things interact with a village hex; the look; telemetry (the goal counter twin lists in the Worker).
+----
 Score:   55
 ID: scaletune-3isp
 Created: 2026-11-22T20:04:27Z

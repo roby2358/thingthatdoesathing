@@ -61,14 +61,21 @@ const inSlice = (engine, end, h) => engine.endSlice(end).some(x => x.q === h.q &
         state.sources.every(s => !state.targets.some(t => t.q === s.q && t.r === s.r)));
 }
 {
-    let enhanced = 0, fresh = 0;
-    for (let k = 0; k < 40; k++) {
+    // ENHANCE_CHANCE is 0.16 (D-21, 2026-11-23): over many seeds about 16% of opened colors
+    // share an existing source, the rest get a new one; both outcomes happen.
+    check('ENHANCE_CHANCE is 0.16', flatGame().g.GameArtifacts.ENHANCE_CHANCE === 0.16);
+    const seeds = 400;
+    let opened = 0, shared = 0;
+    for (let k = 0; k < seeds; k++) {
         const ctx = lineGame('medium');
-        ctx.g.Rando.seed(100 + k);
-        reach(ctx, 10);
-        if (ctx.state.sources.length === 1) enhanced++; else fresh++;
+        ctx.g.Rando.seed(5000 + k);
+        if (reach(ctx, 10).events.some(e => e.type === 'open')) opened++;
+        if (ctx.state.sources.length === 1) shared++;
     }
-    check(`both happen: an enhanced source (${enhanced}) and a new source (${fresh})`, enhanced > 0 && fresh > 0);
+    const share = shared / seeds;
+    check(`every seed opens a color: ${opened} of ${seeds}`, opened === seeds);
+    check(`about 16% share an existing source: ${shared} of ${seeds} (${(100 * share).toFixed(1)}%, within 11–21%), and some don't`,
+        share >= 0.11 && share <= 0.21);
 }
 {
     const ctx = lineGame('medium');
