@@ -21,14 +21,12 @@ cc-sim-to games size milestones:
 
 # Open index.html from file:// in the default browser (WSL, Linux or macOS); no server
 play:
-    #!/usr/bin/env bash
-    f="{{justfile_directory()}}/index.html"
-    if command -v wslview >/dev/null; then wslview "$f"
-    elif command -v explorer.exe >/dev/null && command -v wslpath >/dev/null; then explorer.exe "$(wslpath -w "$f")" || true
-    elif command -v xdg-open >/dev/null; then xdg-open "$f"
-    elif command -v open >/dev/null; then open "$f"
-    else echo "no browser opener found: open file://$f by hand"; exit 1
-    fi
+    @f='{{justfile_directory()}}/index.html'; \
+    if command -v wslview >/dev/null; then wslview "$f"; \
+    elif command -v explorer.exe >/dev/null && command -v wslpath >/dev/null; then explorer.exe "$(wslpath -w "$f")" || true; \
+    elif command -v xdg-open >/dev/null; then xdg-open "$f"; \
+    elif command -v open >/dev/null; then open "$f"; \
+    else echo "no browser opener found: open file://$f by hand"; exit 1; fi
 
 # Ship build: the page's files stamped ?v=<commit> into dist/web/, plus dist/ttdat-<commit>.zip
 ship:
