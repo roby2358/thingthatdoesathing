@@ -90,6 +90,10 @@ legal-action sets from its current position and resources*, cached on the select
 These sets are computed once at selection, drawn as map tints, and become *the* source of
 truth for what the next click means.
 
+*Thing Factory:* a selection there holds Go, so while a hex is selected a steady banner says
+what a click or `D` does to it and how to let go ("Click to turn, click outside to deselect,
+D to delete", trimmed to what fits that hex), hidden the moment the selection clears (D-82).
+
 **Second click — act, dispatched by which set the target falls in:**
 
 ```

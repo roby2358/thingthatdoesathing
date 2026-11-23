@@ -48,6 +48,14 @@ const GameDisplayArtifacts = (function () {
             signInSave: "Can't keep the game while you sign in",   // D-68: the save before the redirect was refused
             signInFailed: "Can't start the sign-in",
         },
+        // The selection hint (D-82): a steady banner while a hex is selected, saying what can be
+        // done to it. turns: a Thing whose template aims (a mover with a facing); fixed: any
+        // other Thing; empty: a hex with no Thing.
+        SELECT_HINTS: {
+            turns: 'Click to turn, click outside to deselect, D to delete',
+            fixed: 'Click outside to deselect, D to delete',
+            empty: 'Click outside to deselect',
+        },
         MILESTONE_MS: 3500,          // how long the milestone banner (and the goal banner, D-76) stays up
         // Messages the game shows, by occasion: each a list of whole sentences, one picked with
         // Math.random (never Rando) each time (D-76). goalMet: a goal of the set was met;

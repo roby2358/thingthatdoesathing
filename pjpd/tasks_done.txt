@@ -850,6 +850,26 @@ Done when: R-rows for recorder, Worker and report (fixtures + fake wrangler end 
 
 Design docs: reconcile ONTOLOGY + CRITERIA (new R-rows own test/R-n/) + RATIONALE (a D-n for the decisions below) + ARCHITECTURE_LOG + CLAUDE.md in the same change. RULES_VERSION stays 1. Starreach (../starreach, read only, never edit or commit there) has the model this follows: docs/ONTOLOGY.md "Counters", "Goal", "Ladder", "Goal selection", "Goal check", and docs/RATIONALE.md D-43 to D-49; app/src/achievements.ts; public/js/script.js drawAchievements.
 ----
+Priority:   57
+Status: Done
+ID: selhint-t84e
+Created: 2026-11-23T04:22:00Z
+Updated: 2026-11-23T04:30:28Z
+
+Show a hint banner while a hex is selected, so the player knows how to act on it and why Go has stopped (the designer's call, 2026-11-23: a selected Thing held Go and the designer couldn't tell why).
+
+Settled design:
+- While GameUI.selected is set (a no-card click selected a hex), show a persistent, non-blocking banner (it never eats input), in the #banners column with the milestone/goal/achievement banners, styled like them but steady (no timeout). It hides the moment the selection clears (click elsewhere, Esc, D removing the Thing, a card picked, New game, an overlay that clears selection), and comes back if a hex is selected again.
+- Text, from a new GameDisplayArtifacts entry (e.g. SELECT_HINTS), whole sentences:
+  - a selected Thing that turns (a mover with a facing: any Thing whose template aims, aims(kind)): "Click to turn, click outside to deselect, D to delete"
+  - a selected Thing that doesn't turn (Wall, Trap, Slide, …): "Click outside to deselect, D to delete"
+  - a selected hex with no Thing: "Click outside to deselect"
+- The text updates when the selection changes (e.g. in updateHUD/render). No change to what selection, rotate, D or Go do. RULES_VERSION stays 1.
+
+Docs: ONTOLOGY (GameUI view state / input: the selection hint), CRITERIA new R-row owning test/R-n/ (stub-DOM test), a U-row for the look if it fits, RATIONALE new D-n (why: Go holding on a selection was invisible; alternatives: a hover tooltip, flashing the Go button, dropping the Go hold, a second line saying Go waits (the designer judged players will work that out once they see the hint)), ARCHITECTURE_LOG entry dated 2026-11-23, CLAUDE.md input architecture (L1.2 selection line), README/UI_CONTROLS.
+
+Done when: a stub-DOM test shows the banner with the right text for a selected turnable Thing, a selected non-turning Thing and an empty hex; the banner hides on deselect, Esc, D and picking a card; just cc-test passes.
+----
 Priority:   55
 Status: Done
 ID: lunge-sjuw

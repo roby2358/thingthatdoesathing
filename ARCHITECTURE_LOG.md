@@ -2,6 +2,9 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-23 — The selection hint (D-82)
+New: `#select-hint` (last in index.html's `#banners`, a steady `panel`, styled in index.css like `#goal-banner` but in `--text`), `GameDisplayArtifacts.SELECT_HINTS` (`turns`, `fixed`, `empty`) and `GameUI.drawSelectHint()`, called from `updateHUD` (every `render`, each animation frame included, so `D`'s remove hides it on the tick's first frame). Before, a selected hex showed only its outline, and the Go hold it causes was invisible (the designer couldn't tell why Go stopped). Selection, `rotate`, `D` and Go are unchanged; `RULES_VERSION` stays 1. New R-113 (stub DOM) and the manual U-44; ONTOLOGY (GameUI view state's `selected` row), README, UI_CONTROLS and CLAUDE.md follow.
+
 ### 2026-11-23 — Gremlins lunge (D-81)
 New: `GREMLIN_LUNGE_CHANCE` (0.16) and the Tick rule's Lunge step, `GameEngine.lunges(run)` / `lunge(run, g, crate)`, run before any claim: a gremlin with a crate beside it draws one `Rando.random()` and under the chance jumps onto one (`Rando.choice`) at hop 1, smashing it as a wreck does (`cratesSmashed`, a splat by the gremlin, a one-hex move); the gremlin is claimed (no Thing carries it, no wander, no bump), doesn't slide, and dies on a Trap. Before, a gremlin smashed a crate only by its own wandering step, so one riding a Belt never did. Gremlins with no crate beside them draw nothing, but seeded play changes (the shared stream): the sims are slower and lose more (D-81's figures). Help's World line for the gremlin names the chance (`worldNumbers().lungePct`) and its hover name (`PIECE_LOOK`) adds "pounces on crates"; README, DYNAMICS, ONTOLOGY (Tick, the `wrecks` row, Agents, Numbers), CLAUDE.md follow. New R-112; uiboot's World-page check expects the chance in the Gremlin row. `RULES_VERSION` stays 1; the save format is unchanged.
 

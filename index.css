@@ -203,9 +203,11 @@ html, body {
     text-align: center;
     border-color: #ff6600;   /* TARGET_COLOR */
 }
-#goal-banner { padding: 8px 18px; text-align: center; border-color: var(--met); color: var(--met); font-weight: 600; font-size: 15px; }
-#rung-banner { padding: 8px 18px; text-align: center; border-color: var(--accent); color: var(--accent); font-weight: 600; font-size: 15px; }
+#goal-banner, #rung-banner, #select-hint { padding: 8px 18px; text-align: center; font-weight: 600; font-size: 15px; }
+#goal-banner { border-color: var(--met); color: var(--met); }
+#rung-banner { border-color: var(--accent); color: var(--accent); }
 #rung-banner .negative { color: var(--text-dim); }
+#select-hint { color: var(--text); }   /* steady while a hex is selected (D-82) */
 #milestone-title { font-size: 26px; font-weight: 700; color: #ff6600; letter-spacing: 0.02em; }
 #milestone-sub { color: var(--text-dim); font-size: 13px; margin-top: 2px; }
 #milestone-cards { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; font-size: 14px; }

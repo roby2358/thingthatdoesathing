@@ -13,7 +13,7 @@ const GameUI = (function () {
         PIECE_LOOK, CRATE_SHADES, BIG_CRATE_SCALE, COLOR_INK, SPLAT_BLOTS, SOURCE_COLOR, PORT_NEUTRAL_MARK, PORT_OUTLINE,
         PORT_MARK_WIDTH, PORT_RING_RADII, PORT_PLUS_REACH, PORT_OUTLINE_WIDTH, BG_COLOR, UI_FONT, REACH_COLOR, MAP_SIZE_NOTES,
         COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES, ABOUT, HELP_CARD_PX, HELP_PIECE_SCALE, HELP_LADDER_SHOWN, WORLD_LOOK,
-        SAVE_KEY, SAVE_VERSION, SAVE_REDIRECT_MAX_AGE_S, MESSAGES, RUNG_BANNER_LINES
+        SAVE_KEY, SAVE_VERSION, SAVE_REDIRECT_MAX_AGE_S, MESSAGES, RUNG_BANNER_LINES, SELECT_HINTS
     } = GameDisplayArtifacts;
     const { TERRAIN, THINGS, WHITE, HAND_SIZE, MAP_SIZES, CARDS, PIECES, MAX_SLIDE, GREMLIN_LUNGE_CHANCE, GOALS_PER_GAME, aims, cardOf, nextMilestone } = GameArtifacts;
     const SIZE_KEYS = Object.keys(MAP_SIZES);
@@ -1243,6 +1243,16 @@ const GameUI = (function () {
             this.scheduleRun();
         }
 
+        // The selection hint (D-82): a steady banner while a hex is selected, saying what a
+        // click or D does to it; hidden the moment the selection clears. Never eats input.
+        drawSelectHint() {
+            const el = document.getElementById('select-hint');
+            if (!this.selected) { el.classList.add('hidden'); return; }
+            const thing = this.engine.thingAt(this.selected.q, this.selected.r);
+            el.textContent = SELECT_HINTS[!thing ? 'empty' : aims(thing.kind) ? 'turns' : 'fixed'];
+            el.classList.remove('hidden');
+        }
+
         // Turning a mover doesn't tick (D-19), so there's nothing to animate.
         rotate(q, r) {
             if (!this.engine.rotate(q, r).ok) return;
@@ -2193,6 +2203,7 @@ const GameUI = (function () {
             document.getElementById('ex-info').textContent = s.exGremlins;
             document.getElementById('trap-info').textContent = s.trapped;
             this.drawGoals();
+            this.drawSelectHint();
             this.renderHand();
 
             const hoverEl = document.getElementById('hover-info');
