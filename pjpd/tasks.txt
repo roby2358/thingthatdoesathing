@@ -1,19 +1,3 @@
-Priority:   66
-Status: ToDo
-ID: cannonmtn-5c9z
-Created: 2026-11-23T01:23:16Z
-Updated: 2026-11-23T01:23:16Z
-
-Count a Cannon lob's mountains in mountainsFlown (the designer's call, 2026-11-23).
-
-Why it doesn't count now: the counters task said "one per mountain hex a Spring's flight passes over", so the build counted only in the flight path (gameengine.js flewInto, ~line 1065: "only a flight overMountains is ever over one"), and D-74 unreviewed call (3) says "a Cannon's lob over a mountain doesn't count". A Cannon's shot runs in the 'over' phase (aimShot, newMotion(..., 'over', how.clears)), which never reaches that line.
-
-Settled design: mountainsFlown counts every mountain hex a piece passes over in the air, whether it's a Spring's flight (as now) or a Cannon lob's 'over' hexes (its first clears = 4 hexes). Count each mountain hex as the lobbed piece actually goes over it during the hop simulation (where the 'over' motion advances), so a lob that doesn't fire counts nothing, and a lob that comes down early on the 4th hex counts only the mountains it passed. The label stays "mountains flown over". Rockets can't pass mountains (overMountains false), so nothing changes for them. RULES_VERSION stays 1; play is unchanged (the sim gives the same numbers).
-
-Docs: ONTOLOGY Counters table row for mountainsFlown ("each mountain hex a Spring's flight or a Cannon's lob passes over"), the D-74 unreviewed call (3) rewritten to the designer's decision, the CRITERIA row for R-81 and an ARCHITECTURE_LOG entry dated 2026-11-23.
-
-Done when: R-81 has a case where a Cannon lobs over two mountains (adds 2 to mountainsFlown), one where the Cannon doesn't fire (adds 0), and the Spring cases still pass; just cc-test passes.
-----
 Priority:   64
 Status: ToDo
 ID: trapscale-swp7

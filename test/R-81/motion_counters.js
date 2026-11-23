@@ -1,8 +1,9 @@
 // R-81: the motion counters (D-74), counted in the hop simulation. A Spring's, Rocket's or
 // Cannon's motion that moves its piece at least one hex adds 1 to springThrows, rocketFlights or
 // cannonLobs; one that doesn't move (a throw with nowhere to go, a shot that doesn't fire) adds
-// nothing. Each mountain hex a Spring's flight enters adds 1 to mountainsFlown. Each
-// slick-to-slick move (the D-52 count: a ground motion's or a landing's skid) adds 1 to slides.
+// nothing. Each mountain hex a Spring's flight enters or a Cannon's lob passes over adds 1 to
+// mountainsFlown. Each slick-to-slick move (the D-52 count: a ground motion's or a landing's
+// skid) adds 1 to slides.
 // A Pusher or Puller that moves its piece adds 1 to pushes or pulls; pushesPulls is their sum.
 'use strict';
 const { check, done } = require('../helpers/check');
@@ -45,16 +46,23 @@ const shoot = (kind, setup) => {
     check('a Rocket flight: rocketFlights 1, mountainsFlown 0', c.isAt(8, 4) && n.rocketFlights === 1 && n.mountainsFlown === 0);
 }
 {
-    const { engine, c } = shoot('CANNON', ({ terrain, T }) => terrain(2, 4, T.MOUNTAIN));
+    const { engine, c } = shoot('CANNON', ({ terrain, T }) => { terrain(2, 4, T.MOUNTAIN); terrain(3, 4, T.MOUNTAIN); });
     const n = engine.counters();
-    check('a Cannon lob (over a mountain): cannonLobs 1, mountainsFlown 0 (only a Spring\'s flight counts)', c.isAt(5, 4) && n.cannonLobs === 1 && n.mountainsFlown === 0);
+    check('a Cannon lob over two mountains: cannonLobs 1, mountainsFlown 2', c.isAt(5, 4) && n.cannonLobs === 1 && n.mountainsFlown === 2);
 }
 {
-    const { engine, put, piece } = flatGame();
+    const { engine, c } = shoot('CANNON', ({ terrain, T, put }) => { terrain(1, 4, T.MOUNTAIN); terrain(3, 4, T.MOUNTAIN); put('WALL', 5, 4); });
+    const n = engine.counters();
+    check('a Cannon lob over two mountains that comes down early on its 4th hex: mountainsFlown 2', c.isAt(4, 4) && n.cannonLobs === 1 && n.mountainsFlown === 2);
+}
+{
+    const { engine, put, piece, terrain, T } = flatGame();
     put('CANNON', 10, 4, DIR.E);   // its cleared hexes run off the map: no fire
+    terrain(11, 4, T.MOUNTAIN); terrain(12, 4, T.MOUNTAIN);
     const c = piece('crate', 10, 4);
     engine.wait();
-    check('a Cannon that doesn\'t fire: cannonLobs 0', c.isAt(10, 4) && engine.counters().cannonLobs === 0);
+    const n = engine.counters();
+    check('a Cannon that doesn\'t fire (two mountains in its stretch): cannonLobs 0, mountainsFlown 0', c.isAt(10, 4) && n.cannonLobs === 0 && n.mountainsFlown === 0);
 }
 {
     const { engine, put, piece } = flatGame();

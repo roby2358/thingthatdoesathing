@@ -1050,10 +1050,16 @@ const GameEngine = (function () {
             return this[ARRIVED[m.phase]](m, hex, run);
         }
 
+        // mountainsFlown: a piece in the air went over `hex` this hop.
+        countMountain(hex) {
+            if (hex.terrain === TERRAIN.MOUNTAIN) this.count('mountainsFlown', 1);
+        }
+
         // Arrival, by phase (ARRIVED).
-        passedOver(m) {
+        passedOver(m, hex) {
             m.overhead = true;
             m.over++;
+            this.countMountain(hex);   // a Cannon's lob over a mountain
             if (--m.left > 0) return;
             m.phase = 'ground';
             m.left = m.groundLeft;
@@ -1062,7 +1068,7 @@ const GameEngine = (function () {
 
         flewInto(m, hex, run) {
             m.flown.push(hex);
-            if (hex.terrain === TERRAIN.MOUNTAIN) this.count('mountainsFlown', 1);   // only a flight overMountains is ever over one
+            this.countMountain(hex);   // only a Spring's flight (overMountains) ever enters one
             const res = this.airResult(m.piece, hex);
             if (res !== 'moved') return this.end(m, res, run);
             if (--m.left === 0) this.land(m, run, true);

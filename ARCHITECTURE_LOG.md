@@ -2,6 +2,9 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-23 — A Cannon's lob counts its mountains (D-74)
+`mountainsFlown` now also counts each mountain hex a Cannon's lob passes over, the designer's call: `passedOver` (the `over` phase's arrival in the hop simulation) counts it as the piece goes over, so a shot that doesn't fire counts nothing. Before, only a Spring's flight counted (`flewInto`), and D-74 call (3) said a lob over a mountain didn't. Play unchanged; `RULES_VERSION` stays 1. R-81's Cannon case now lobs over two mountains (adds 2), plus one coming down early on its 4th hex (2) and a no-fire case with mountains in its stretch (0). ONTOLOGY's Counters row, CRITERIA R-81 and D-74 follow.
+
 ### 2026-11-23 — No Bomb goals (D-75)
 `COUNTERS`' `bombs` row: `goal` true → false, the designer's call (the Bomb is a rare card and the last in `UNLOCKS`, so a Bomb goal was out of reach for most of a session). Before, every size's goal pool held "Bombs set off"; now none does (`goalExcludes` unchanged), so the pool has 14 counters (was 15) and a seed may deal different sets than before. `bombs` is still counted per game and keeps its scale, label and achievement ladder. worker/telemetry.js's `GOAL_COUNTERS` drops `bombs` (a goal record naming it is now refused with 400). `RULES_VERSION` stays 1. Tests: R-85 checks `bombs` is never dealt on any size and still counts and has rungs; R-79 lists it among the non-goals; R-70, R-74, R-86, R-87, R-97 and R-98's fixtures use other goal counters where they had `bombs` as a goal. ONTOLOGY's Counters table and `GOAL_COUNTERS` row, CRITERIA R-79 and R-85, D-74 and D-75 follow.
 

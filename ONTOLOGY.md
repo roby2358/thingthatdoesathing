@@ -548,7 +548,7 @@ false only for `rungsReached`, which is lifetime only and counted by the achieve
 | `moved` | Things moved | 1 | yes | an accepted `move` (`scrap` doesn't count) |
 | `bombs` | Bombs set off | 1 | no | an accepted `bomb` (not a goal: the Bomb is rare and last to unlock, D-75) |
 | `slides` | hexes slid | 10 | yes | each slick-to-slick move of a ground motion or a landing's skid (the D-52 count) |
-| `mountainsFlown` | mountains flown over | 10 | yes | each mountain hex a flight enters (only a Spring's, `overMountains`, ever does) |
+| `mountainsFlown` | mountains flown over | 10 | yes | each mountain hex a Spring's flight or a Cannon's lob passes over (counted in the hop simulation as the piece goes over it: a Spring's flight entering it, `overMountains`, or a lob's `over` hex; a shot that doesn't fire counts none; a Rocket never passes one) |
 | `pushes` | pushes | 10 | yes | a Pusher's motion that moved its piece |
 | `pulls` | pulls | 10 | yes | a Puller's motion that moved its piece |
 | `pushesPulls` | pushes and pulls | 10 | yes | `pushes + pulls`, derived |
