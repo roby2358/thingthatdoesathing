@@ -128,6 +128,27 @@ Update: ONTOLOGY (the spawn rule and the new state fields), CRITERIA (rewrite th
 ----
 Priority:   80
 Status: Done
+ID: slimclaude-thps
+Created: 2026-11-23T05:57:15Z
+Updated: 2026-11-23T06:58:29Z
+
+Slim CLAUDE.md down: it loads into every session and every agent (14.4k tokens, 45.6 KB), and its module table and input section have grown into paraphrases of the code (the designer's call, 2026-11-23).
+
+Goal: a CLAUDE.md that orients a new session or agent fast and points to where the detail lives, instead of restating it.
+
+Settled design:
+- Target: CLAUDE.md under 18,000 bytes (wc -c), from 45,613.
+- Keep, tightened: Project Overview (one paragraph); the doc-set rules (ONTOLOGY/CRITERIA/RATIONALE/ARCHITECTURE_LOG roles, cite stable IDs, reconcile in the same change); Running/Developing (the just recipes, one line each, deploy order and the designer's-go rule); Conventions (plain script globals, no build, worker/ the only server code, npm exact pins with --ignore-scripts, tests via just cc-test, one R-row per test dir, every command returns {ok}, RULES_VERSION stays 1 except at the designer's call, colors 0–1, display artifacts client-only); the coordinate system and hex shape (short).
+- The module table: one short line per module (file, global, its role in a phrase, the D-n IDs that govern it). No field lists, no constant inventories, no behaviour walkthroughs: those live in ONTOLOGY (entities, rules, Numbers) and the code. Same for worker/, telemetry, sign-in, achievements: a line each plus their D-IDs.
+- Input architecture: a short paragraph naming the dispatch order (overlay → anim/queue → picked card → bare map) and the pick modes, pointing to UI_CONTROLS.md and ONTOLOGY's GameUI section; drop the per-key and per-overlay walkthroughs (they're in ONTOLOGY/README/UI_CONTROLS).
+- Game Model: a few lines (board, Things, tick, goals/achievements) pointing to ONTOLOGY/DYNAMICS; drop the rule restatements.
+- Nothing may be lost that exists only in CLAUDE.md: before deleting a passage, check ONTOLOGY/README/UI_CONTROLS/RATIONALE carry it; if one doesn't, move the substance there (ONTOLOGY for rules/entities/numbers, README for player-facing/deploy steps).
+- No code changes. The thingfactory-tools skill and memory files are untouched.
+
+Done when: wc -c CLAUDE.md is under 18,000; every module, recipe, convention and D-ID area still has a line; a reviewer confirms each removed fact is present elsewhere (or was moved there); just cc-test passes.
+----
+Priority:   80
+Status: Done
 ID: telemetry-q77g
 Created: 2026-11-21T08:33:51Z
 Updated: 2026-11-21T09:34:18Z

@@ -2,6 +2,9 @@
 
 Dated entries, newest first. This is the only doc that records what something used to be.
 
+### 2026-11-23 — CLAUDE.md slimmed to an orientation page
+The designer's call (pjpd slimclaude-thps): CLAUDE.md (45.6 KB, loaded into every session and agent) had grown a module table and input section that paraphrased the code. It now keeps the overview, the doc-set rules, one line per `just` recipe, one short line per module with its governing D-IDs, a short input paragraph (dispatch order and pick modes), a few Game Model lines and the Conventions, and points to ONTOLOGY, README, UI_CONTROLS and RATIONALE for the detail. Every removed fact was checked to live in those docs or the code; the one that lived only there moved to ONTOLOGY (the `queue` row's `whileSameCard` drop), and ONTOLOGY's `'help'` overlay row now lists Help's six pages as the pager row and `HELP_PAGES` do. Conventions states the designer's standing rule (don't update wrangler; npm only with exact pins and `--ignore-scripts`). No code change.
+
 ### 2026-11-23 — The bag crate's outline is heavier (D-84)
 New `GameDisplayArtifacts.BAG_OUTLINE_WIDTH` (2), the designer's call (pjpd bagoutline-gy9p: the bag was "a little hard to see"): `drawBag` strokes the sack's outer silhouette at the plain outline width (1, set in `drawCrate`) × `BAG_OUTLINE_WIDTH` × the crate's draw scale, which `drawCrate` now passes in its geometry (`g.scale`), so a big crate's is `BIG_CRATE_SCALE` times thicker. Before, the bag's outline was 1px like every shape's. The cord, folds and tuft keep their widths; the cube, cylinder and strapped cube are unchanged. Display only: `RULES_VERSION` stays 1. R-116 checks the bag's outline stroke against the cube's for a crate and a big crate; RATIONALE D-84 and CLAUDE.md follow.
 
