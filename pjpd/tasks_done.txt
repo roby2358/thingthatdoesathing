@@ -1018,6 +1018,29 @@ Thing Factory: unlock cards gradually. A new game draws only Belt, Bridge and Wa
 ----
 Priority:   54
 Status: Done
+ID: crateshapes-kki3
+Created: 2026-11-23T04:27:52Z
+Updated: 2026-11-23T04:55:58Z
+
+Give each crate color its own shape, so colors are told apart by shape as well as hue (the designer's call, 2026-11-23).
+
+Settled design:
+- Shapes by color (CRATE_COLORS order):
+  - red: the isometric cube, as drawn now;
+  - green: an isometric cylinder (an upright drum: elliptical top face, shaded side, a rim line or two);
+  - blue: an isometric cube with heavy straps (the same cube, with two dark bands crossing the top and running down the visible sides, and small buckle/bolt marks where they meet the edges);
+  - yellow: a bag (a sack: rounded, slightly squat body wider at the bottom, gathered neck tied with a cord near the top, a small tuft above the tie, a couple of fold lines; shaded with the same light/dark faces logic so it reads as solid).
+  Each keeps its color's CRATE_SHADES fill and shading, fits the same footprint as today's crate so the board reads the same, and is drawn with plain canvas paths (no images).
+- displayartifacts.js gets a CRATE_SHAPES table, color → shape key ('cube', 'cylinder', 'strapped', 'bag'), and the draw code dispatches on it through one table of shape drawers (no if/else chain on color). Big crates draw the same shape for their color at BIG_CRATE_SCALE, with whatever big-crate marking they have now kept.
+- Everywhere a crate is drawn uses it: the board, the tick animation, Help's World page pictures (worldPicture via PIECE_DRAW), screencaps, and any source/target or banner art that draws a crate. Sources and targets themselves don't change shape.
+- Client-only: no engine, state, save or telemetry change; RULES_VERSION stays 1.
+
+Docs: ONTOLOGY (the display/look section for pieces), CRITERIA a new R-row owning test/R-n/ (a draw test with a recording canvas stub: each color calls its own shape drawer, big crates too) and a U-row for the look in a browser, RATIONALE new D-n (why: color-blind players and at-a-glance reading; alternatives: letters or icons on the cube, patterns), ARCHITECTURE_LOG entry dated 2026-11-23, CLAUDE.md displayartifacts row, README if it describes the crates.
+
+Done when: the recording-canvas test shows each of the four colors drawing its shape (and a big crate of each), CRATE_SHAPES covers every CRATE_COLORS entry, just cc-test passes, and a screencap-style check in a real browser is left as the U-row.
+----
+Priority:   54
+Status: Done
 ID: helpworld-jnkf
 Created: 2026-11-21T03:10:32Z
 Updated: 2026-11-21T03:23:04Z

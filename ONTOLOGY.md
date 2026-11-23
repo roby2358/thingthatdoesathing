@@ -104,13 +104,13 @@ A `Piece` (position, color, label) with two fields set by the engine. Each kind 
 | `id` | int | Unique, from `nextId`; events refer to it. |
 | `kind` | `'crate' \| 'bigcrate' \| 'gremlin'` | Key into `PIECES`. |
 | `label` | string | `PIECES[kind].label`: `'📦'` or `'👹'`. |
-| `color` | `#rrggbb` \| `CRATE_COLORS` name | Gremlins get a seeded palette color; a crate gets the color of the spawn slot that made it. Only its color's target takes it (Motion rule); the client draws it as a shaded isometric box. [D] |
+| `color` | `#rrggbb` \| `CRATE_COLORS` name | Gremlins get a seeded palette color; a crate gets the color of the spawn slot that made it. Only its color's target takes it (Motion rule); the client draws it in its color's shape (`CRATE_SHAPES`, D-84) and shades. [D] |
 
 `PIECES[kind]` is the template:
 
 | Field | crate | bigcrate | gremlin | Meaning |
 |---|---|---|---|---|
-| `label` | `'📦'` | `'📦'` | `'👹'` | The counter's glyph (the client draws crates as a box instead; a big crate's box is `BIG_CRATE_SCALE` bigger). |
+| `label` | `'📦'` | `'📦'` | `'👹'` | The counter's glyph (the client draws crates in their color's shape instead, D-84; a big crate's is `BIG_CRATE_SCALE` bigger). |
 | `cargo` | yes | yes | no | Delivered on entering its color's target, blocked by other colors' targets; counted in `lost` when it sinks. |
 | `value` | 1 | 10 | 0 | What a delivery adds to `delivered` and its target's count, and what losing it (sunk, wrecked, blasted) adds to `lost`. Toward the crate cap every cargo piece counts one (D-34). [D: pjpd big-crate] |
 | `wanders` | no | no | yes | Takes a random step on a tick when no Thing claimed it, its direction picked from the board as the tick starts (D-38). |
@@ -121,6 +121,14 @@ A `Piece` (position, color, label) with two fields set by the engine. Each kind 
 
 A big crate is a crate in every rule but `value`: Things, ice, bumps, Traps, targets and
 gremlins treat it the same (D-34).
+
+**Look (client only, D-84):** a crate is drawn in its color's shape, `GameDisplayArtifacts.CRATE_SHAPES`
+(red `'cube'`, green `'cylinder'`, blue `'strapped'`, yellow `'bag'`), filled with its `CRATE_SHADES`
+(lit top, mid left, dark right) and fitting the cube's footprint; `GameUI.drawCrate` dispatches
+through one table of shape drawers (`CRATE_DRAW`: `drawCube`, `drawCylinder`, `drawStrapped`,
+`drawBag`), and everything that draws a piece goes through `PIECE_DRAW` (the board, the tick
+animation, Bomb bursts, Help's World pictures, screencaps). A big crate is its color's shape at
+`BIG_CRATE_SCALE`. Sources and targets keep their look (D-42). No rule, state or save reads it.
 
 ### Thing — a placed fixture (plain object)
 *Serves:* G-1, G-2. Templates over snowflakes: every kind is a row of `THINGS` (§6).

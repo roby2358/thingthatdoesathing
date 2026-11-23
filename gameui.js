@@ -10,7 +10,7 @@
 const GameUI = (function () {
     const {
         HEX_SIZE, COUNTER_SIZE, HOP_MS, RUN_GAP_MS, MILESTONE_MS, NOTICE_MS, REASONS, TERRAIN_COLORS, TERRAIN_NAMES, THING_LOOK,
-        PIECE_LOOK, CRATE_SHADES, BIG_CRATE_SCALE, COLOR_INK, SPLAT_BLOTS, SOURCE_COLOR, PORT_NEUTRAL_MARK, PORT_OUTLINE,
+        PIECE_LOOK, CRATE_SHADES, CRATE_SHAPES, CRATE_TRIM, BIG_CRATE_SCALE, COLOR_INK, SPLAT_BLOTS, SOURCE_COLOR, PORT_NEUTRAL_MARK, PORT_OUTLINE,
         PORT_MARK_WIDTH, PORT_RING_RADII, PORT_PLUS_REACH, PORT_OUTLINE_WIDTH, BG_COLOR, UI_FONT, REACH_COLOR, MAP_SIZE_NOTES,
         COLOR_PICKER_PX, ZOOM_DIVISORS, MIN_TEXT_PX, SORRY_PICTURE_PX, CAPTURE_SIZES, ABOUT, HELP_CARD_PX, HELP_PIECE_SCALE, HELP_LADDER_SHOWN, WORLD_LOOK,
         SAVE_KEY, SAVE_VERSION, SAVE_REDIRECT_MAX_AGE_S, MESSAGES, RUNG_BANNER_LINES, SELECT_HINTS
@@ -169,9 +169,18 @@ const GameUI = (function () {
     // How each kind of piece is drawn. `p` is a live Piece or the animation's pre-tick
     // snapshot of one.
     const PIECE_DRAW = {
-        crate:   (ui, x, y, p, alpha, scale) => ui.drawCrate(x, y, CRATE_SHADES[p.color], alpha, scale),
-        bigcrate: (ui, x, y, p, alpha, scale) => ui.drawCrate(x, y, CRATE_SHADES[p.color], alpha, scale * BIG_CRATE_SCALE),
+        crate:   (ui, x, y, p, alpha, scale) => ui.drawCrate(x, y, p.color, alpha, scale),
+        bigcrate: (ui, x, y, p, alpha, scale) => ui.drawCrate(x, y, p.color, alpha, scale * BIG_CRATE_SCALE),
         gremlin: (ui, x, y, p, alpha, scale) => ui.drawCounter(x, y, p.color, p.label, alpha, scale),
+    };
+
+    // One drawer per CRATE_SHAPES key (D-84): each draws a crate's shape from drawCrate's
+    // geometry `g` ({cx, cy, w, h, d, top, shades}), inside its save/restore.
+    const CRATE_DRAW = {
+        cube:     (ui, g) => ui.drawCube(g),
+        cylinder: (ui, g) => ui.drawCylinder(g),
+        strapped: (ui, g) => ui.drawStrapped(g),
+        bag:      (ui, g) => ui.drawBag(g),
     };
 
     // Screen angle of a facing (pointy-top axial direction → pixels).
@@ -2150,33 +2159,154 @@ const GameUI = (function () {
             PIECE_DRAW[p.kind](this, x, y, p, alpha, scale);
         }
 
-        // An isometric box centred on (cx, cy): a rhombus top and two side faces.
-        drawCrate(cx, cy, shades, alpha, scale) {
+        // A crate of a CRATE_COLORS color centred on (cx, cy), in its color's shape (CRATE_SHAPES,
+        // D-84) and shades. Every shape fits the cube's footprint, cx ± w by cy ± w: a top face
+        // 2w wide and w tall (centred on `top`) over sides d deep.
+        drawCrate(cx, cy, color, alpha, scale) {
             const ctx = this.ctx;
             const w = COUNTER_SIZE * scale * 0.45;     // half-width
             const h = w / 2;                           // half-height of the top rhombus
             const d = w;                               // side-face depth
-            const top = cy - d / 2;                    // y of the top face's centre
-            const face = (pts, fill) => {
-                ctx.beginPath();
-                ctx.moveTo(pts[0][0], pts[0][1]);
-                for (const [px, py] of pts.slice(1)) ctx.lineTo(px, py);
-                ctx.closePath();
-                ctx.fillStyle = fill;
-                ctx.fill();
-                ctx.stroke();
-            };
-            const N = [cx, top - h], E = [cx + w, top], S = [cx, top + h], W = [cx - w, top];
-            const down = ([px, py]) => [px, py + d];
+            const g = { cx, cy, w, h, d, top: cy - d / 2, shades: CRATE_SHADES[color] };
             ctx.save();
             ctx.globalAlpha = alpha;
-            ctx.strokeStyle = '#000';
+            ctx.strokeStyle = CRATE_TRIM.outline;
             ctx.lineWidth = 1;
             ctx.lineJoin = 'round';
-            face([W, S, down(S), down(W)], shades.left);
-            face([S, E, down(E), down(S)], shades.right);
-            face([N, E, S, W], shades.top);
+            CRATE_DRAW[CRATE_SHAPES[color]](this, g);
             ctx.restore();
+        }
+
+        // A filled, stroked polygon.
+        crateFace(pts, fill) {
+            const ctx = this.ctx;
+            ctx.beginPath();
+            ctx.moveTo(pts[0][0], pts[0][1]);
+            for (const [px, py] of pts.slice(1)) ctx.lineTo(px, py);
+            ctx.closePath();
+            ctx.fillStyle = fill;
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        // The cube's corners: the top rhombus N, E, S, W and `down` for the side faces' bottoms.
+        cubeCorners({ cx, w, h, d, top }) {
+            return { N: [cx, top - h], E: [cx + w, top], S: [cx, top + h], W: [cx - w, top], down: ([px, py]) => [px, py + d] };
+        }
+
+        // An isometric box: a lit rhombus top over a mid left face and a dark right face.
+        drawCube(g) {
+            const { N, E, S, W, down } = this.cubeCorners(g);
+            this.crateFace([W, S, down(S), down(W)], g.shades.left);
+            this.crateFace([S, E, down(E), down(S)], g.shades.right);
+            this.crateFace([N, E, S, W], g.shades.top);
+        }
+
+        // The cube with two dark straps crossing its top, each running on down the side face it
+        // reaches, and a buckle where each meets the top's front edges.
+        drawStrapped(g) {
+            this.drawCube(g);
+            const { N, S, W, down } = this.cubeCorners(g);
+            const a = [N[0] - W[0], N[1] - W[1]], b = [S[0] - W[0], S[1] - W[1]];
+            const at = (u, v) => [W[0] + u * a[0] + v * b[0], W[1] + u * a[1] + v * b[1]];   // on the top face
+            const lo = 0.4, hi = 0.6;                  // each strap's span across the face
+            this.crateFace([at(lo, 0), at(hi, 0), at(hi, 1), at(lo, 1)], CRATE_TRIM.strap);              // W–N edge to S–E edge
+            this.crateFace([at(hi, 1), at(lo, 1), down(at(lo, 1)), down(at(hi, 1))], CRATE_TRIM.strap);  // down the right face
+            this.crateFace([at(0, lo), at(1, lo), at(1, hi), at(0, hi)], CRATE_TRIM.strap);              // W–S edge to N–E edge
+            this.crateFace([at(0, lo), at(0, hi), down(at(0, hi)), down(at(0, lo))], CRATE_TRIM.strap);  // down the left face
+            const ctx = this.ctx, r = g.w * 0.09;
+            for (const [bx, by] of [at(0.5, 1), at(0, 0.5), down(at(0.5, 1)), down(at(0, 0.5))]) {
+                ctx.beginPath();
+                ctx.rect(bx - r, by - r, 2 * r, 2 * r);
+                ctx.fillStyle = CRATE_TRIM.buckle;
+                ctx.fill();
+                ctx.stroke();
+            }
+        }
+
+        // An upright drum: an elliptical top over a side lit on the left and dark on the right,
+        // with two hoops round it and a rim inside the top.
+        drawCylinder({ cx, w, h, d, top, shades }) {
+            const ctx = this.ctx;
+            const side = ctx.createLinearGradient(cx - w, 0, cx + w, 0);
+            side.addColorStop(0, shades.left);
+            side.addColorStop(0.45, shades.left);
+            side.addColorStop(1, shades.right);
+            ctx.beginPath();
+            ctx.moveTo(cx - w, top);
+            ctx.lineTo(cx - w, top + d);
+            ctx.ellipse(cx, top + d, w, h, 0, Math.PI, 0, true);   // the front of the bottom rim
+            ctx.lineTo(cx + w, top);
+            ctx.closePath();
+            ctx.fillStyle = side;
+            ctx.fill();
+            ctx.stroke();
+            ctx.strokeStyle = CRATE_TRIM.line;
+            for (const k of [1 / 3, 2 / 3]) {
+                ctx.beginPath();
+                ctx.ellipse(cx, top + d * k, w, h, 0, Math.PI, 0, true);
+                ctx.stroke();
+            }
+            ctx.beginPath();
+            ctx.ellipse(cx, top, w, h, 0, 0, Math.PI * 2);
+            ctx.fillStyle = shades.top;
+            ctx.fill();
+            ctx.strokeStyle = CRATE_TRIM.outline;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.ellipse(cx, top, w * 0.8, h * 0.8, 0, 0, Math.PI * 2);
+            ctx.strokeStyle = CRATE_TRIM.line;
+            ctx.stroke();
+        }
+
+        // A sack: a squat body wider at the bottom, its right side in shadow and its upper left
+        // lit, a gathered neck tied with a cord, a tuft above the tie and two fold lines.
+        drawBag({ cx, cy, w, shades }) {
+            const ctx = this.ctx;
+            const neckY = cy - w * 0.45, nw = w * 0.24, baseY = cy + w * 0.82;
+            const body = () => {
+                ctx.beginPath();
+                ctx.moveTo(cx - nw, neckY);
+                ctx.bezierCurveTo(cx - w * 0.8, cy - w * 0.3, cx - w * 1.05, cy + w * 0.45, cx - w * 0.86, baseY);
+                ctx.quadraticCurveTo(cx, cy + w * 1.08, cx + w * 0.86, baseY);
+                ctx.bezierCurveTo(cx + w * 1.05, cy + w * 0.45, cx + w * 0.8, cy - w * 0.3, cx + nw, neckY);
+                ctx.closePath();
+            };
+            body();
+            ctx.fillStyle = shades.left;
+            ctx.fill();
+            ctx.save();
+            body();
+            ctx.clip();
+            ctx.beginPath();
+            ctx.ellipse(cx + w * 0.95, cy + w * 0.35, w * 0.75, w * 1.1, 0, 0, Math.PI * 2);
+            ctx.fillStyle = shades.right;
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(cx - w * 0.3, cy - w * 0.02, w * 0.3, w * 0.22, -0.5, 0, Math.PI * 2);
+            ctx.fillStyle = shades.top;
+            ctx.fill();
+            ctx.restore();
+            body();
+            ctx.stroke();
+            ctx.strokeStyle = CRATE_TRIM.line;               // folds down from the neck
+            for (const s of [-1, 1]) {
+                ctx.beginPath();
+                ctx.moveTo(cx + s * nw * 0.6, neckY + w * 0.12);
+                ctx.quadraticCurveTo(cx + s * w * 0.42, cy + w * 0.05, cx + s * w * 0.3, cy + w * 0.5);
+                ctx.stroke();
+            }
+            ctx.strokeStyle = CRATE_TRIM.outline;
+            const tuftY = cy - w * 0.62;                     // the gathered cloth above the tie
+            this.crateFace([[cx - nw, neckY], [cx - w * 0.36, tuftY - w * 0.1], [cx - w * 0.12, cy - w],
+                [cx, tuftY - w * 0.08], [cx + w * 0.14, cy - w], [cx + w * 0.36, tuftY - w * 0.1], [cx + nw, neckY]], shades.top);
+            ctx.beginPath();                                  // the cord
+            ctx.moveTo(cx - nw * 1.15, neckY);
+            ctx.lineTo(cx + nw * 1.15, neckY);
+            ctx.lineWidth = w * 0.14;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = CRATE_TRIM.cord;
+            ctx.stroke();
         }
 
         drawCounter(cx, cy, color, label, alpha, scale) {

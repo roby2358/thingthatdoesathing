@@ -1,0 +1,132 @@
+// R-116: each crate color has its own shape (D-84). CRATE_SHAPES names one per CRATE_COLORS
+// entry, all different; drawing a crate or a big crate of a color, through the board's own
+// drawPiece (PIECE_DRAW), calls that shape's drawer and no other, at BIG_CRATE_SCALE for a big
+// one, filling with the color's CRATE_SHADES and staying inside the cube's footprint. A
+// recording 2D context stands in for the canvas. The board render and Help's World pictures
+// reach the same drawers.
+'use strict';
+const { check, done } = require('../helpers/check');
+const { liveGame } = require('../helpers/goals');
+
+const p = liveGame('small');
+const COLORS = p.run('GameArtifacts.CRATE_COLORS');
+const SHAPES = p.run('GameDisplayArtifacts.CRATE_SHAPES');
+const SHADES = p.run('GameDisplayArtifacts.CRATE_SHADES');
+const TRIM = p.run('GameDisplayArtifacts.CRATE_TRIM');
+const BIG = p.run('GameDisplayArtifacts.BIG_CRATE_SCALE');
+const COUNTER = p.run('GameDisplayArtifacts.COUNTER_SIZE');
+const DRAWER = { cube: 'drawCube', cylinder: 'drawCylinder', strapped: 'drawStrapped', bag: 'drawBag' };
+
+check('CRATE_SHAPES covers every CRATE_COLORS entry and nothing else',
+    COLORS.length === Object.keys(SHAPES).length && COLORS.every(c => c in SHAPES));
+check('the settled shapes: red cube, green cylinder, blue strapped, yellow bag',
+    SHAPES.red === 'cube' && SHAPES.green === 'cylinder' && SHAPES.blue === 'strapped' && SHAPES.yellow === 'bag');
+check('every color a different shape, each with a drawer', new Set(Object.values(SHAPES)).size === COLORS.length
+    && Object.values(SHAPES).every(s => typeof p.ui[DRAWER[s]] === 'function'));
+
+// A 2D context that logs every call ([name, ...args]) and every fillStyle / strokeStyle set;
+// a gradient logs its stop colors as fills.
+function recorder() {
+    const log = [], fills = [];
+    const ctx = new Proxy({}, {
+        get: (t, k) => (k in t ? t[k] : (...args) => {
+            log.push([k, ...args]);
+            if (k === 'createLinearGradient' || k === 'createRadialGradient') return { addColorStop: (o, c) => fills.push(c) };
+            return undefined;
+        }),
+        set: (t, k, v) => { if (k === 'fillStyle' && typeof v === 'string') fills.push(v); t[k] = v; return true; },
+    });
+    return { ctx, log, fills };
+}
+
+// The drawers each color's crate calls, in order: the strapped cube is the cube with straps on.
+const EXPECT = { cube: ['cube'], cylinder: ['cylinder'], strapped: ['strapped', 'cube'], bag: ['bag'] };
+const callsAre = shape => calls.map(c => c[0]).join() === EXPECT[shape].join();
+
+// Spy on the four drawers on this ui instance: each call logged as [shape, g].
+const calls = [];
+for (const [shape, name] of Object.entries(DRAWER)) {
+    const orig = p.ui[name];
+    p.ui[name] = function (g) { calls.push([shape, g]); return orig.call(this, g); };
+}
+const named = shape => calls.filter(c => c[0] === shape);
+
+// The x/y extents a draw reaches: path points and ellipse/rect bounds (curve control points
+// left out, and anything drawn under a clip, which the clip keeps inside).
+function extents(log) {
+    const xs = [], ys = [];
+    const pt = (x, y) => { xs.push(x); ys.push(y); };
+    const clipped = [false];
+    for (const [k, ...a] of log) {
+        if (k === 'save') clipped.push(clipped[clipped.length - 1]);
+        else if (k === 'restore') clipped.pop();
+        else if (k === 'clip') clipped[clipped.length - 1] = true;
+        if (clipped[clipped.length - 1]) continue;
+        if (k === 'moveTo' || k === 'lineTo') pt(a[0], a[1]);
+        else if (k === 'quadraticCurveTo') pt(a[2], a[3]);
+        else if (k === 'bezierCurveTo') pt(a[4], a[5]);
+        else if (k === 'rect') { pt(a[0], a[1]); pt(a[0] + a[2], a[1] + a[3]); }
+        else if (k === 'ellipse') { pt(a[0] - a[2], a[1] - a[3]); pt(a[0] + a[2], a[1] + a[3]); }
+    }
+    return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
+}
+
+const cx = 200, cy = 100;
+const sizes = {};
+for (const color of COLORS) {
+    for (const kind of ['crate', 'bigcrate']) {
+        const rec = recorder();
+        p.ui.ctx = rec.ctx;
+        calls.length = 0;
+        p.ui.drawPiece(cx, cy, { kind, color, label: 'x' }, 1, 1);
+        const shape = SHAPES[color];
+        const own = named(shape);
+        check(`a ${color} ${kind} calls its ${shape} drawer once (and only what it builds on)`, callsAre(shape) && own.length === 1);
+        const g = own[0] && own[0][1];
+        const w = COUNTER * (kind === 'bigcrate' ? BIG : 1) * 0.45;
+        check(`a ${color} ${kind}: drawn at its size (${kind === 'bigcrate' ? 'BIG_CRATE_SCALE × ' : ''}a crate's), centred`,
+            g && Math.abs(g.w - w) < 1e-9 && g.cx === cx && g.cy === cy);
+        (sizes[color] ||= {})[kind] = g && g.w;
+        const sh = SHADES[color];
+        check(`a ${color} ${kind} fills with its color's top, left and right shades`, [sh.top, sh.left, sh.right].every(f => rec.fills.includes(f)));
+        const e = extents(rec.log);
+        const pad = w * 0.05;
+        check(`a ${color} ${kind} stays in the cube's footprint (cx ± w, cy ± w)`,
+            e.minX >= cx - w - pad && e.maxX <= cx + w + pad && e.minY >= cy - w - pad && e.maxY <= cy + w + pad);
+        check(`a ${color} ${kind} puts the context back (save/restore balanced)`,
+            rec.log.filter(l => l[0] === 'save').length === rec.log.filter(l => l[0] === 'restore').length);
+        // What tells each shape apart in the drawing itself.
+        const n = k => rec.log.filter(l => l[0] === k).length;
+        const tell = {
+            cube: () => n('fill') === 3 && n('ellipse') === 0 && n('bezierCurveTo') === 0,
+            cylinder: () => n('ellipse') >= 3 && n('bezierCurveTo') === 0,
+            strapped: () => rec.fills.includes(TRIM.strap) && rec.fills.includes(TRIM.buckle) && n('ellipse') === 0,
+            bag: () => n('bezierCurveTo') >= 2 && n('quadraticCurveTo') >= 1 && n('clip') === 1,
+        }[shape];
+        check(`a ${color} ${kind} draws its ${shape} shape on the canvas`, tell());
+    }
+}
+check('every big crate is BIG_CRATE_SCALE × its color\'s crate', COLORS.every(c => Math.abs(sizes[c].bigcrate / sizes[c].crate - BIG) < 1e-9));
+
+// The board: a crate of each color, and a big one, on the live board's render.
+const land = [...p.state.hexes.values()].filter(h => h.terrain === p.run('GameArtifacts.TERRAIN.PLAINS')
+    && !p.state.pieces.some(o => o.q === h.q && o.r === h.r));
+p.state.pieces = p.state.pieces.filter(o => o.kind === 'gremlin');
+COLORS.forEach((color, i) => {
+    p.state.pieces.push({ id: 900 + i, kind: 'crate', color, label: 'x', q: land[i].q, r: land[i].r });
+    p.state.pieces.push({ id: 950 + i, kind: 'bigcrate', color, label: 'x', q: land[10 + i].q, r: land[10 + i].r });
+});
+p.ui.ctx = recorder().ctx;
+calls.length = 0;
+p.ui.render();
+check('the board draws each color\'s crates with its own shape (two each: crate and big crate)',
+    COLORS.every(c => named(SHAPES[c]).filter(([, g]) => g.shades === SHADES[c]).length === 2)
+    && calls.every(([shape, g]) => EXPECT[SHAPES[COLORS.find(c => SHADES[c] === g.shades)]].includes(shape)));
+
+// Help's World page draws through the same drawPiece (worldPicture).
+for (const color of COLORS) {
+    calls.length = 0;
+    p.ui.worldPicture([{ terrain: p.run('GameArtifacts.TERRAIN.PLAINS'), piece: 'bigcrate', color }], 64);
+    check(`Help's World picture of a ${color} big crate draws a ${SHAPES[color]}`, callsAre(SHAPES[color]));
+}
+done();

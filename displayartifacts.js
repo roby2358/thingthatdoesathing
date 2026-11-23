@@ -12,7 +12,7 @@ const GameDisplayArtifacts = (function () {
         return Math.round(v + (255 - v) * t).toString(16).padStart(2, '0');
     }).join('');
 
-    // Isometric crate faces per CRATE_COLORS name: lit top, mid left, dark right. Each also
+    // Crate shades per CRATE_COLORS name, whatever its shape (D-84): lit top, mid left, dark right. Each also
     // gets `light`, its mid face mixed toward white: the marks over a source or target filled
     // with that color (D-42). Derived here, never picked per color.
     const PORT_MARK_LIGHTEN = 0.6;
@@ -199,6 +199,12 @@ const GameDisplayArtifacts = (function () {
         },
         CRATE_SHADES,                // built above: top / left / right faces, plus `light`
         BIG_CRATE_SCALE: 1.5,        // a big crate is drawn this much bigger than a crate (D-34)
+        // Each crate color's shape (D-84), so colors are told apart by shape as well as hue: a key
+        // into gameui.js's CRATE_DRAW. Every CRATE_COLORS name has one, each a different shape.
+        CRATE_SHAPES: { red: 'cube', green: 'cylinder', blue: 'strapped', yellow: 'bag' },
+        // The non-color parts of the shapes: every shape's outline, the strapped cube's bands and
+        // buckles, the bag's tie, the hoop and fold lines.
+        CRATE_TRIM: { outline: '#000', strap: '#2a1f16', buckle: '#d8d8d0', cord: '#3a2814', line: 'rgba(0, 0, 0, 0.45)' },
         SPLAT_BLOTS: 8,              // drops in a splat burst
         // Sources and targets (D-42): a fill with light marks and a dark outline, since
         // several crate colors sit close to the terrain they border.
